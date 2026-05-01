@@ -1,1 +1,4 @@
 /api/*  https://factor8-agent-sdk.fly.dev/api/:splat  200
+/eimmigration  /eimmigration/  308
+/katapult  /katapult/  308
+/lean-labs  /lean-labs/  308

@@ -28,6 +28,10 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
 
+    if (maybeRedirectTrailingSlash(url, res)) {
+      return;
+    }
+
     if (url.pathname === '/api/agent') {
       return callApiHandler(agentHandler, req, res);
     }
@@ -74,6 +78,25 @@ async function callApiHandler(handler, req, nodeRes) {
   };
 
   return handler(req, res);
+}
+
+/**
+ * Paths like /eimmigration?name=… (no trailing slash) break relative assets (href="styles.css").
+ * Match Vercel: redirect to /eimmigration/?… so the document base path is correct.
+ */
+function maybeRedirectTrailingSlash(url, res) {
+  const pathname = decodeURIComponent(url.pathname);
+  if (pathname === '/' || pathname.endsWith('/')) return false;
+  if (path.extname(pathname)) return false;
+
+  const indexFile = path.normalize(path.join(ROOT, pathname, 'index.html'));
+  if (!indexFile.startsWith(ROOT)) return false;
+  if (!fs.existsSync(indexFile) || !fs.statSync(indexFile).isFile()) return false;
+
+  const loc = pathname + '/' + url.search;
+  res.writeHead(308, { Location: loc, 'Cache-Control': 'no-cache' });
+  res.end();
+  return true;
 }
 
 function serveStatic(rawPathname, res) {

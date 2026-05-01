@@ -1,4 +1,21 @@
 {
+  "redirects": [
+    {
+      "source": "/eimmigration",
+      "destination": "/eimmigration/",
+      "permanent": true
+    },
+    {
+      "source": "/katapult",
+      "destination": "/katapult/",
+      "permanent": true
+    },
+    {
+      "source": "/lean-labs",
+      "destination": "/lean-labs/",
+      "permanent": true
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
