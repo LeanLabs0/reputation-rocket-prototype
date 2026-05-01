@@ -14,6 +14,8 @@ window.CLIENT_CONFIG = {
   videoUrl: 'https://testimonial.to/lean-labs',
   thankYouUrl: 'https://leanlabs.com/reputation-rocket/thanks',
   allowedRedirectHosts: ['leanlabs.com', 'www.leanlabs.com'],
+  /** Receives plain-text negative alert (same content as Slack) when RESEND_API_KEY is set on the server. */
+  supportEmail: '',
   /** Optional: override visual defaults from app.js (`DEFAULT_CLIENT_THEME`). */
   theme: {},
 };

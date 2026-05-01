@@ -79,7 +79,7 @@ Proxies `/api/*` to Fly with CORS. It does **not** load `api/agent.js` / `api/no
 ## New client page
 
 1. Copy `lean-labs/` → `your-client-slug/`.
-2. Edit `your-client-slug/config.js`: `clientSlug`, `providerName`, `company`, `reviewLinks`, `platforms`, `welcomeVideoUrl`, `videoUrl`, `thankYouUrl`, `allowedRedirectHosts`, optional `theme: { }` (overrides `DEFAULT_CLIENT_THEME` in `app.js`).
+2. Edit `your-client-slug/config.js`: `clientSlug`, `providerName`, `company`, `reviewLinks`, `platforms`, `welcomeVideoUrl`, `videoUrl`, `thankYouUrl`, `allowedRedirectHosts`, optional `supportEmail` (negative alerts), optional `theme: { }` (overrides `DEFAULT_CLIENT_THEME` in `app.js`).
 3. Adjust `your-client-slug/styles.css` for brand overrides that belong in CSS.
 4. Add `/your-client-slug` → `/your-client-slug/` (308) in `vercel.json` and `_redirects` so links without a trailing slash still load assets correctly (query string is preserved).
 5. Deploy on Vercel; set environment variables in the project (see below).
@@ -97,8 +97,13 @@ Proxies `/api/*` to Fly with CORS. It does **not** load `api/agent.js` / `api/no
 | `SLACK_REPUTATION_WEBHOOK_<CLIENT>` | Optional | Per-client Slack (slug → env suffix) |
 | `N8N_REPUTATION_WEBHOOK_URL` | Optional | If set, `notify` prefers n8n over Slack |
 | `N8N_REPUTATION_SHARED_SECRET` | Optional | Sent as `X-Reputation-Rocket-Secret` when posting to n8n |
+| `RESEND_API_KEY` | Optional | [Resend](https://resend.com) API key — enables negative-feedback email |
+| `RESEND_FROM` | With Resend | Verified sender, e.g. `Reputation Rocket <alerts@yourdomain.com>` |
+| `NEGATIVE_ALERT_EMAIL_<CLIENT>` | Optional | Overrides `supportEmail` from the client `config.js` for the inbox (same suffix rule as Slack, e.g. `NEGATIVE_ALERT_EMAIL_LEAN_LABS`) |
 
-**Slack-only V1:** set `FACTOR8_API_KEY` + `SLACK_REPUTATION_WEBHOOK_URL` (and per-client Slack vars as needed). Leave `N8N_*` blank.
+When `event` is `negative`, Slack (or n8n) still runs first; then, if Resend is configured and a recipient exists (`NEGATIVE_ALERT_EMAIL_*` or `support_email` in the POST body from `CLIENT_CONFIG.supportEmail`), a plain-text email is sent with the same fields as the Slack message and subject `[Reputation Rocket] Negative feedback — …`.
+
+**Slack-only V1:** set `FACTOR8_API_KEY` + `SLACK_REPUTATION_WEBHOOK_URL` (and per-client Slack vars as needed). Leave `N8N_*` blank. Email is optional until `RESEND_*` and a support address are set.
 
 Payload shape, n8n branching, and example Slack copy: [VERCEL_N8N_SETUP.md](./VERCEL_N8N_SETUP.md).
 
@@ -164,6 +169,8 @@ Clears session storage and reloads.
 
 ## V1 caveats
 
+- Progress is stored in **sessionStorage** keyed per `clientSlug` (`rr_session_<slug>`). Switching between `/lean-labs`, `/eimmigration`, etc. no longer shares one saved flow.
 - Launch links still trust `name` / `email` query params until signed tokens exist.
 - “Posted” is user-confirmed, not verified with each review site.
 - Physical client folders scale to a point; a config service is the longer-term approach (see HANDOFF / VERCEL doc).
+- `supportEmail` in `config.js` is public in the browser; use `NEGATIVE_ALERT_EMAIL_<SLUG>` on the server to pin the inbox in production.

@@ -14,6 +14,7 @@ window.CLIENT_CONFIG = {
   videoUrl: 'https://testimonial.to/katapult-engineering',
   thankYouUrl: 'https://katapultengineering.com/reputation-rocket/thanks',
   allowedRedirectHosts: ['katapultengineering.com', 'www.katapultengineering.com'],
+  supportEmail: '',
   /**
    * Katapult Figma tokens (file XNgYG13UR0MOKDiF5aTIHA): heading-font DM Sans 600,
    * body Inter; Primary #FF8300; Secondary #007299; Heading #003E51; Body #717271;

@@ -145,6 +145,7 @@ const PARAMS = (() => {
     welcomeVideoUrl: p.get('welcome_video_url') || CLIENT_CONFIG.welcomeVideoUrl || '',
     thankYouUrl: p.get('thank_you_url') || CLIENT_CONFIG.thankYouUrl || '',
     allowedRedirectHosts: CLIENT_CONFIG.allowedRedirectHosts || [],
+    supportEmail: (CLIENT_CONFIG.supportEmail || '').trim(),
   };
 })();
 
@@ -203,6 +204,11 @@ async function fetchWithStickyRetry(body, signal) {
   return res;
 }
 
+function getSessionStorageKey() {
+  const slug = String(PARAMS.clientSlug || CLIENT_CONFIG.clientSlug || 'default').trim() || 'default';
+  return `rr_session_${slug}`;
+}
+
 // ── DOM refs ────────────────────────────────────────────────
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
@@ -210,6 +216,10 @@ const $$ = (sel) => document.querySelectorAll(sel);
 // ── Boot ────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   applyClientTheme();
+
+  try {
+    sessionStorage.removeItem('rr_session');
+  } catch (_) { /* legacy global key — prevented cross-client state bleed */ }
 
   // Populate dynamic text
   $$('.company-name').forEach(el => { el.textContent = PARAMS.customerCompany; });
@@ -245,7 +255,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (typeof window.rrReset === 'function') {
         window.rrReset();
       } else {
-        sessionStorage.removeItem('rr_session');
+        try {
+          sessionStorage.removeItem(getSessionStorageKey());
+        } catch (_) {}
         window.location.reload();
       }
     });
@@ -1270,6 +1282,9 @@ async function sendLifecycleNotification(event) {
     ts: new Date().toISOString(),
     negative_flag: event === 'negative' ? negativeFlagData : null,
   };
+  if (PARAMS.supportEmail) {
+    payload.support_email = PARAMS.supportEmail;
+  }
 
   try {
     const res = await fetch(CONFIG.NOTIFY_URL, {
@@ -1340,32 +1355,38 @@ function platformDisplayName(platform) {
 // ── Session Persistence ─────────────────────────────────────
 function saveSession() {
   try {
-    sessionStorage.setItem('rr_session', JSON.stringify({
-      sessionId,
-      machineId,
-      currentState,
-      chatHistory,
-      agentMessageCount,
-      reviewDraft,
-      drafts,
-      activeDraftPlatform,
-      currentPlatformIndex,
-      starRating,
-      platformsPosted,
-      reviewFormOpened,
-      negativeFlagData,
-      lastAgentMessage,
-      notificationsSent,
-    }));
+    sessionStorage.setItem(
+      getSessionStorageKey(),
+      JSON.stringify({
+        clientSlug: PARAMS.clientSlug,
+        sessionId,
+        machineId,
+        currentState,
+        chatHistory,
+        agentMessageCount,
+        reviewDraft,
+        drafts,
+        activeDraftPlatform,
+        currentPlatformIndex,
+        starRating,
+        platformsPosted,
+        reviewFormOpened,
+        negativeFlagData,
+        lastAgentMessage,
+        notificationsSent,
+      }),
+    );
   } catch (_) { /* quota exceeded — ignore */ }
 }
 
 function restoreSession() {
   try {
-    const saved = sessionStorage.getItem('rr_session');
+    const saved = sessionStorage.getItem(getSessionStorageKey());
     if (!saved) return false;
 
     const data = JSON.parse(saved);
+    if (data.clientSlug !== PARAMS.clientSlug) return false;
+
     // Only restore if same session (user didn't get a new link)
     if (!data.sessionId) return false;
 
@@ -1398,6 +1419,8 @@ function restoreSession() {
 // Clear session (for dev/testing)
 window.rrReset = () => {
   hideReviewCompleteOverlay();
-  sessionStorage.removeItem('rr_session');
+  try {
+    sessionStorage.removeItem(getSessionStorageKey());
+  } catch (_) {}
   window.location.reload();
 };

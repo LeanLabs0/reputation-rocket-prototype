@@ -14,5 +14,6 @@ window.CLIENT_CONFIG = {
   videoUrl: 'https://testimonial.to/lean-labs',
   thankYouUrl: 'https://leanlabs.com/reputation-rocket/thanks',
   allowedRedirectHosts: ['leanlabs.com', 'www.leanlabs.com'],
+  supportEmail: 'help@leanlabs.com',
   /** Optional: overrides for tokens in app.js `DEFAULT_CLIENT_THEME` (Lean Labs Figma baseline). */
 };

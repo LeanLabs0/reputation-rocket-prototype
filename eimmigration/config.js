@@ -14,6 +14,7 @@ window.CLIENT_CONFIG = {
   videoUrl: 'https://testimonial.to/lean-labs',
   thankYouUrl: 'https://leanlabs.com/reputation-rocket/thanks',
   allowedRedirectHosts: ['get.eimmigration.com', 'www.get.eimmigration.com'],
+  supportEmail: '',
   /**
    * Tokens from Figma eImmigration file (variables: Typography/primary-font Inter,
    * body-font Nokora; Primary #0099FF; Secondary #00CAB0; Tertiary #A643F2;

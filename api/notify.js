@@ -1,6 +1,8 @@
 const N8N_WEBHOOK_URL = process.env.N8N_REPUTATION_WEBHOOK_URL;
 const N8N_SHARED_SECRET = process.env.N8N_REPUTATION_SHARED_SECRET;
 const DEFAULT_SLACK_WEBHOOK_URL = process.env.SLACK_REPUTATION_WEBHOOK_URL;
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const RESEND_FROM = process.env.RESEND_FROM || process.env.RESEND_FROM_EMAIL;
 
 const ALLOWED_EVENTS = new Set(['completed', 'negative']);
 
@@ -44,6 +46,8 @@ module.exports = async function handler(req, res) {
   }
 
   try {
+    let deliveredTo = '';
+
     if (N8N_WEBHOOK_URL) {
       const upstream = await fetch(N8N_WEBHOOK_URL, {
         method: 'POST',
@@ -60,25 +64,33 @@ module.exports = async function handler(req, res) {
         });
       }
 
-      return res.status(200).json({ ok: true, delivered_to: 'n8n' });
-    }
-
-    const slack = await fetch(slackWebhookValidation.url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(buildSlackMessage(notificationPayload)),
-    });
-
-    const slackText = await slack.text();
-    if (!slack.ok || slackText !== 'ok') {
-      return res.status(502).json({
-        error: 'Slack notification webhook failed',
-        status: slack.status,
-        body: slackText.slice(0, 500),
+      deliveredTo = 'n8n';
+    } else {
+      const slack = await fetch(slackWebhookValidation.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildSlackMessage(notificationPayload)),
       });
+
+      const slackText = await slack.text();
+      if (!slack.ok || slackText !== 'ok') {
+        return res.status(502).json({
+          error: 'Slack notification webhook failed',
+          status: slack.status,
+          body: slackText.slice(0, 500),
+        });
+      }
+
+      deliveredTo = 'slack';
     }
 
-    return res.status(200).json({ ok: true, delivered_to: 'slack' });
+    let support_email_sent = false;
+    if (payload.event === 'negative') {
+      const emailResult = await sendNegativeSupportEmail(notificationPayload);
+      support_email_sent = Boolean(emailResult.sent);
+    }
+
+    return res.status(200).json({ ok: true, delivered_to: deliveredTo, support_email_sent });
   } catch (error) {
     return res.status(502).json({
       error: 'Notification request failed',
@@ -244,4 +256,103 @@ function formatSurveyResponses(responses) {
     .slice(0, 6)
     .map((item, index) => `${index + 1}. ${item.question || 'Question'}: ${item.answer || 'No answer provided'}`)
     .join('\n');
+}
+
+function buildNegativeEmailSubjectAndText(payload) {
+  const flag = payload.negative_flag || {};
+  const receivedAt = formatReceivedAt(payload.received_at || payload.ts);
+  const concerns = Array.isArray(flag.key_concerns) && flag.key_concerns.length
+    ? flag.key_concerns.join(', ')
+    : 'No concerns provided';
+  const actions = Array.isArray(flag.suggested_actions) && flag.suggested_actions.length
+    ? flag.suggested_actions.join('\n')
+    : 'Review customer feedback and identify resolution steps';
+  const surveySummary = formatSurveyResponses(flag.survey_responses);
+  const rating = flag.rating ?? payload.rating ?? '—';
+
+  const subject = `[Reputation Rocket] Negative feedback — ${payload.client || 'Unknown'} — ${receivedAt}`;
+
+  const text = [
+    `Negative feedback — ${payload.client || 'Unknown client'}`,
+    '',
+    `Portal: ${payload.provider || '—'}`,
+    `Customer company: ${payload.client || 'Unknown'}`,
+    `Respondent: ${formatRespondent(payload)}`,
+    `Date received: ${receivedAt}`,
+    `Severity: ${flag.severity || '—'}`,
+    `Rating: ${rating}`,
+    '',
+    'Survey responses / summary:',
+    surveySummary,
+    '',
+    `Key concerns:\n${concerns}`,
+    '',
+    'Action required:',
+    '• Review customer feedback and identify resolution steps',
+    `• Assign team member to follow up with ${payload.client || 'the client'} within 24 hours`,
+    '• Determine if this requires immediate client communication or internal process improvement',
+    '',
+    'Suggested actions:',
+    actions,
+    '',
+    'Next steps:',
+    '• Customer has been notified that our team is reviewing their feedback',
+    `• Client (${payload.client || 'Unknown'}) should be contacted to discuss customer concerns`,
+    '• Update your team thread with resolution actions taken',
+    '',
+    `Session: ${payload.session_id || '—'}`,
+  ].join('\n');
+
+  return { subject, text };
+}
+
+/**
+ * Optional: Resend.com. Set RESEND_API_KEY + RESEND_FROM.
+ * Recipient: NEGATIVE_ALERT_EMAIL_<CLIENT_SLUG> env (recommended) or support_email from payload.
+ */
+async function sendNegativeSupportEmail(payload) {
+  try {
+    if (!RESEND_API_KEY || !RESEND_FROM) {
+      return { sent: false, reason: 'resend_not_configured' };
+    }
+
+    const suffix = toEnvSuffix(payload.client_slug);
+    const envTo = process.env[`NEGATIVE_ALERT_EMAIL_${suffix}`];
+    const rawTo = envTo || payload.support_email;
+    if (!rawTo || typeof rawTo !== 'string') {
+      return { sent: false, reason: 'no_recipient' };
+    }
+
+    const to = rawTo.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+      return { sent: false, reason: 'invalid_recipient' };
+    }
+
+    const { subject, text } = buildNegativeEmailSubjectAndText(payload);
+
+    const upstream = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: RESEND_FROM.trim(),
+        to: [to],
+        subject,
+        text,
+      }),
+    });
+
+    if (!upstream.ok) {
+      const errBody = await upstream.text();
+      console.warn('[notify] Resend error', upstream.status, errBody.slice(0, 500));
+      return { sent: false, reason: 'resend_http_error', status: upstream.status };
+    }
+
+    return { sent: true };
+  } catch (error) {
+    console.warn('[notify] Resend exception', error.message);
+    return { sent: false, reason: 'resend_exception', message: error.message };
+  }
 }
