@@ -1,0 +1,44 @@
+/**
+ * Katapult Engineering — surface tokens from Figma (Katapult file).
+ * Headings use DM Sans per variables; Inter remains the default body stack from theme.
+ */
+
+:root {
+  --ll-magenta: #4ac5e0;
+  --ll-orange: #ff8300;
+  --ll-blue: #007299;
+  --ll-gradient: linear-gradient(135deg, #ff8300 0%, #ffa64d 42%, #4ac5e0 100%);
+  --ll-gradient-hover: linear-gradient(135deg, #e57200 0%, #ff9933 45%, #33b8d9 100%);
+  --shadow-sm: 0 2px 8px rgba(0, 62, 81, 0.07);
+  --shadow-md: 8px 12px 32px rgba(0, 62, 81, 0.1);
+  --shadow-lg: 8px 20px 48px rgba(0, 62, 81, 0.12);
+}
+
+.site-header .nav-title,
+.screen-header h1,
+.screen-header h2,
+.screen-header h3,
+.progress-kicker,
+.progress-label,
+.progress-badge,
+.chat-header-text,
+.platform-card h4 {
+  font-family: 'DM Sans', 'Inter', -apple-system, sans-serif;
+}
+
+.nav-brand::after {
+  content: 'Katapult Engineering';
+  margin-left: 10px;
+  padding: 6px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 131, 0, 0.14);
+  color: #cc6600;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: 'DM Sans', 'Inter', sans-serif;
+}
+
+body {
+  background:
+    radial-gradient(ellipse 92% 75% at 50% 0%, rgb(245, 247, 250) 0%, rgb(255, 255, 255) 48%, rgb(238, 241, 244) 100%) fixed;
+}

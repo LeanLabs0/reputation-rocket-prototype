@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "dev": "node local-dev-server.js",
+    "check": "node --check app.js && node --check api/agent.js && node --check api/notify.js && node --check local-dev-server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,23 @@
+:root {
+  --ll-purple: #7612fa;
+  --ll-magenta: #c109af;
+  --ll-orange: #ff6221;
+  --ll-blue: #0c63ff;
+  --ll-gradient: linear-gradient(135deg, #7612fa, #c109af, #ff6221);
+  --ll-gradient-hover: linear-gradient(135deg, #8a33fb, #d01cc0, #ff7a42);
+}
+
+.nav-brand::after {
+  content: "Lean Labs";
+  margin-left: 10px;
+  padding: 6px 8px;
+  border-radius: var(--radius-full);
+  background: var(--ll-purple-tint);
+  color: var(--ll-purple);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+body {
+  background: url('light-gradient-bg.svg') center / cover no-repeat fixed;
+}

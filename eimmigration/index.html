@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reputation Rocket — EImmigration</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="../styles.css">
+<link rel="stylesheet" href="styles.css">
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="starGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop id="star-stop-a" offset="0%" stop-color="#752fef"/>
+      <stop id="star-stop-b" offset="50%" stop-color="#a855f7"/>
+      <stop id="star-stop-c" offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+  </defs>
+</svg>
+</head>
+<body>
+<header class="site-header">
+  <div class="site-header-inner">
+    <div class="site-header-side"></div>
+    <div class="nav-brand site-header-brand">
+      <img class="rr-logo-icon" src="../reprocket-icon.svg" alt="" aria-hidden="true">
+      <span class="nav-title">Reputation Rocket</span>
+    </div>
+    <div class="site-header-actions">
+      <button type="button" id="btn-start-over" class="nav-start-over" title="Clear saved progress and start from the beginning">Start over</button>
+    </div>
+  </div>
+</header>
+
+<div class="progress-shell">
+  <div class="progress-bar">
+    <div class="progress-steps">
+      <div class="progress-step active" data-step="1">
+        <span class="progress-kicker">Step 1</span>
+        <div class="progress-dot" data-icon="welcome" aria-hidden="true"></div>
+        <span class="progress-label">Welcome</span>
+        <span class="progress-badge">In progress</span>
+        <div class="progress-connector"></div>
+      </div>
+      <div class="progress-step" data-step="2">
+        <span class="progress-kicker">Step 2</span>
+        <div class="progress-dot" data-icon="chat" aria-hidden="true"></div>
+        <span class="progress-label">Quick Chat</span>
+        <span class="progress-badge">Pending</span>
+        <div class="progress-connector"></div>
+      </div>
+      <div class="progress-step" data-step="3">
+        <span class="progress-kicker">Step 3</span>
+        <div class="progress-dot" data-icon="review" aria-hidden="true"></div>
+        <span class="progress-label">Your Review</span>
+        <span class="progress-badge">Pending</span>
+        <div class="progress-connector"></div>
+      </div>
+      <div class="progress-step" data-step="4">
+        <span class="progress-kicker">Step 4</span>
+        <div class="progress-dot" data-icon="post" aria-hidden="true"></div>
+        <span class="progress-label">Post It</span>
+        <span class="progress-badge">Pending</span>
+        <div class="progress-connector"></div>
+      </div>
+      <div class="progress-step" data-step="5">
+        <span class="progress-kicker">Step 5</span>
+        <div class="progress-dot" data-icon="video" aria-hidden="true"></div>
+        <span class="progress-label">Video</span>
+        <span class="progress-badge">Pending</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="screen-welcome" class="screen active">
+  <div class="screen-content welcome-content">
+    <div class="screen-header">
+      <h1>Ready to share your experience with <span class="company-name">Company</span>?</h1>
+      <p>We'd love to capture your honest feedback. If you're happy with how things are going, we'll make it easy to post a 5-star review in a few key places.</p>
+    </div>
+    <div id="welcome-video-host" class="welcome-media"></div>
+    <div class="welcome-callout">
+      <span class="welcome-callout-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8.5 13.5c1.2 1.4 5.8 1.4 7 0"/><path d="M9 9.5h.01M15 9.5h.01"/></svg>
+      </span>
+      <p><strong>Heads up:</strong> the hardest part is logging into review sites — we'll handle the drafting and walk you through every step.</p>
+    </div>
+    <p class="welcome-note">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      <span>Takes about 3 minutes. We'll draft everything for you.</span>
+    </p>
+    <div class="welcome-cta"><button id="btn-start" class="btn btn-primary btn-lg">Begin<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
+    <path d="M4.1665 10H15.8332" stroke="white" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M10 4.16675L15.8333 10.0001L10 15.8334" stroke="white" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg></button></div>
+  </div>
+</div>
+
+<div id="screen-chat" class="screen">
+  <div class="screen-content">
+    <div class="screen-header">
+      <h3>Tell us how it's going</h3>
+      <p>Just a quick, friendly conversation. Be honest. We want to celebrate wins and learn where we can improve.</p>
+    </div>
+    <div class="chat-container">
+      <div class="chat-header">
+        <div class="chat-header-brand">
+          <img class="rr-logo-icon chat-header-logo" src="../reprocket-icon.svg" alt="" aria-hidden="true">
+          <div>
+            <div class="chat-header-text">Reputation Rocket</div>
+            <div class="chat-header-sub">Powered by <span class="provider-name">Company</span></div>
+          </div>
+        </div>
+        <div class="chat-header-status" title="Assistant is available">
+          <span class="chat-status-dot" aria-hidden="true"></span>
+          <span class="chat-status-label">Online</span>
+        </div>
+      </div>
+      <div id="chat-messages" class="chat-messages"></div>
+      <div id="typing-indicator" class="typing-indicator"><div class="typing-dots"><span></span><span></span><span></span></div></div>
+      <div id="chat-draft-prompt" class="chat-draft-prompt"><button id="btn-view-draft" class="btn btn-primary btn-sm">View Your Draft <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path d="M4.1665 10H15.8332" stroke="white" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M10 4.16675L15.8333 10.0001L10 15.8334" stroke="white" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg></button></div>
+      <div class="chat-input-bar">
+        <input id="chat-input" type="text" placeholder="Type your answer..." autocomplete="off">
+        <button id="chat-send" class="chat-send-btn" disabled aria-label="Send message">
+          <svg viewBox="0 0 24 24"><path d="M12 19V5M12 5l-7 7M12 5l7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <p class="chat-privacy-foot">
+      <svg class="chat-privacy-icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Your feedback is private and secure
+    </p>
+  </div>
+</div>
+
+<div id="screen-draft" class="screen">
+  <div class="screen-content">
+    <div class="screen-header"><h3>Here are your reviews, ready to go</h3><p>We drafted one per platform. Click a tab to review and edit before posting.</p></div>
+    <div class="draft-card">
+      <div id="draft-tabs" class="draft-tabs" role="tablist"></div>
+      <div class="draft-card-body">
+        <div id="draft-stars" class="star-rating">
+          <div class="star filled" data-value="1"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
+          <div class="star filled" data-value="2"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
+          <div class="star filled" data-value="3"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
+          <div class="star filled" data-value="4"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
+          <div class="star filled" data-value="5"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
+        </div>
+        <div class="draft-textarea-wrap">
+          <textarea id="draft-textarea" class="draft-textarea" placeholder="Your review draft will appear here..."></textarea>
+          <button id="btn-edit-hint" class="edit-hint" type="button" aria-label="Edit draft">Edit</button>
+        </div>
+      </div>
+      <div class="draft-card-footer"><button id="btn-regenerate" class="btn btn-secondary btn-sm">Regenerate this draft</button><button id="btn-approve" class="btn btn-primary btn-sm">Looks Good<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path d="M4.1665 10H15.8332" stroke="white" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M10 4.16675L15.8333 10.0001L10 15.8334" stroke="white" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg></button></div>
+    </div>
+  </div>
+</div>
+
+<div id="screen-post" class="screen">
+  <div class="screen-content">
+    <div class="screen-header"><h3>Now let's put it where it counts</h3><p>Click each platform to post your review. We'll copy it to your clipboard and take you right to the review page.</p></div>
+    <div class="post-progress"><div class="post-progress-bar"><div id="post-progress-fill" class="post-progress-fill"></div></div><span id="post-progress-text" class="post-progress-text">0 of 0 posted</span></div>
+    <div id="platform-grid" class="platform-grid"></div>
+    <div class="post-actions"><span id="skip-remaining" class="skip-link">Skip remaining</span><button id="btn-continue-post" class="btn btn-primary btn-sm" disabled>Continue <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
+    <path d="M4.1665 10H15.8332" stroke="white" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M10 4.16675L15.8333 10.0001L10 15.8334" stroke="white" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg></button></div>
+  </div>
+</div>
+
+<div id="screen-video" class="screen">
+  <div class="screen-content">
+    <div class="screen-header"><h3>One more thing: record a quick video testimonial?</h3><p>A short video goes a long way. We'll show you the questions on screen so you know exactly what to say.</p></div>
+    <div class="video-card">
+      <div class="video-card-header"><div class="video-title"><div class="icon-circle"><svg viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div><span><span class="company-name">Company</span> Testimonials</span></div><span class="video-powered">Powered by Testimonial.to</span></div>
+      <div class="video-card-body">
+        <div class="video-intro">Hey there! We loved working with you and we hope you feel the same. We look forward to hearing your feedback and allowing us to share this with future clients.</div>
+        <p class="video-questions-label">Interview Questions</p>
+        <div class="video-questions">
+          <div class="video-question"><span class="q-num">1</span><p>What problem or trigger event led you to hire us? How was this affecting your business?</p></div>
+          <div class="video-question"><span class="q-num">2</span><p>What were you looking for in a solution?</p></div>
+          <div class="video-question"><span class="q-num">3</span><p>Why did you choose us over other options?</p></div>
+          <div class="video-question"><span class="q-num">4</span><p>What concerns or doubts did you have during the buying process, and how did we address them?</p></div>
+          <div class="video-question"><span class="q-num">5</span><p>How did it feel to work with us, and what part of the solution made the biggest difference for you?</p></div>
+        </div>
+        <div class="video-preview"><div class="cam-icon"><svg viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div><span>Camera preview area</span></div>
+      </div>
+      <div class="video-card-footer"><button id="btn-skip-video" class="btn btn-secondary btn-sm">Skip for Now</button><div class="btn-group"><button class="btn btn-secondary btn-sm">Audio Only</button><button id="btn-record-video" class="btn btn-primary btn-sm">Record Video</button></div></div>
+    </div>
+  </div>
+</div>
+
+<div id="screen-complete" class="screen">
+  <div class="screen-content narrow">
+    <div class="screen-header"><div class="celebration-icon"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><h2>You're amazing. Thank you!</h2><p>Your reviews help other companies make confident decisions. They mean the world to the <span class="company-name">Company</span> team.</p></div>
+    <div class="stats-row"><div class="stat"><div id="stat-reviews" class="stat-number">0</div><div class="stat-label">Reviews Posted</div></div><div class="stat" id="stat-video-container" style="display:none;"><div class="stat-number">1</div><div class="stat-label">Video</div></div></div>
+    <p class="muted text-center">A copy of your reviews has been saved. You can close this page anytime.</p>
+  </div>
+</div>
+
+<div id="screen-negative" class="screen">
+  <div class="screen-content narrow">
+    <div class="screen-header"><div class="negative-icon"><svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg></div><h2>Thank you for your honesty</h2><p>We really appreciate you sharing your experience. Your feedback helps us improve. The <span class="company-name">Company</span> team will be reaching out within 1-2 business days.</p></div>
+    <div id="empathy-card" class="empathy-card"><p id="empathy-message">We've noted your feedback and someone from the team will follow up with you directly.</p></div>
+    <p class="muted text-center mt-md">You can close this page anytime.</p>
+  </div>
+</div>
+
+<div id="confetti-container" class="confetti-container"></div>
+<div id="review-complete-overlay" class="review-complete-overlay" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="review-complete-title">
+  <button type="button" class="review-complete-backdrop" data-review-overlay-dismiss aria-label="Close"></button>
+  <div class="review-complete-modal">
+    <h3 id="review-complete-title">Finished posting?</h3>
+    <p id="review-complete-hint" class="review-complete-hint">When you've submitted your review on that site, confirm below so we can celebrate.</p>
+    <div class="review-complete-actions">
+      <button type="button" id="btn-review-complete-confirm" class="btn btn-primary btn-sm">I have completed the review</button>
+      <button type="button" id="btn-review-complete-later" class="btn btn-secondary btn-sm">Not yet</button>
+    </div>
+  </div>
+</div>
+<div id="toast" class="toast"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span>Copied to clipboard!</span></div>
+
+<script src="config.js"></script>
+<script src="../app.js"></script>
+</body>
+</html>

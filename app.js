@@ -3,12 +3,100 @@
    State machine + API integration + chat logic
    ============================================================ */
 
+const CLIENT_CONFIG = window.CLIENT_CONFIG || {};
+
+/** Default visual tokens align with Lean Labs Figma style guide; override per client via `CLIENT_CONFIG.theme`. */
+const DEFAULT_CLIENT_THEME = {
+  fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+  googleFontQuery: 'Plus+Jakarta+Sans:wght@400;500;600;700',
+  headingColor: '#0d0d0d',
+  bodyColor: 'rgba(43, 43, 43, 0.5)',
+  mutedColor: '#93949f',
+  primary: '#5b2ee6',
+  primaryDark: '#4f25d1',
+  accent: '#25c196',
+  pageBackground:
+    'radial-gradient(ellipse 85% 72% at 50% 30%, rgb(233, 239, 255) 0%, rgb(255, 255, 255) 48%, rgb(243, 237, 255) 100%)',
+  navBackground: 'transparent',
+  stepperGradient: 'linear-gradient(270deg, #E9EFFF -105%, #FFF 25.81%)',
+  stepperShadow: '6px 8px 28px rgba(29, 0, 68, 0.08)',
+  stepperRadius: '16px',
+  brandGradient:
+    'radial-gradient(120% 120% at 80% 20%, rgba(117, 47, 239, 1) 0%, rgb(13, 13, 13) 55%, rgb(42, 42, 42) 100%)',
+  brandBorder: '#2b2b2b',
+  gradient: 'linear-gradient(135deg, #752fef 0%, #9333ea 52%, #c026d3 100%)',
+  primaryButtonStyle: 'solid',
+  buttonRadius: '10px',
+  cardRadiusChat: '20px',
+  purpleTint: 'rgba(117, 47, 239, 0.09)',
+  purpleBorder: 'rgba(117, 47, 239, 0.22)',
+  chatMessageArea: '#f7f8fc',
+  chatMessageAvatarBg: 'rgba(117, 47, 239, 0.08)',
+  pendingBadgeBg: '#f0f0f2',
+  pendingBadgeText: '#93949f',
+  activeBadgeBg: 'rgba(117, 47, 239, 0.12)',
+  activeBadgeText: '#5b2ee6',
+  doneBadgeBg: 'rgba(37, 193, 150, 0.12)',
+  doneBadgeText: '#25c196',
+  starGradientStops: ['#752fef', '#a855f7', '#ec4899'],
+};
+
+function applyClientTheme() {
+  const t = { ...DEFAULT_CLIENT_THEME, ...(CLIENT_CONFIG.theme || {}) };
+  const root = document.documentElement;
+
+  if (t.googleFontQuery && !document.getElementById('rr-theme-font')) {
+    const link = document.createElement('link');
+    link.id = 'rr-theme-font';
+    link.rel = 'stylesheet';
+    link.href = `https://fonts.googleapis.com/css2?family=${t.googleFontQuery}&display=swap`;
+    document.head.appendChild(link);
+  }
+
+  const btnPrimaryBg = t.primaryButtonStyle === 'gradient' ? t.gradient : t.primary;
+
+  root.style.setProperty('--font-family', t.fontFamily);
+  root.style.setProperty('--ll-heading', t.headingColor);
+  root.style.setProperty('--ll-body', t.bodyColor);
+  root.style.setProperty('--ll-muted', t.mutedColor);
+  root.style.setProperty('--ll-purple', t.primary);
+  root.style.setProperty('--ll-purple-dark', t.primaryDark);
+  root.style.setProperty('--ll-accent', t.accent);
+  root.style.setProperty('--ll-success', t.accent);
+  root.style.setProperty('--ll-page-bg', t.pageBackground);
+  root.style.setProperty('--ll-nav-bg', t.navBackground);
+  root.style.setProperty('--ll-stepper-bg', t.stepperGradient);
+  root.style.setProperty('--ll-stepper-shadow', t.stepperShadow);
+  root.style.setProperty('--ll-stepper-radius', t.stepperRadius);
+  root.style.setProperty('--ll-brand-gradient', t.brandGradient);
+  root.style.setProperty('--ll-brand-border', t.brandBorder);
+  root.style.setProperty('--ll-gradient', t.gradient);
+  root.style.setProperty('--ll-btn-primary-bg', btnPrimaryBg);
+  root.style.setProperty('--radius-md', t.buttonRadius);
+  root.style.setProperty('--radius-chat-card', t.cardRadiusChat);
+  root.style.setProperty('--ll-purple-tint', t.purpleTint);
+  root.style.setProperty('--ll-purple-border', t.purpleBorder);
+  root.style.setProperty('--ll-chat-messages-bg', t.chatMessageArea);
+  root.style.setProperty('--ll-chat-message-avatar-bg', t.chatMessageAvatarBg);
+  root.style.setProperty('--ll-pending-badge-bg', t.pendingBadgeBg);
+  root.style.setProperty('--ll-pending-badge-text', t.pendingBadgeText);
+  root.style.setProperty('--ll-active-badge-bg', t.activeBadgeBg);
+  root.style.setProperty('--ll-active-badge-text', t.activeBadgeText);
+  root.style.setProperty('--ll-done-badge-bg', t.doneBadgeBg);
+  root.style.setProperty('--ll-done-badge-text', t.doneBadgeText);
+
+  const stops = Array.isArray(t.starGradientStops) ? t.starGradientStops : DEFAULT_CLIENT_THEME.starGradientStops;
+  ['a', 'b', 'c'].forEach((id, i) => {
+    const el = document.getElementById(`star-stop-${id}`);
+    if (el) el.setAttribute('stop-color', stops[i] || stops[stops.length - 1]);
+  });
+}
+
 const CONFIG = {
-  // Use relative path when proxied (localhost or Netlify), direct URL otherwise
-  API_URL: (window.location.hostname === 'localhost' || window.location.hostname.includes('netlify'))
-    ? '/api/v1/brand-slug/test/query'
-    : 'https://factor8-agent-sdk.fly.dev/api/v1/brand-slug/test/query',
-  API_KEY: '594aa935e360c9bf28f97437c1dddea9',
+  // V1 production calls should go through a Vercel serverless proxy so the
+  // Factor8 API key is never shipped to the browser.
+  API_URL: CLIENT_CONFIG.agentEndpoint || '/api/agent',
+  NOTIFY_URL: CLIENT_CONFIG.notificationEndpoint || '/api/notify',
   AGENT: 'reputation-rocket',
   TIMEOUT_MS: 60000,
 };
@@ -17,25 +105,46 @@ const CONFIG = {
 const PARAMS = (() => {
   const p = new URLSearchParams(window.location.search);
   const name = p.get('name') || '';
-  const platforms = (p.get('platforms') || '').split(',').map(s => s.trim()).filter(Boolean);
+
+  const providerName = (
+    (CLIENT_CONFIG.providerName || CLIENT_CONFIG.brandName || CLIENT_CONFIG.company || '').trim() ||
+    'our team'
+  );
+
+  const customerCompanyFromUrl =
+    (p.get('companyName') || p.get('company_name') || p.get('company') || '').trim();
+
+  const customerCompany =
+    customerCompanyFromUrl ||
+    (CLIENT_CONFIG.defaultCustomerCompany || CLIENT_CONFIG.customerCompany || '').trim() ||
+    providerName;
+
+  const platformsFromUrl = (p.get('platforms') || '').split(',').map(s => s.trim()).filter(Boolean);
+  const platforms = platformsFromUrl.length
+    ? platformsFromUrl
+    : Array.isArray(CLIENT_CONFIG.platforms) ? CLIENT_CONFIG.platforms : [];
 
   // Build review_links from review_{platform} params
-  const reviewLinks = {};
+  const reviewLinks = { ...(CLIENT_CONFIG.reviewLinks || {}) };
   platforms.forEach(plat => {
     const link = p.get(`review_${plat}`);
     if (link) reviewLinks[plat] = link;
   });
 
   return {
+    clientSlug: CLIENT_CONFIG.clientSlug || window.location.pathname.split('/').filter(Boolean)[0] || 'default',
     name,
     firstName: name.split(' ')[0] || 'there',
-    company: p.get('company') || 'our team',
+    providerName,
+    customerCompany,
+    company: customerCompany,
     email: p.get('email') || '',
     platforms,
     reviewLinks,
-    videoUrl: p.get('video_url') || '',
-    welcomeVideoUrl: p.get('welcome_video_url') || '',
-    thankYouUrl: p.get('thank_you_url') || '',
+    videoUrl: p.get('video_url') || CLIENT_CONFIG.videoUrl || '',
+    welcomeVideoUrl: p.get('welcome_video_url') || CLIENT_CONFIG.welcomeVideoUrl || '',
+    thankYouUrl: p.get('thank_you_url') || CLIENT_CONFIG.thankYouUrl || '',
+    allowedRedirectHosts: CLIENT_CONFIG.allowedRedirectHosts || [],
   };
 })();
 
@@ -51,15 +160,17 @@ let activeDraftPlatform = '';
 let currentPlatformIndex = 0;
 let starRating = 5;
 let platformsPosted = {};
+/** Platforms where user has clicked "Open … review form" (fields flow / G2); unlocks inline confirm. */
+let reviewFormOpened = {};
 let negativeFlagData = null;
 let isWaitingForAgent = false;
 let lastAgentMessage = '';
+let notificationsSent = {};
 
 // ── Fetch with sticky routing ───────────────────────────────
 async function fetchWithStickyRetry(body, signal) {
   const headers = {
     'Content-Type': 'application/json',
-    'X-API-Key': CONFIG.API_KEY,
   };
   if (machineId) {
     headers['fly-force-instance-id'] = machineId;
@@ -80,7 +191,6 @@ async function fetchWithStickyRetry(body, signal) {
     machineId = '';
     const retryHeaders = {
       'Content-Type': 'application/json',
-      'X-API-Key': CONFIG.API_KEY,
     };
     res = await fetch(CONFIG.API_URL, {
       method: 'POST',
@@ -99,27 +209,47 @@ const $$ = (sel) => document.querySelectorAll(sel);
 
 // ── Boot ────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  applyClientTheme();
+
   // Populate dynamic text
-  $$('.company-name').forEach(el => { el.textContent = PARAMS.company; });
+  $$('.company-name').forEach(el => { el.textContent = PARAMS.customerCompany; });
+  $$('.provider-name').forEach(el => { el.textContent = PARAMS.providerName; });
   $$('.first-name').forEach(el => { el.textContent = PARAMS.firstName; });
-  document.title = `Reputation Rocket — ${PARAMS.company}`;
+  document.title = `Reputation Rocket — ${PARAMS.customerCompany}`;
 
-  // Optional welcome video
-  if (PARAMS.welcomeVideoUrl) {
-    const src = $('#welcome-video-source');
-    const vid = $('#welcome-video');
-    if (src && vid) {
-      src.src = PARAMS.welcomeVideoUrl;
-      vid.load();
-      vid.style.display = '';
-    }
+  // Optional welcome video. The element is injected only when a client provides
+  // a URL so the welcome screen matches the Figma one-column layout by default.
+  const welcomeVideoHost = $('#welcome-video-host');
+  if (PARAMS.welcomeVideoUrl && welcomeVideoHost) {
+    const vid = document.createElement('video');
+    vid.id = 'welcome-video';
+    vid.className = 'welcome-video';
+    vid.controls = true;
+    vid.playsInline = true;
+
+    const src = document.createElement('source');
+    src.id = 'welcome-video-source';
+    src.src = PARAMS.welcomeVideoUrl;
+    src.type = 'video/mp4';
+
+    vid.appendChild(src);
+    welcomeVideoHost.appendChild(vid);
   }
-
-  // Try to restore session
-  if (restoreSession()) return;
 
   // Wire up welcome
   $('#btn-start').addEventListener('click', startExperience);
+
+  const startOverBtn = $('#btn-start-over');
+  if (startOverBtn) {
+    startOverBtn.addEventListener('click', () => {
+      if (typeof window.rrReset === 'function') {
+        window.rrReset();
+      } else {
+        sessionStorage.removeItem('rr_session');
+        window.location.reload();
+      }
+    });
+  }
 
   // Wire up chat input
   $('#chat-input').addEventListener('keydown', e => {
@@ -156,15 +286,37 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-continue-post').addEventListener('click', handleContinueAfterPost);
   $('#skip-remaining').addEventListener('click', handleContinueAfterPost);
 
+  const reviewOverlay = $('#review-complete-overlay');
+  const confirmReviewBtn = $('#btn-review-complete-confirm');
+  const laterReviewBtn = $('#btn-review-complete-later');
+  if (reviewOverlay && confirmReviewBtn && laterReviewBtn) {
+    confirmReviewBtn.addEventListener('click', () => {
+      const plat = reviewOverlay.dataset.platform;
+      hideReviewCompleteOverlay();
+      if (plat && !platformsPosted[plat]) markPlatformPosted(plat);
+    });
+    laterReviewBtn.addEventListener('click', hideReviewCompleteOverlay);
+    reviewOverlay.querySelector('[data-review-overlay-dismiss]')?.addEventListener('click', hideReviewCompleteOverlay);
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (!reviewOverlay.hidden) hideReviewCompleteOverlay();
+    });
+  }
+
   // Video screen
   $('#btn-skip-video').addEventListener('click', () => transitionTo('complete'));
   $('#btn-record-video').addEventListener('click', () => {
     if (PARAMS.videoUrl) window.open(PARAMS.videoUrl, '_blank');
   });
+
+  // Try to restore after handlers are wired so resumed sessions remain usable.
+  if (restoreSession()) return;
 });
 
 // ── State Machine ───────────────────────────────────────────
 function transitionTo(state) {
+  hideReviewCompleteOverlay();
+
   // Hide all screens
   $$('.screen').forEach(s => s.classList.remove('active'));
 
@@ -214,18 +366,32 @@ function updateProgressBar(state) {
   const activeStep = stateToStep[state] || 1;
 
   $$('.progress-step').forEach(step => {
-    const num = parseInt(step.dataset.step);
+    const num = parseInt(step.dataset.step, 10);
+    const badge = step.querySelector('.progress-badge');
+    const dot = step.querySelector('.progress-dot');
     step.classList.remove('active', 'done');
 
+    let isDone = false;
+    let isActive = false;
+
     if (state === 'negative') {
-      // Negative: steps 1-2 done, rest grayed
-      if (num <= 2) step.classList.add('done');
+      if (num <= 2) isDone = true;
     } else if (state === 'complete') {
-      step.classList.add('done');
+      isDone = true;
     } else if (num < activeStep) {
-      step.classList.add('done');
+      isDone = true;
     } else if (num === activeStep) {
-      step.classList.add('active');
+      isActive = true;
+    }
+
+    if (isDone) step.classList.add('done');
+    if (isActive) step.classList.add('active');
+
+    if (dot) dot.dataset.state = isDone ? 'done' : isActive ? 'active' : 'pending';
+    if (badge) {
+      if (isDone) badge.textContent = 'Completed';
+      else if (isActive) badge.textContent = 'In progress';
+      else badge.textContent = 'Pending';
     }
   });
 }
@@ -273,7 +439,7 @@ async function sendMessage(text, isHidden = false) {
       agent: CONFIG.AGENT,
       session_id: sessionId,
       config: {
-        client_name: PARAMS.company,
+        client_name: PARAMS.customerCompany,
         customer_name: PARAMS.name,
         customer_email: PARAMS.email,
         platforms: PARAMS.platforms,
@@ -290,7 +456,12 @@ async function sendMessage(text, isHidden = false) {
     clearTimeout(timeout);
 
     if (!res.ok) {
-      throw new Error(`API error: ${res.status} ${res.statusText}`);
+      let detail = '';
+      try {
+        const errorBody = await res.json();
+        detail = errorBody.error || errorBody.message || '';
+      } catch (_) { /* response was not JSON */ }
+      throw new Error(`API error: ${res.status} ${res.statusText}${detail ? ` - ${detail}` : ''}`);
     }
 
     const data = await res.json();
@@ -389,6 +560,26 @@ function handleChatSend() {
 
 function addChatBubble(role, text) {
   const messages = $('#chat-messages');
+
+  if (role === 'agent') {
+    const row = document.createElement('div');
+    row.className = 'chat-message-row agent';
+
+    const avatar = document.createElement('div');
+    avatar.className = 'chat-message-avatar';
+    avatar.setAttribute('aria-hidden', 'true');
+
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble agent';
+    bubble.innerHTML = renderMarkdown(text);
+
+    row.appendChild(avatar);
+    row.appendChild(bubble);
+    messages.appendChild(row);
+    messages.scrollTop = messages.scrollHeight;
+    return;
+  }
+
   const bubble = document.createElement('div');
   bubble.className = `chat-bubble ${role}`;
   bubble.innerHTML = renderMarkdown(text);
@@ -427,15 +618,38 @@ function showChatError(message, retryText) {
 
 // ── Markdown Renderer (minimal) ─────────────────────────────
 function renderMarkdown(text) {
-  return text
+  return escapeHtml(text)
     // Bold
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     // Italic
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     // Links
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, href) => {
+      const safeHref = sanitizeMarkdownHref(href);
+      return safeHref ? `<a href="${safeHref}" target="_blank" rel="noopener">${label}</a>` : label;
+    })
     // Line breaks
     .replace(/\n/g, '<br>');
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function sanitizeMarkdownHref(href) {
+  try {
+    const decodedHref = href.replace(/&amp;/g, '&');
+    const url = new URL(decodedHref, window.location.href);
+    if (!['http:', 'https:', 'mailto:'].includes(url.protocol)) return '';
+    return escapeHtml(url.href);
+  } catch (_) {
+    return '';
+  }
 }
 
 // ── Draft Detection ─────────────────────────────────────────
@@ -601,7 +815,7 @@ async function sendRegenerateRequest(platform) {
       agent: CONFIG.AGENT,
       session_id: sessionId,
       config: {
-        client_name: PARAMS.company,
+        client_name: PARAMS.customerCompany,
         customer_name: PARAMS.name,
         customer_email: PARAMS.email,
         platforms: PARAMS.platforms,
@@ -676,6 +890,61 @@ function parseG2Fields(draft) {
   return out;
 }
 
+function hideReviewCompleteOverlay() {
+  const overlay = $('#review-complete-overlay');
+  if (!overlay) return;
+  overlay.hidden = true;
+  overlay.setAttribute('aria-hidden', 'true');
+  delete overlay.dataset.platform;
+}
+
+function showReviewCompleteOverlay(platform) {
+  const overlay = $('#review-complete-overlay');
+  if (!overlay || platform == null || platformsPosted[platform]) return;
+  if (currentState !== 'post') return;
+  const meta = PLATFORM_META[platform] || { name: platform };
+  const titleEl = $('#review-complete-title');
+  if (titleEl) titleEl.textContent = `Finished on ${meta.name}?`;
+  overlay.dataset.platform = platform;
+  overlay.hidden = false;
+  overlay.setAttribute('aria-hidden', 'false');
+  $('#btn-review-complete-confirm')?.focus();
+}
+
+/**
+ * Opens a review-site URL in a smaller popup window. Must be called from a user
+ * gesture (click); falls back to a new tab if popups are blocked.
+ */
+function openReviewPlatform(url, windowName = 'reputationRocketReview') {
+  if (!url) return null;
+
+  const width = Math.min(960, window.screen.availWidth - 80);
+  const height = Math.min(820, window.screen.availHeight - 80);
+  const left = Math.max(0, Math.round((window.screen.availWidth - width) / 2));
+  const top = Math.max(0, Math.round((window.screen.availHeight - height) / 2));
+
+  const features = [
+    `width=${width}`,
+    `height=${height}`,
+    `left=${left}`,
+    `top=${top}`,
+    'scrollbars=yes',
+    'resizable=yes',
+    'noopener=yes',
+    'noreferrer=yes',
+  ].join(',');
+
+  const w = window.open(url, windowName, features);
+  if (w) {
+    try { w.opener = null; } catch (_) { /* ignore */ }
+    try { w.focus(); } catch (_) { /* ignore */ }
+    return w;
+  }
+
+  window.open(url, '_blank', 'noopener,noreferrer');
+  return null;
+}
+
 async function copyToClipboard(text) {
   try {
     await navigator.clipboard.writeText(text);
@@ -719,23 +988,40 @@ function initPostScreen() {
       // paste flow — unchanged behavior
       card.innerHTML = header + `
         <span class="platform-status ready" data-action="post-paste" data-platform="${plat}">Copy &amp; open ${meta.name} →</span>
-        <p class="platform-hint">You'll come back here to confirm</p>
+        <p class="platform-hint">We'll ask you to confirm once the review site opens</p>
       `;
     }
     grid.appendChild(card);
   });
 
-  // Wire paste-flow buttons (auto-mark after 2s)
   grid.querySelectorAll('[data-action="post-paste"]').forEach(btn => {
     btn.addEventListener('click', () => handlePastePost(btn.dataset.platform));
   });
-  // Wire open-only buttons (no clipboard, user opens the site and does the work there)
+  // open-form: multi-field flows (G2) — open URL only, no modal (user keeps page for copy/paste).
+  grid.querySelectorAll('[data-action="open-form"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const plat = btn.dataset.platform;
+      const link = PARAMS.reviewLinks[plat];
+      if (link) {
+        openReviewPlatform(link, `rr-review-${plat}`);
+        reviewFormOpened[plat] = true;
+        saveSession();
+        initPostScreen();
+      }
+    });
+  });
   grid.querySelectorAll('[data-action="open-only"]').forEach(btn => {
     btn.addEventListener('click', () => {
       const plat = btn.dataset.platform;
       const link = PARAMS.reviewLinks[plat];
-      if (link) window.open(link, '_blank');
+      if (link) {
+        openReviewPlatform(link, `rr-review-${plat}`);
+        showReviewCompleteOverlay(plat);
+      }
     });
+  });
+  grid.querySelectorAll('[data-action="confirm-posted"]').forEach(btn => {
+    btn.addEventListener('click', () => markPlatformPosted(btn.dataset.platform));
   });
   // Wire per-field / per-section copy buttons
   grid.querySelectorAll('[data-action="copy-section"]').forEach(btn => {
@@ -754,11 +1040,6 @@ function initPostScreen() {
       if (ok) showToast();
     });
   });
-  // Wire manual "I posted it" confirm buttons
-  grid.querySelectorAll('[data-action="confirm-posted"]').forEach(btn => {
-    btn.addEventListener('click', () => markPlatformPosted(btn.dataset.platform));
-  });
-
   updatePostContinueButton();
   updatePostProgress();
 }
@@ -772,7 +1053,7 @@ function renderG2CardBody(plat) {
     // backwards-compat fallback: no markers found, treat as paste flow
     return `
       <span class="platform-status ready" data-action="post-paste" data-platform="${plat}">Copy &amp; open G2 →</span>
-      <p class="platform-hint">You'll come back here to confirm</p>
+      <p class="platform-hint">We'll ask you to confirm once the review site opens</p>
     `;
   }
 
@@ -786,16 +1067,21 @@ function renderG2CardBody(plat) {
     </div>
   `).join('');
 
+  const showG2Confirm = !!reviewFormOpened[plat];
+  const g2Hint = showG2Confirm
+    ? 'Copy each answer below into the matching G2 question. When you have submitted the form on G2, confirm below.'
+    : 'Open the G2 form first (button above). Then copy each answer below into G2. A confirmation button will appear after you open the form.';
+
   return `
-    <span class="platform-status ready" data-action="open-only" data-platform="${plat}">Open G2 review form →</span>
-    <p class="platform-hint">G2 asks you 4 questions — copy each answer below as you fill the form.</p>
-    <details class="card-details">
-      <summary>Show answers (${fields.length})</summary>
+    <span class="platform-status ready" data-action="open-form" data-platform="${plat}">Open G2 review form →</span>
+    <p class="platform-hint">${g2Hint}</p>
+    <details class="card-details" open>
+      <summary>Your answers for G2 (${fields.length})</summary>
       <div class="card-details-body">
         ${fieldRows}
       </div>
     </details>
-    <button type="button" class="btn-confirm" data-action="confirm-posted" data-platform="${plat}">I posted it →</button>
+    ${showG2Confirm ? `<button type="button" class="btn-confirm" data-action="confirm-posted" data-platform="${plat}">I have completed my G2 review</button>` : ''}
   `;
 }
 
@@ -837,16 +1123,12 @@ async function handlePastePost(platform) {
     showToast();
   }
 
-  // Open platform in new tab
+  // Open platform in a smaller window (popup); fallback to new tab if blocked
   if (link) {
-    window.open(link, '_blank');
+    openReviewPlatform(link, `rr-review-${platform}`);
   }
 
-  // Mark as posted after a short delay (simulates user returning)
-  // In production, use visibilitychange. For prototype, mark after 2s.
-  setTimeout(() => {
-    markPlatformPosted(platform);
-  }, 2000);
+  showReviewCompleteOverlay(platform);
 }
 
 function markPlatformPosted(platform) {
@@ -891,11 +1173,16 @@ function initCompleteScreen() {
   const posted = Object.values(platformsPosted).filter(Boolean).length;
   $('#stat-reviews').textContent = posted;
   triggerConfetti();
+  sendLifecycleNotification('completed');
   maybeRedirectToThankYou();
 }
 
 function maybeRedirectToThankYou() {
   if (!PARAMS.thankYouUrl) return;
+  if (!isAllowedRedirectUrl(PARAMS.thankYouUrl)) {
+    console.warn('[Reputation Rocket] Blocked unapproved thank_you_url:', PARAMS.thankYouUrl);
+    return;
+  }
   // Avoid duplicate hint if re-entered
   if (!document.getElementById('ty-hint')) {
     const host = document.querySelector('.screen.active .screen-content');
@@ -903,7 +1190,7 @@ function maybeRedirectToThankYou() {
       const hint = document.createElement('p');
       hint.id = 'ty-hint';
       hint.className = 'muted text-center mt-md';
-      hint.textContent = `Taking you back to ${PARAMS.company} in a moment…`;
+      hint.textContent = `Taking you back to ${PARAMS.customerCompany} in a moment…`;
       host.appendChild(hint);
     }
   }
@@ -915,7 +1202,16 @@ function triggerConfetti(opts = {}) {
   const container = $('#confetti-container');
   container.innerHTML = '';
 
-  const colors = ['#7612fa', '#c109af', '#ff6221', '#6bc950', '#0c63ff', '#eadafd'];
+  const cs = getComputedStyle(document.documentElement);
+  const pick = (v, fallback) => (v && v.trim()) || fallback;
+  const colors = [
+    pick(cs.getPropertyValue('--ll-purple'), '#752fef'),
+    pick(cs.getPropertyValue('--ll-accent'), '#22c55e'),
+    '#0c63ff',
+    '#9333ea',
+    '#ec4899',
+    pick(cs.getPropertyValue('--ll-muted'), '#93949f'),
+  ];
 
   for (let i = 0; i < count; i++) {
     const piece = document.createElement('span');
@@ -954,12 +1250,82 @@ function initNegativeScreen() {
     $('#empathy-message').innerHTML = renderMarkdown(cleanMsg);
   }
 
-  // Log negative flag data (in production, POST to notification webhook)
-  if (negativeFlagData) {
-    console.log('[Reputation Rocket] NEGATIVE FLAG:', negativeFlagData);
-  }
+  sendLifecycleNotification('negative');
+}
 
-  maybeRedirectToThankYou();
+async function sendLifecycleNotification(event) {
+  if (!CONFIG.NOTIFY_URL || notificationsSent[event]) return;
+
+  const payload = {
+    event,
+    client_slug: PARAMS.clientSlug,
+    provider: PARAMS.providerName,
+    client: PARAMS.customerCompany,
+    customer_name: PARAMS.name,
+    customer_email: PARAMS.email,
+    rating: starRating,
+    posted: Object.keys(platformsPosted).filter(platform => platformsPosted[platform]),
+    platforms: PARAMS.platforms,
+    session_id: sessionId,
+    ts: new Date().toISOString(),
+    negative_flag: event === 'negative' ? negativeFlagData : null,
+  };
+
+  try {
+    const res = await fetch(CONFIG.NOTIFY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      let detail = errorText;
+      try {
+        const parsed = JSON.parse(errorText);
+        detail = parsed.detail || parsed.error || parsed.message || errorText;
+      } catch (_) { /* not JSON */ }
+      const msg = `Notification failed (${res.status}): ${detail}`;
+      if (event === 'negative') {
+        showNegativeNotificationError(msg);
+      }
+      throw new Error(msg);
+    }
+
+    notificationsSent[event] = true;
+    saveSession();
+  } catch (err) {
+    // Do not block the customer flow if Slack/email delivery fails.
+    console.warn('[Reputation Rocket] Notification failed:', err);
+  }
+}
+
+function showNegativeNotificationError(message) {
+  if (document.getElementById('notification-fail')) return;
+  const wrap = document.querySelector('#screen-negative .screen-content') || document.querySelector('#screen-negative');
+  if (!wrap) return;
+  const el = document.createElement('div');
+  el.id = 'notification-fail';
+  el.className = 'notification-fail';
+  el.setAttribute('role', 'alert');
+  el.textContent = message;
+  const empathy = document.getElementById('empathy-card');
+  if (empathy && empathy.parentNode === wrap) {
+    empathy.insertAdjacentElement('afterend', el);
+  } else {
+    wrap.insertBefore(el, wrap.firstChild);
+  }
+}
+
+function isAllowedRedirectUrl(rawUrl) {
+  try {
+    const url = new URL(rawUrl, window.location.href);
+    if (!['http:', 'https:'].includes(url.protocol)) return false;
+    if (!PARAMS.allowedRedirectHosts.length) return true;
+    return PARAMS.allowedRedirectHosts.includes(url.hostname);
+  } catch (_) {
+    return false;
+  }
 }
 
 // ── Platform display name ───────────────────────────────────
@@ -986,8 +1352,10 @@ function saveSession() {
       currentPlatformIndex,
       starRating,
       platformsPosted,
+      reviewFormOpened,
       negativeFlagData,
       lastAgentMessage,
+      notificationsSent,
     }));
   } catch (_) { /* quota exceeded — ignore */ }
 }
@@ -1011,8 +1379,10 @@ function restoreSession() {
     currentPlatformIndex = data.currentPlatformIndex || 0;
     starRating = data.starRating || 5;
     platformsPosted = data.platformsPosted || {};
+    reviewFormOpened = data.reviewFormOpened || {};
     negativeFlagData = data.negativeFlagData || null;
     lastAgentMessage = data.lastAgentMessage || '';
+    notificationsSent = data.notificationsSent || {};
 
     // Replay chat messages into the UI
     chatHistory.forEach(msg => addChatBubble(msg.role, msg.content));
@@ -1027,6 +1397,7 @@ function restoreSession() {
 
 // Clear session (for dev/testing)
 window.rrReset = () => {
+  hideReviewCompleteOverlay();
   sessionStorage.removeItem('rr_session');
   window.location.reload();
 };

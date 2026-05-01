@@ -1,0 +1,32 @@
+/**
+ * eImmigration — surface tokens aligned with Figma (eImmigration file).
+ * Layout lives in ../styles.css; this file adds shadows, gradient hovers, and body treatment.
+ */
+
+:root {
+  --ll-magenta: #a643f2;
+  --ll-orange: #62befb;
+  --ll-blue: #0099ff;
+  --ll-gradient: linear-gradient(135deg, #a643f2 0%, #0099ff 52%, #62befb 100%);
+  --ll-gradient-hover: linear-gradient(135deg, #8222cc 0%, #0088e6 50%, #4dabf7 100%);
+  /* Figma SM Card + Sm Shadow */
+  --shadow-sm: 4px 4px 30px rgba(0, 0, 0, 0.08);
+  --shadow-md: 8px 8px 30px rgba(29, 46, 78, 0.09);
+  --shadow-lg: 8px 16px 40px rgba(29, 46, 78, 0.12);
+}
+
+.nav-brand::after {
+  content: 'EImmigration';
+  margin-left: 10px;
+  padding: 6px 8px;
+  border-radius: var(--radius-full);
+  background: rgba(0, 153, 255, 0.12);
+  color: #007acc;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+body {
+  background:
+    radial-gradient(ellipse 90% 72% at 50% 0%, rgb(240, 249, 255) 0%, rgb(255, 255, 255) 45%, rgb(248, 248, 248) 100%) fixed;
+}

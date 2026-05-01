@@ -6,15 +6,15 @@
 <title>Reputation Rocket — Share Your Experience</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
+<!-- Primary font is loaded from Google Fonts in applyClientTheme() using each client’s `theme.googleFontQuery`. -->
 <!-- SVG gradient definition for star fills -->
 <svg width="0" height="0" style="position:absolute">
   <defs>
     <linearGradient id="starGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#7612fa"/>
-      <stop offset="50%" stop-color="#c109af"/>
-      <stop offset="100%" stop-color="#ff6221"/>
+      <stop id="star-stop-a" offset="0%" stop-color="#752fef"/>
+      <stop id="star-stop-b" offset="50%" stop-color="#a855f7"/>
+      <stop id="star-stop-c" offset="100%" stop-color="#ec4899"/>
     </linearGradient>
   </defs>
 </svg>
@@ -24,44 +24,56 @@
 <!-- ════════════════════════════════════════════════════════════
      NAV (persistent)
      ════════════════════════════════════════════════════════════ -->
-<nav class="nav">
-  <div class="nav-brand">
-    <div class="nav-icon">
-      <svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+<header class="site-header">
+  <div class="site-header-inner">
+    <div class="site-header-side"></div>
+    <div class="nav-brand site-header-brand">
+      <img class="rr-logo-icon" src="reprocket-icon.svg" alt="" aria-hidden="true">
+      <span class="nav-title">Reputation Rocket</span>
     </div>
-    Reputation Rocket
+    <div class="site-header-actions">
+      <button type="button" id="btn-start-over" class="nav-start-over" title="Clear saved progress and start from the beginning">Start over</button>
+    </div>
   </div>
-  <span class="nav-powered">Powered by <span class="company-name">Company</span></span>
-</nav>
+</header>
 
-<!-- ════════════════════════════════════════════════════════════
-     PROGRESS BAR (persistent)
-     ════════════════════════════════════════════════════════════ -->
-<div class="progress-bar">
-  <div class="progress-steps">
-    <div class="progress-step active" data-step="1">
-      <div class="progress-dot">1</div>
-      <span class="progress-label">Welcome</span>
-      <div class="progress-connector"></div>
-    </div>
-    <div class="progress-step" data-step="2">
-      <div class="progress-dot">2</div>
-      <span class="progress-label">Quick Chat</span>
-      <div class="progress-connector"></div>
-    </div>
-    <div class="progress-step" data-step="3">
-      <div class="progress-dot">3</div>
-      <span class="progress-label">Your Review</span>
-      <div class="progress-connector"></div>
-    </div>
-    <div class="progress-step" data-step="4">
-      <div class="progress-dot">4</div>
-      <span class="progress-label">Post It</span>
-      <div class="progress-connector"></div>
-    </div>
-    <div class="progress-step" data-step="5">
-      <div class="progress-dot">5</div>
-      <span class="progress-label">Video</span>
+<div class="progress-shell">
+  <div class="progress-bar">
+    <div class="progress-steps">
+      <div class="progress-step active" data-step="1">
+        <span class="progress-kicker">Step 1</span>
+        <div class="progress-dot" data-icon="welcome" aria-hidden="true"></div>
+        <span class="progress-label">Welcome</span>
+        <span class="progress-badge">In progress</span>
+        <div class="progress-connector"></div>
+      </div>
+      <div class="progress-step" data-step="2">
+        <span class="progress-kicker">Step 2</span>
+        <div class="progress-dot" data-icon="chat" aria-hidden="true"></div>
+        <span class="progress-label">Quick Chat</span>
+        <span class="progress-badge">Pending</span>
+        <div class="progress-connector"></div>
+      </div>
+      <div class="progress-step" data-step="3">
+        <span class="progress-kicker">Step 3</span>
+        <div class="progress-dot" data-icon="review" aria-hidden="true"></div>
+        <span class="progress-label">Your Review</span>
+        <span class="progress-badge">Pending</span>
+        <div class="progress-connector"></div>
+      </div>
+      <div class="progress-step" data-step="4">
+        <span class="progress-kicker">Step 4</span>
+        <div class="progress-dot" data-icon="post" aria-hidden="true"></div>
+        <span class="progress-label">Post It</span>
+        <span class="progress-badge">Pending</span>
+        <div class="progress-connector"></div>
+      </div>
+      <div class="progress-step" data-step="5">
+        <span class="progress-kicker">Step 5</span>
+        <div class="progress-dot" data-icon="video" aria-hidden="true"></div>
+        <span class="progress-label">Video</span>
+        <span class="progress-badge">Pending</span>
+      </div>
     </div>
   </div>
 </div>
@@ -70,29 +82,28 @@
      SCREEN 1: WELCOME
      ════════════════════════════════════════════════════════════ -->
 <div id="screen-welcome" class="screen active">
-  <div class="screen-content welcome-grid">
-    <div class="welcome-text">
-      <div class="screen-header">
-        <p class="welcome-greeting">Hi <span class="first-name">there</span>,</p>
-        <h1>Ready to share your experience with <span class="company-name">Company</span>?</h1>
-        <p>We'd love to capture your honest feedback. If you're happy with how things are going, we'll make it easy to post a 5-star review in a few key places.</p>
-      </div>
-
-      <div class="welcome-callout">
-        <strong>Heads up:</strong> the hardest part is logging into review sites — we'll handle the drafting and walk you through every step.
-      </div>
-
-      <p class="welcome-note">Takes about 3 minutes. We'll draft everything for you.</p>
-
-      <div class="welcome-cta">
-        <button id="btn-start" class="btn btn-primary btn-lg">Let's Go →</button>
-      </div>
+  <div class="screen-content welcome-content">
+    <div class="screen-header">
+      <h1>Ready to share your experience with <span class="company-name">Company</span>?</h1>
+      <p>We'd love to capture your honest feedback. If you're happy with how things are going, we'll make it easy to post a 5-star review in a few key places.</p>
     </div>
 
-    <div class="welcome-media">
-      <video id="welcome-video" class="welcome-video" controls playsinline style="display:none">
-        <source id="welcome-video-source" src="" type="video/mp4">
-      </video>
+    <div id="welcome-video-host" class="welcome-media"></div>
+
+    <div class="welcome-callout">
+      <span class="welcome-callout-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8.5 13.5c1.2 1.4 5.8 1.4 7 0"/><path d="M9 9.5h.01M15 9.5h.01"/></svg>
+      </span>
+      <p><strong>Heads up:</strong> the hardest part is logging into review sites — we'll handle the drafting and walk you through every step.</p>
+    </div>
+
+    <p class="welcome-note">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      <span>Takes about 3 minutes. We'll draft everything for you.</span>
+    </p>
+
+    <div class="welcome-cta">
+      <button id="btn-start" class="btn btn-primary btn-lg">Begin →</button>
     </div>
   </div>
 </div>
@@ -109,14 +120,17 @@
 
     <div class="chat-container">
       <div class="chat-header">
-        <div class="chat-avatar">
-          <svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        <div class="chat-header-brand">
+          <img class="rr-logo-icon chat-header-logo" src="reprocket-icon.svg" alt="" aria-hidden="true">
+          <div>
+            <div class="chat-header-text">Reputation Rocket</div>
+            <div class="chat-header-sub">Powered by <span class="provider-name">Company</span></div>
+          </div>
         </div>
-        <div>
-          <div class="chat-header-text">Reputation Rocket</div>
-          <div class="chat-header-sub">Powered by <span class="company-name">Company</span></div>
+        <div class="chat-header-status" title="Assistant is available">
+          <span class="chat-status-dot" aria-hidden="true"></span>
+          <span class="chat-status-label">Online</span>
         </div>
-        <div class="chat-status"></div>
       </div>
 
       <div id="chat-messages" class="chat-messages">
@@ -135,11 +149,16 @@
 
       <div class="chat-input-bar">
         <input id="chat-input" type="text" placeholder="Type your answer..." autocomplete="off">
-        <button id="chat-send" class="chat-send-btn" disabled>
-          <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        <button id="chat-send" class="chat-send-btn" disabled aria-label="Send message">
+          <svg viewBox="0 0 24 24"><path d="M12 19V5M12 5l-7 7M12 5l7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
       </div>
     </div>
+
+    <p class="chat-privacy-foot">
+      <svg class="chat-privacy-icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Your feedback is private and secure
+    </p>
   </div>
 </div>
 
@@ -347,6 +366,19 @@
      ════════════════════════════════════════════════════════════ -->
 <div id="confetti-container" class="confetti-container"></div>
 
+<!-- Review completion confirm (after opening a review site) -->
+<div id="review-complete-overlay" class="review-complete-overlay" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="review-complete-title">
+  <button type="button" class="review-complete-backdrop" data-review-overlay-dismiss aria-label="Close"></button>
+  <div class="review-complete-modal">
+    <h3 id="review-complete-title">Finished posting?</h3>
+    <p id="review-complete-hint" class="review-complete-hint">When you've submitted your review on that site, confirm below so we can celebrate.</p>
+    <div class="review-complete-actions">
+      <button type="button" id="btn-review-complete-confirm" class="btn btn-primary btn-sm">I have completed the review</button>
+      <button type="button" id="btn-review-complete-later" class="btn btn-secondary btn-sm">Not yet</button>
+    </div>
+  </div>
+</div>
+
 <!-- ════════════════════════════════════════════════════════════
      TOAST NOTIFICATION
      ════════════════════════════════════════════════════════════ -->
@@ -355,6 +387,7 @@
   <span>Copied to clipboard!</span>
 </div>
 
+<script src="config.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
