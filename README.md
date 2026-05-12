@@ -79,7 +79,7 @@ Proxies `/api/*` to Fly with CORS. It does **not** load `api/agent.js` / `api/no
 ## New client page
 
 1. Copy `lean-labs/` → `your-client-slug/`.
-2. Edit `your-client-slug/config.js`: `clientSlug`, `providerName`, `company`, `reviewLinks`, `platforms`, `welcomeVideoUrl`, `videoUrl`, `thankYouUrl`, `allowedRedirectHosts`, optional `supportEmail` (negative alerts), optional `theme: { }` (overrides `DEFAULT_CLIENT_THEME` in `app.js`).
+2. Edit `your-client-slug/config.js`: `clientSlug`, `providerName` (vendor being reviewed), `reviewLinks`, `platforms`, `welcomeVideoUrl`, `videoUrl`, `thankYouUrl`, `allowedRedirectHosts`, optional `supportEmail` (negative alerts), optional `platformLogos` (per-slug transparent PNG/SVG URLs for draft tabs — overrides Clearbit/Google fallbacks), optional `theme: { }` (overrides `DEFAULT_CLIENT_THEME` in `app.js`).
 3. Adjust `your-client-slug/styles.css` for brand overrides that belong in CSS.
 4. Add `/your-client-slug` → `/your-client-slug/` (308) in `vercel.json` and `_redirects` so links without a trailing slash still load assets correctly (query string is preserved).
 5. Deploy on Vercel; set environment variables in the project (see below).

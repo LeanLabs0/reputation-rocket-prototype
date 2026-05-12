@@ -106,10 +106,9 @@
     <div class="chat-container">
       <div class="chat-header">
         <div class="chat-header-brand">
-          <img class="rr-logo-icon chat-header-logo" src="../reprocket-icon.svg" alt="" aria-hidden="true">
           <div>
-            <div class="chat-header-text">Reputation Rocket</div>
-            <div class="chat-header-sub">Powered by <span class="provider-name">Company</span></div>
+            <div class="chat-header-text"><span class="provider-name">Company</span> Review</div>
+            <div class="chat-header-sub">Powered by Reputation Rocket</div>
           </div>
         </div>
         <div class="chat-header-status" title="Assistant is available">
@@ -140,9 +139,9 @@
 
 <div id="screen-draft" class="screen">
   <div class="screen-content">
-    <div class="screen-header"><h3>Here are your reviews, ready to go</h3><p>We drafted one per platform. Click a tab to review and edit before posting.</p></div>
+    <div class="screen-header"><h3>Here are your reviews, ready to go</h3><p>We drafted one per platform. <br>Review, make any edits, and approve when you're happy with it.</p></div>
+    <div id="draft-tabs" class="draft-tabs" role="tablist"></div>
     <div class="draft-card">
-      <div id="draft-tabs" class="draft-tabs" role="tablist"></div>
       <div class="draft-card-body">
         <div id="draft-stars" class="star-rating">
           <div class="star filled" data-value="1"><svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>
@@ -153,27 +152,108 @@
         </div>
         <div class="draft-textarea-wrap">
           <textarea id="draft-textarea" class="draft-textarea" placeholder="Your review draft will appear here..."></textarea>
-          <button id="btn-edit-hint" class="edit-hint" type="button" aria-label="Edit draft">Edit</button>
+          <button id="btn-edit-hint" class="edit-hint" type="button" aria-label="Edit draft">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+            Edit
+          </button>
         </div>
       </div>
-      <div class="draft-card-footer"><button id="btn-regenerate" class="btn btn-secondary btn-sm">Regenerate this draft</button><button id="btn-approve" class="btn btn-primary btn-sm">Looks Good<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <div class="draft-tip">
+        <div class="draft-tip-icon"><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-lightbulb-icon lucide-lightbulb"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg></div>
+        <div class="draft-tip-content">
+          <p class="draft-tip-text"><span class="text-primary">Tip:</span> Personalize this review to make it even more impactful. <br>Add specific results or details about your experience.</p>
+        </div>
+      </div>
+      <div class="draft-card-footer">
+        <button id="btn-regenerate" class="btn btn-tertiary btn-sm"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-ccw-icon lucide-refresh-ccw"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>Regenerate this draft</button>
+        <div class="draft-approve-stack">
+          <button id="btn-approve" type="button" class="btn btn-primary btn-sm">Looks Good<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <path d="M4.1665 10H15.8332" stroke="white" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M10 4.16675L15.8333 10.0001L10 15.8334" stroke="white" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg></button>
+          <div id="draft-copy-hint" class="draft-copy-hint">
+            <svg class="draft-copy-hint-icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <span id="draft-copy-hint-text" class="draft-copy-hint-text"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="draft-what-next" aria-labelledby="draft-what-next-heading">
+      <div class="draft-what-next-icon" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-upload-icon lucide-upload"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg>
+      </div>
+      <div class="draft-what-next-body">
+        <h4 id="draft-what-next-heading" class="draft-what-next-title">What happens next?</h4>
+        <p id="draft-what-next-desc" class="draft-what-next-desc"></p>
+      </div>
+    </div>
+  </div>
+  <div class="draft-screen-footer">
+    <div style="margin-right: auto"></div>
+    <p class="draft-footer-privacy">
+      <svg class="draft-footer-privacy-icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Your feedback is private and secure
+    </p>
+    <button type="button" id="btn-approve-all" class="btn btn-primary btn-lg" disabled>Approve all &amp; Continue <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
       <path d="M4.1665 10H15.8332" stroke="white" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
       <path d="M10 4.16675L15.8333 10.0001L10 15.8334" stroke="white" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg></button></div>
-    </div>
+      </svg>
+  </button>
   </div>
 </div>
 
-<div id="screen-post" class="screen">
+<div id="screen-post" class="screen" data-post-layout="rich">
   <div class="screen-content">
-    <div class="screen-header"><h3>Now let's put it where it counts</h3><p>Click each platform to post your review. We'll copy it to your clipboard and take you right to the review page.</p></div>
-    <div class="post-progress"><div class="post-progress-bar"><div id="post-progress-fill" class="post-progress-fill"></div></div><span id="post-progress-text" class="post-progress-text">0 of 0 posted</span></div>
-    <div id="platform-grid" class="platform-grid"></div>
-    <div class="post-actions"><span id="skip-remaining" class="skip-link">Skip remaining</span><button id="btn-continue-post" class="btn btn-primary btn-sm" disabled>Continue <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
-    <path d="M4.1665 10H15.8332" stroke="white" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M10 4.16675L15.8333 10.0001L10 15.8334" stroke="white" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
-  </svg></button></div>
+    <div class="screen-header post-screen-head">
+      <h3>Great work! You're almost there 🚀</h3>
+      <p>Click each platform to post your review. We'll copy it to your clipboard and take you right to the review page.</p>
+    </div>
+    <div class="post-progress-rich" aria-label="Posting progress">
+      <div class="post-progress-rich-top">
+        <div class="post-progress-copy">
+          <span class="post-progress-kicker">Overall progress</span>
+          <p id="post-progress-headline" class="post-progress-headline">0 of 0 reviews confirmed</p>
+        </div>
+        <div class="post-progress-bar-wrap">
+          <div class="post-progress-bar"><div id="post-progress-fill" class="post-progress-fill"></div></div>
+        </div>
+        <div class="post-progress-cheer" aria-hidden="true">
+          <span class="post-progress-cheer-emoji" role="img">🎉</span>
+          <span class="post-progress-cheer-text"><span class="h3 text-primary">Keep it up!</span> <br>You're doing amazing.</span>
+        </div>
+      </div>
+    </div>
+    <div id="platform-grid" class="platform-grid platform-grid--rich"></div>
+    <aside class="post-why-confirm" aria-labelledby="post-why-title">
+      <div class="post-why-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>
+      </div>
+      <div class="post-why-body">
+        <h4 id="post-why-title" class="post-why-title">Why confirm?</h4>
+        <p class="post-why-text">Confirming helps us track your impact and shows <span class="provider-name">Lean Labs</span> that their hard work is making a difference.</p>
+      </div>
+    </aside>
   </div>
+  <footer class="post-screen-footer">
+      <button type="button" id="btn-back-to-draft" class="btn btn-secondary btn-sm post-footer-back">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        Back to previous step
+      </button>
+      <p class="post-footer-privacy">
+        <svg class="post-footer-privacy-icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Your feedback is private and secure
+      </p>
+      <div class="post-footer-cta">
+        <button type="button" id="btn-continue-post" class="btn btn-primary btn-lg" disabled>
+          Continue to next step
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M4.1665 10H15.8332" stroke="white" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M10 4.16675L15.8333 10.0001L10 15.8334" stroke="white" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <p id="post-continue-sub" class="post-continue-sub">Next up: Record a quick video</p>
+      </div>
+    </footer>
 </div>
 
 <div id="screen-video" class="screen">

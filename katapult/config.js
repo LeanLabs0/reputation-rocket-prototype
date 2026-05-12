@@ -1,7 +1,6 @@
 window.CLIENT_CONFIG = {
   clientSlug: 'katapult',
   providerName: 'Katapult Engineering',
-  company: 'Katapult Engineering',
   agentEndpoint: '/api/agent',
   notificationEndpoint: '/api/notify',
   platforms: ['hubspot', 'g2', 'google'],
@@ -15,6 +14,10 @@ window.CLIENT_CONFIG = {
   thankYouUrl: 'https://katapultengineering.com/reputation-rocket/thanks',
   allowedRedirectHosts: ['katapultengineering.com', 'www.katapultengineering.com'],
   supportEmail: '',
+  /** HubSpot embedded lead form when `name` and `email` are not in the URL. Leave empty to skip the modal. */
+  hubspotPortalId: '',
+  hubspotFormId: '',
+  hubspotFormRegion: 'na1',
   /**
    * Katapult Figma tokens (file XNgYG13UR0MOKDiF5aTIHA): heading-font DM Sans 600,
    * body Inter; Primary #FF8300; Secondary #007299; Heading #003E51; Body #717271;
