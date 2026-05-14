@@ -1,24 +1,27 @@
 window.CLIENT_CONFIG = {
   clientSlug: 'lean-labs',
   providerName: 'Lean Labs',
+  /** Root domain for the header logo (Google s2 favicons). No protocol or path. */
+  logoFaviconDomain: 'leanlabs.com',
   agentEndpoint: '/api/agent',
   notificationEndpoint: '/api/notify',
   platforms: ['hubspot', 'g2', 'google'],
   reviewLinks: {
-    hubspot: 'https://hubspot.com/lean-labs/review',
-    g2: 'https://www.g2.com/products/lean-labs/take-survey',
-    google: 'https://g.page/lean-abs/review',
+    hubspot: 'https://ecosystem.hubspot.com/marketplace/solutions/lean-labs',
+    g2: 'https://www.g2.com/products/lean-labs/take_survey',
+    google: 'https://g.page/lean-labs/review',
   },
   welcomeVideoUrl: '',
   videoCaptureEnabled: true,
-  thankYouUrl: 'https://leanlabs.com/reputation-rocket/thanks',
+  thankYouUrl: 'https://leanlabs.com/reputation-rocket/thank-you',
   allowedRedirectHosts: ['leanlabs.com', 'www.leanlabs.com'],
-  /** Receives plain-text negative alert (same content as Slack) when RESEND_API_KEY is set on the server. */
-  supportEmail: '',
-  /** Optional: HubSpot embedded lead form when `name` and `email` are not in the URL (see app.js). */
+  supportEmail: 'help@leanlabs.com',
+  /**
+   * Embedded HubSpot form when the page has no name+email in the query string.
+   * Use the portal ID, form ID, and region from your form’s embed code in HubSpot.
+   */
   hubspotPortalId: '275827',
   hubspotFormId: '102ade8e-7204-41f9-80a0-6a5808c71089',
   hubspotFormRegion: 'na1',
-  /** Optional: override visual defaults from app.js (`DEFAULT_CLIENT_THEME`). */
-  theme: {},
+  /** Optional: overrides for tokens in app.js `DEFAULT_CLIENT_THEME` (Lean Labs Figma baseline). */
 };

@@ -15,12 +15,9 @@ window.CLIENT_CONFIG = {
   thankYouUrl: 'https://leanlabs.com/reputation-rocket/thanks',
   allowedRedirectHosts: ['get.eimmigration.com', 'www.get.eimmigration.com'],
   supportEmail: 'support@eimmigration.com',
-
-  /** HubSpot embedded lead form when `name` and `email` are not in the URL. Leave empty to skip the modal. */
   hubspotPortalId: '45248900',
   hubspotFormId: '',
   hubspotFormRegion: 'na1',
-
   theme: {
     fontFamily:
       "'Inter', 'Nokora', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",

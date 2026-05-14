@@ -1,11 +1,6 @@
-/* ============================================================
-   Reputation Rocket — app.js
-   State machine + API integration + chat logic
-   ============================================================ */
-
 const CLIENT_CONFIG = window.CLIENT_CONFIG || {};
 
-/** Default visual tokens align with Lean Labs Figma style guide; override per client via `CLIENT_CONFIG.theme`. */
+/** Default visual tokens; override per client via `CLIENT_CONFIG.theme`. */
 const DEFAULT_CLIENT_THEME = {
   fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   googleFontQuery: 'Plus+Jakarta+Sans:wght@400;500;600;700',
@@ -101,7 +96,6 @@ function normalizeLogoFaviconDomain(raw) {
   return s.replace(/^https?:\/\//i, '').split('/')[0].replace(/^www\./i, '');
 }
 
-/** When `CLIENT_CONFIG.logoFaviconDomain` is set, header `.rr-logo-icon` uses Google favicon service. */
 function applyClientHeaderFaviconLogo() {
   const domain = normalizeLogoFaviconDomain(CLIENT_CONFIG.logoFaviconDomain);
   if (!domain) return;
@@ -113,8 +107,6 @@ function applyClientHeaderFaviconLogo() {
 }
 
 const CONFIG = {
-  // V1 production calls should go through a Vercel serverless proxy so the
-  // Factor8 API key is never shipped to the browser.
   API_URL: CLIENT_CONFIG.agentEndpoint || '/api/agent',
   NOTIFY_URL: CLIENT_CONFIG.notificationEndpoint || '/api/notify',
   VIDEO_UPLOAD_URL: CLIENT_CONFIG.videoUploadEndpoint || '/api/upload-video',
@@ -122,7 +114,6 @@ const CONFIG = {
   TIMEOUT_MS: 60000,
 };
 
-/** Lucide refresh-ccw (inline so Regenerate label survives loading state updates). */
 const REGENERATE_DRAFT_ICON_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="btn-regenerate-icon" aria-hidden="true"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>';
 
@@ -136,7 +127,6 @@ const PARAMS = (() => {
   const p = new URLSearchParams(window.location.search);
   const name = p.get('name') || '';
 
-  /** Vendor/agency shown in `.provider-name`. Legacy: `brandName` or `company` on CLIENT_CONFIG still works. */
   const providerName = (
     (CLIENT_CONFIG.providerName || CLIENT_CONFIG.brandName || CLIENT_CONFIG.company || '').trim() ||
     'our team'
@@ -155,7 +145,6 @@ const PARAMS = (() => {
     ? platformsFromUrl
     : Array.isArray(CLIENT_CONFIG.platforms) ? CLIENT_CONFIG.platforms : [];
 
-  // Build review_links from review_{platform} params
   const reviewLinks = { ...(CLIENT_CONFIG.reviewLinks || {}) };
   platforms.forEach(plat => {
     const link = p.get(`review_${plat}`);
@@ -185,10 +174,10 @@ const PARAMS = (() => {
 let currentState = 'welcome';
 let sessionId = '';
 let machineId = '';
-let chatHistory = [];       // {role: 'agent'|'user', content: string}
+let chatHistory = [];      
 let agentMessageCount = 0;
 let reviewDraft = '';
-let drafts = {};            // {platformSlug: draftText}
+let drafts = {};        
 let activeDraftPlatform = '';
 let currentPlatformIndex = 0;
 let starRating = 5;
@@ -241,10 +230,6 @@ async function fetchWithStickyRetry(body, signal) {
   });
 
   if (res.status === 404 && machineId) {
-    // Home machine is gone (rotated, stopped, or replaced). Drop the sticky
-    // header and retry once on whatever machine Fly routes us to. The
-    // fallback machine will read the session from Supabase and become the
-    // new home on first save.
     machineId = '';
     const retryHeaders = {
       'Content-Type': 'application/json',
@@ -276,7 +261,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   try {
     sessionStorage.removeItem('rr_session');
-  } catch (_) { /* legacy global key — prevented cross-client state bleed */ }
+  } catch (_) { }
 
   // Populate dynamic text
   $$('.company-name').forEach(el => { el.textContent = PARAMS.customerCompany; });
@@ -284,8 +269,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $$('.first-name').forEach(el => { el.textContent = PARAMS.firstName; });
   document.title = `Reputation Rocket — ${PARAMS.customerCompany}`;
 
-  // Optional welcome video. The element is injected only when a client provides
-  // a URL so the welcome screen matches the Figma one-column layout by default.
+  // Optional welcome video. The element is injected only when a client provides a URL
   const welcomeVideoHost = $('#welcome-video-host');
   if (PARAMS.welcomeVideoUrl && welcomeVideoHost) {
     const vid = document.createElement('video');
@@ -303,7 +287,6 @@ document.addEventListener('DOMContentLoaded', () => {
     welcomeVideoHost.appendChild(vid);
   }
 
-  // Wire up welcome
   $('#btn-start').addEventListener('click', startExperience);
 
   const startOverBtn = $('#btn-start-over');
@@ -320,7 +303,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Wire up chat input
   $('#chat-input').addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -332,7 +314,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   $('#chat-send').addEventListener('click', handleChatSend);
 
-  // Wire up draft screen
   $('#btn-regenerate').addEventListener('click', handleRegenerate);
   setRegenerateButtonLabel($('#btn-regenerate'), 'Regenerate this draft');
   $('#btn-approve').addEventListener('click', handleLooksGoodDraft);
@@ -351,7 +332,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   $('#btn-view-draft').addEventListener('click', () => transitionTo('draft'));
 
-  // Star rating clicks
   $$('#draft-stars .star').forEach(star => {
     star.addEventListener('click', () => {
       starRating = parseInt(star.dataset.value);
@@ -359,13 +339,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Edit hint focuses the textarea
   const editHint = $('#btn-edit-hint');
   if (editHint) {
     editHint.addEventListener('click', () => $('#draft-textarea').focus());
   }
 
-  // Post screen
   $('#btn-continue-post').addEventListener('click', handleContinueAfterPost);
   $('#skip-remaining')?.addEventListener('click', handleContinueAfterPost);
   $('#btn-back-to-draft')?.addEventListener('click', () => transitionTo('draft'));
@@ -387,12 +365,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Video screen
   $('#btn-skip-video').addEventListener('click', () => transitionTo('complete'));
   $('#btn-record-video').addEventListener('click', openVideoCaptureModal);
   $('.video-powered')?.replaceChildren(document.createTextNode('Uploaded to HubSpot'));
 
-  // Try to restore after handlers are wired so resumed sessions remain usable.
   if (restoreSession()) return;
 });
 
@@ -400,19 +376,15 @@ document.addEventListener('DOMContentLoaded', () => {
 function transitionTo(state) {
   hideReviewCompleteOverlay();
 
-  // Hide all screens
   $$('.screen').forEach(s => s.classList.remove('active'));
 
   currentState = state;
 
-  // Show target screen
   const screenEl = $(`#screen-${state}`);
   if (screenEl) screenEl.classList.add('active');
 
-  // Update progress bar
   updateProgressBar(state);
 
-  // State-specific entry actions
   switch (state) {
     case 'chat':
       initChat();
@@ -424,7 +396,6 @@ function transitionTo(state) {
       initPostScreen();
       break;
     case 'video':
-      // Skip video if capture isn't enabled for this client.
       if (!isVideoStepEnabled()) {
         transitionTo('complete');
         return;
@@ -951,8 +922,6 @@ function initChat() {
   const chatInput = $('#chat-input');
   chatInput.focus();
 
-  // Only auto-send first message if chat is empty (hidden — user shouldn't see it).
-  // Server prepends config from request.config; do NOT also embed it in the prompt.
   if (chatHistory.length === 0) {
     sendMessage('Please start the review process.', true);
   }
@@ -962,20 +931,17 @@ function initChat() {
 async function sendMessage(text, isHidden = false) {
   if (isWaitingForAgent) return;
 
-  // Add user message to UI (unless hidden like the initial config message)
   if (!isHidden) {
     addChatBubble('user', text);
     chatHistory.push({ role: 'user', content: text });
   }
 
-  // Clear input
   const chatInput = $('#chat-input');
   chatInput.value = '';
   chatInput.disabled = true;
   $('#chat-send').disabled = true;
   isWaitingForAgent = true;
 
-  // Show typing indicator
   showTypingIndicator(true);
 
   try {
@@ -990,7 +956,6 @@ async function sendMessage(text, isHidden = false) {
         customer_email: L.customer_email,
         platforms: PARAMS.platforms,
         review_links: PARAMS.reviewLinks,
-        // video_testimonial_url intentionally omitted — frontend handles Screen 5
       },
     };
 
@@ -1017,12 +982,10 @@ async function sendMessage(text, isHidden = false) {
     const resultText = data.result || '';
     lastAgentMessage = resultText;
 
-    // Check for negative flag (server-side extraction)
     if (data.data && data.data.negative_flag) {
       negativeFlagData = data.data.negative_flag;
     }
 
-    // Fallback: check for NEGATIVE_FLAG HTML comment
     if (!negativeFlagData) {
       const flagMatch = resultText.match(/<!--NEGATIVE_FLAG:([\s\S]*?)-->/);
       if (flagMatch) {
@@ -1032,7 +995,6 @@ async function sendMessage(text, isHidden = false) {
       }
     }
 
-    // Also check structured_output fallback
     if (!negativeFlagData) {
       const soMatch = resultText.match(/<structured_output>([\s\S]*?)<\/structured_output>/);
       if (soMatch) {
@@ -1043,7 +1005,6 @@ async function sendMessage(text, isHidden = false) {
       }
     }
 
-    // Parse multi-platform <drafts> block (new flow)
     const draftsMatch = resultText.match(/<drafts>([\s\S]*?)<\/drafts>/);
     let draftsParsed = false;
     if (draftsMatch) {
@@ -1057,14 +1018,12 @@ async function sendMessage(text, isHidden = false) {
       }
     }
 
-    // Clean the display text
     let displayText = resultText
       .replace(/<!--NEGATIVE_FLAG:[\s\S]*?-->/g, '')
       .replace(/<structured_output>[\s\S]*?<\/structured_output>/g, '')
       .replace(/<drafts>[\s\S]*?<\/drafts>/g, '')
       .trim();
 
-    // Add agent message to chat
     showTypingIndicator(false);
     addChatBubble('agent', displayText);
     chatHistory.push({ role: 'agent', content: displayText });
@@ -1212,19 +1171,15 @@ const DRAFT_SIGNALS = [
 ];
 
 function detectDraft(text) {
-  // Must have at least 4 agent messages (survey is done)
   if (agentMessageCount < 4) return false;
 
-  // Check for draft signal phrases
   return DRAFT_SIGNALS.some(re => re.test(text));
 }
 
 function extractDraft(text) {
-  // Try to extract text between quotes
   const quoteMatch = text.match(/"([^"]{40,})"/);
   if (quoteMatch) return quoteMatch[1].trim();
 
-  // Try blockquote extraction
   const lines = text.split('\n');
   const blockquoteLines = lines.filter(l => l.startsWith('> '));
   if (blockquoteLines.length > 0) {
@@ -1290,8 +1245,7 @@ function parseDraftsBlock(inner) {
 }
 
 function initDraftScreen() {
-  // Backwards-compat: if no structured drafts captured, treat the legacy single
-  // draft as the first platform's draft so the UI still has something to show.
+  // Backwards-compat: if no structured drafts captured, treat the legacy single draft as the first platform's draft so the UI still has something to show.
   if (Object.keys(drafts).length === 0 && reviewDraft) {
     const fallbackPlat = PARAMS.platforms[0] || 'review';
     drafts = { [fallbackPlat]: reviewDraft };
@@ -1309,7 +1263,6 @@ function initDraftScreen() {
   updateDraftScreenChrome();
 }
 
-/** Hostname fallbacks when review URL is missing or invalid (favicons / Clearbit). */
 const PLATFORM_FAVICON_HOST = {
   hubspot: 'hubspot.com',
   g2: 'g2.com',
@@ -1318,10 +1271,6 @@ const PLATFORM_FAVICON_HOST = {
   clutch: 'clutch.co',
 };
 
-/**
- * Optional transparent PNG/SVG per slug: `CLIENT_CONFIG.platformLogos = { hubspot: 'https://...' }`.
- * Default chain: Clearbit (often transparent PNG) → Google s2 (usually not transparent, small favicon upscaled).
- */
 function platformFaviconHost(platform) {
   const key = String(platform || '').toLowerCase();
   const link = PARAMS.reviewLinks && PARAMS.reviewLinks[key];
@@ -1492,7 +1441,6 @@ function renderDraftTabs() {
     }
 
     btn.addEventListener('click', () => {
-      // persist current edits before switching
       drafts[activeDraftPlatform] = $('#draft-textarea').value;
       setActiveDraft(plat);
     });
@@ -1594,7 +1542,6 @@ function handleRegenerate() {
   btn.disabled = true;
   setRegenerateButtonLabel(btn, 'Regenerating...');
 
-  // persist current edits first
   drafts[activeDraftPlatform] = $('#draft-textarea').value;
 
   sendRegenerateRequest(activeDraftPlatform).finally(() => {
@@ -1661,11 +1608,6 @@ async function sendRegenerateRequest(platform) {
 }
 
 // ── Screen 4: Post ──────────────────────────────────────────
-// flow: how users actually submit on each platform
-//   'paste'  — simple single-field paste (HubSpot, Google, Trustpilot)
-//   'fields' — question-by-question form, needs per-field copy (G2)
-// Platforms that require a 3rd-party interview (e.g. Clutch, PeerSpot) are
-// intentionally excluded — they don't fit a draft-and-deliver model.
 const PLATFORM_META = {
   hubspot:    { name: 'HubSpot',         desc: 'B2B marketplace reviews',        icon: 'globe',  flow: 'paste'  },
   g2:         { name: 'G2',              desc: 'Where buyers compare software',  icon: 'star',   flow: 'fields' },
@@ -2126,22 +2068,18 @@ async function handlePastePost(platform, opts = {}) {
   const link = PARAMS.reviewLinks[platform];
   const draftText = drafts[platform] || reviewDraft || '';
 
-  // Open platform first while still inside user gesture.
   if (link) {
     openReviewPlatform(link, `rr-review-${platform}`);
   }
 
-  // Show confirm modal immediately; clipboard permission should not block this UI.
   if (!skipOverlay) {
     showReviewCompleteOverlay(platform);
   }
 
-  // Then copy review text to clipboard.
   try {
     await navigator.clipboard.writeText(draftText);
     showToast();
   } catch (_) {
-    // Fallback: select text in a temp textarea
     const tmp = document.createElement('textarea');
     tmp.value = draftText;
     document.body.appendChild(tmp);
@@ -2156,7 +2094,7 @@ function markPlatformPosted(platform) {
   platformsPosted[platform] = true;
   platformPostedAt[platform] = new Date().toISOString();
   triggerConfetti({ count: 25, duration: 2 });
-  initPostScreen(); // Re-render (also updates progress bar)
+  initPostScreen();
   saveSession();
 }
 
@@ -2317,7 +2255,6 @@ async function openVideoCaptureModal() {
   await refreshMediaDeviceOptions();
   let alreadyGranted = false;
   try {
-    // Probe media directly instead of relying on Permissions API.
     await ensureVideoStream();
     alreadyGranted = true;
   } catch (_) {
@@ -2857,7 +2794,6 @@ function triggerConfetti(opts = {}) {
 
 // ── Screen 7: Negative ──────────────────────────────────────
 function initNegativeScreen() {
-  // Show the last agent empathy message
   if (lastAgentMessage) {
     const cleanMsg = lastAgentMessage
       .replace(/<!--NEGATIVE_FLAG:[\s\S]*?-->/g, '')
@@ -2917,7 +2853,6 @@ async function sendLifecycleNotification(event) {
     notificationsSent[event] = true;
     saveSession();
   } catch (err) {
-    // Do not block the customer flow if Slack/email delivery fails.
     console.warn('[Reputation Rocket] Notification failed:', err);
   }
 }
@@ -3031,10 +2966,8 @@ function restoreSession() {
 
     applyLeadIdentityFromStorage(data.leadIdentity);
 
-    // Replay chat messages into the UI
     chatHistory.forEach(msg => addChatBubble(msg.role, msg.content));
 
-    // Transition to saved state
     transitionTo(data.currentState || 'welcome');
     return true;
   } catch (_) {
@@ -3042,7 +2975,6 @@ function restoreSession() {
   }
 }
 
-// Clear session (for dev/testing)
 window.rrReset = () => {
   hideReviewCompleteOverlay();
   try {
