@@ -15,17 +15,6 @@
   --shadow-lg: 8px 16px 40px rgba(29, 46, 78, 0.12);
 }
 
-.nav-brand::after {
-  content: 'EImmigration';
-  margin-left: 10px;
-  padding: 6px 8px;
-  border-radius: var(--radius-full);
-  background: rgba(0, 153, 255, 0.12);
-  color: #007acc;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
 body {
   background:
     radial-gradient(ellipse 90% 72% at 50% 0%, rgb(240, 249, 255) 0%, rgb(255, 255, 255) 45%, rgb(248, 248, 248) 100%) fixed;

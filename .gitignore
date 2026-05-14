@@ -8,3 +8,4 @@ __pycache__/
 .idea/
 node_modules/
 *.log
+VERCEL_N8N_SETUP.md

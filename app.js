@@ -1350,9 +1350,6 @@ function draftTabLogoCandidates(plat) {
   const canonical = PLATFORM_FAVICON_HOST[key];
   const fromLink = platformFaviconHost(plat);
 
-  if (canonical) add(`https://logo.clearbit.com/${encodeURIComponent(canonical)}`);
-  if (fromLink && fromLink !== canonical) add(`https://logo.clearbit.com/${encodeURIComponent(fromLink)}`);
-
   const s2host = canonical || fromLink;
   if (s2host) add(`https://www.google.com/s2/favicons?domain=${encodeURIComponent(s2host)}&sz=128`);
 
@@ -2117,7 +2114,12 @@ async function handlePastePost(platform, opts = {}) {
   const link = PARAMS.reviewLinks[platform];
   const draftText = drafts[platform] || reviewDraft || '';
 
-  // Copy review to clipboard
+  // Open platform first while still inside user gesture.
+  if (link) {
+    openReviewPlatform(link, `rr-review-${platform}`);
+  }
+
+  // Then copy review to clipboard.
   try {
     await navigator.clipboard.writeText(draftText);
     showToast();
@@ -2130,11 +2132,6 @@ async function handlePastePost(platform, opts = {}) {
     document.execCommand('copy');
     document.body.removeChild(tmp);
     showToast();
-  }
-
-  // Open platform in a smaller window (popup); fallback to new tab if blocked
-  if (link) {
-    openReviewPlatform(link, `rr-review-${platform}`);
   }
 
   if (!skipOverlay) {
@@ -2305,10 +2302,16 @@ async function openVideoCaptureModal() {
   hideVideoCaptureError();
   updateVideoRecorderMeta();
   await refreshMediaDeviceOptions();
-
-  const camPermission = await getMediaPermissionState('camera');
-  const micPermission = await getMediaPermissionState('microphone');
-  const alreadyGranted = camPermission === 'granted' && micPermission === 'granted';
+  let alreadyGranted = false;
+  try {
+    // Probe media directly instead of relying on Permissions API.
+    await ensureVideoStream();
+    alreadyGranted = true;
+  } catch (_) {
+    alreadyGranted = false;
+  } finally {
+    if (videoStream) stopVideoStream();
+  }
   setVideoModalStep(alreadyGranted ? 'settings' : 'permission');
   renderVideoRecorderState();
 }
@@ -2366,16 +2369,6 @@ function setVideoModalStep(step) {
   if (permission) permission.hidden = step !== 'permission';
   if (settings) settings.hidden = step !== 'settings';
   if (recorder) recorder.hidden = step !== 'recorder';
-}
-
-async function getMediaPermissionState(name) {
-  if (!navigator.permissions || !navigator.permissions.query) return 'unknown';
-  try {
-    const result = await navigator.permissions.query({ name });
-    return result.state || 'unknown';
-  } catch (_) {
-    return 'unknown';
-  }
 }
 
 async function refreshMediaDeviceOptions() {

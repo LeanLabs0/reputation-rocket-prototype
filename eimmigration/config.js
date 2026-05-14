@@ -1,6 +1,7 @@
 window.CLIENT_CONFIG = {
   clientSlug: 'eimmigration',
   providerName: 'EImmigration',
+  logoFaviconDomain: 'get.eimmigration.com',
   agentEndpoint: '/api/agent',
   notificationEndpoint: '/api/notify',
   platforms: ['hubspot', 'g2', 'google'],
@@ -13,17 +14,13 @@ window.CLIENT_CONFIG = {
   videoCaptureEnabled: true,
   thankYouUrl: 'https://leanlabs.com/reputation-rocket/thanks',
   allowedRedirectHosts: ['get.eimmigration.com', 'www.get.eimmigration.com'],
-  supportEmail: '',
+  supportEmail: 'support@eimmigration.com',
+
   /** HubSpot embedded lead form when `name` and `email` are not in the URL. Leave empty to skip the modal. */
-  hubspotPortalId: '',
+  hubspotPortalId: '45248900',
   hubspotFormId: '',
   hubspotFormRegion: 'na1',
-  /**
-   * Tokens from Figma eImmigration file (variables: Typography/primary-font Inter,
-   * body-font Nokora; Primary #0099FF; Secondary #00CAB0; Tertiary #A643F2;
-   * Heading #1D2E4E; Body #2A3E70; Neutral/Blue #F0F9FF; button radius 5px;
-   * Sm Shadow / SM Card elevation).
-   */
+
   theme: {
     fontFamily:
       "'Inter', 'Nokora', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
