@@ -1899,8 +1899,13 @@ function openReviewPlatform(url, windowName = 'reputationRocketReview') {
     `height=${height}`,
     `left=${left}`,
     `top=${top}`,
+    'popup=yes',
     'scrollbars=yes',
     'resizable=yes',
+    'toolbar=no',
+    'menubar=no',
+    'status=no',
+    'location=no',
   ].join(',');
 
   const w = window.open('about:blank', windowName, features);
@@ -2126,7 +2131,12 @@ async function handlePastePost(platform, opts = {}) {
     openReviewPlatform(link, `rr-review-${platform}`);
   }
 
-  // Then copy review to clipboard.
+  // Show confirm modal immediately; clipboard permission should not block this UI.
+  if (!skipOverlay) {
+    showReviewCompleteOverlay(platform);
+  }
+
+  // Then copy review text to clipboard.
   try {
     await navigator.clipboard.writeText(draftText);
     showToast();
@@ -2139,10 +2149,6 @@ async function handlePastePost(platform, opts = {}) {
     document.execCommand('copy');
     document.body.removeChild(tmp);
     showToast();
-  }
-
-  if (!skipOverlay) {
-    showReviewCompleteOverlay(platform);
   }
 }
 
