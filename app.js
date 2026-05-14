@@ -1901,18 +1901,25 @@ function openReviewPlatform(url, windowName = 'reputationRocketReview') {
     `top=${top}`,
     'scrollbars=yes',
     'resizable=yes',
-    'noopener=yes',
-    'noreferrer=yes',
   ].join(',');
 
-  const w = window.open(url, windowName, features);
+  const w = window.open('about:blank', windowName, features);
   if (w) {
     try { w.opener = null; } catch (_) { /* ignore */ }
+    try { w.location.href = url; } catch (_) { /* ignore */ }
     try { w.focus(); } catch (_) { /* ignore */ }
     return w;
   }
 
-  window.open(url, '_blank', 'noopener,noreferrer');
+  // Last-resort fallback for stricter popup blockers.
+  const a = document.createElement('a');
+  a.href = url;
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
   return null;
 }
 
