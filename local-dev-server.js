@@ -7,6 +7,7 @@ loadDotEnv(path.join(__dirname, '.env.local'));
 
 const agentHandler = require('./api/agent');
 const notifyHandler = require('./api/notify');
+const uploadVideoHandler = require('./api/upload-video');
 
 const PORT = Number(process.env.PORT || 8888);
 const ROOT = __dirname;
@@ -40,6 +41,10 @@ const server = http.createServer(async (req, res) => {
       return callApiHandler(notifyHandler, req, res);
     }
 
+    if (url.pathname === '/api/upload-video') {
+      return callApiHandlerRaw(uploadVideoHandler, req, res);
+    }
+
     return serveStatic(url.pathname, res);
   } catch (error) {
     console.error(error);
@@ -56,6 +61,31 @@ server.listen(PORT, () => {
 async function callApiHandler(handler, req, nodeRes) {
   req.body = await readJsonBody(req);
 
+  const res = {
+    statusCode: 200,
+    headers: {},
+    setHeader(key, value) {
+      this.headers[key] = value;
+    },
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(payload) {
+      this.setHeader('Content-Type', 'application/json');
+      nodeRes.writeHead(this.statusCode, this.headers);
+      nodeRes.end(JSON.stringify(payload));
+    },
+    send(payload) {
+      nodeRes.writeHead(this.statusCode, this.headers);
+      nodeRes.end(payload);
+    },
+  };
+
+  return handler(req, res);
+}
+
+function callApiHandlerRaw(handler, req, nodeRes) {
   const res = {
     statusCode: 200,
     headers: {},

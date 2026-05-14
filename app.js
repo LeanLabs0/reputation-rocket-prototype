@@ -94,11 +94,30 @@ function applyClientTheme() {
   });
 }
 
+/** Normalize host for Google s2 favicons (no scheme, no path, no leading www). */
+function normalizeLogoFaviconDomain(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return '';
+  return s.replace(/^https?:\/\//i, '').split('/')[0].replace(/^www\./i, '');
+}
+
+/** When `CLIENT_CONFIG.logoFaviconDomain` is set, header `.rr-logo-icon` uses Google favicon service. */
+function applyClientHeaderFaviconLogo() {
+  const domain = normalizeLogoFaviconDomain(CLIENT_CONFIG.logoFaviconDomain);
+  if (!domain) return;
+  const src = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
+  document.querySelectorAll('.site-header-brand .rr-logo-icon').forEach((img) => {
+    img.src = src;
+    img.referrerPolicy = 'no-referrer';
+  });
+}
+
 const CONFIG = {
   // V1 production calls should go through a Vercel serverless proxy so the
   // Factor8 API key is never shipped to the browser.
   API_URL: CLIENT_CONFIG.agentEndpoint || '/api/agent',
   NOTIFY_URL: CLIENT_CONFIG.notificationEndpoint || '/api/notify',
+  VIDEO_UPLOAD_URL: CLIENT_CONFIG.videoUploadEndpoint || '/api/upload-video',
   AGENT: 'reputation-rocket',
   TIMEOUT_MS: 60000,
 };
@@ -150,6 +169,7 @@ const PARAMS = (() => {
     providerName,
     customerCompany,
     company: customerCompany,
+    visitorCompany: '',
     email: p.get('email') || '',
     platforms,
     reviewLinks,
@@ -181,8 +201,28 @@ let negativeFlagData = null;
 let isWaitingForAgent = false;
 let lastAgentMessage = '';
 let notificationsSent = {};
+let uploadedVideoMeta = null;
 /** Per-platform: user tapped "Looks good" for that draft (required before Approve all). */
 let draftLooksGood = {};
+let videoRecorder = null;
+let videoStream = null;
+let videoChunks = [];
+let videoRecordedBlob = null;
+let videoRecordedMime = '';
+let videoElapsedSec = 0;
+let videoTimerId = null;
+let videoIsUploading = false;
+let videoInputDeviceId = '';
+let audioInputDeviceId = '';
+const VIDEO_CAPTURE_SETTINGS = {
+  maxSeconds: 5 * 60,
+  maxUploadMB: 55,
+  videoBitsPerSecond: 1_400_000,
+  audioBitsPerSecond: 128_000,
+  width: 1280,
+  height: 720,
+};
+VIDEO_CAPTURE_SETTINGS.maxUploadBytes = VIDEO_CAPTURE_SETTINGS.maxUploadMB * 1024 * 1024;
 
 // ── Fetch with sticky routing ───────────────────────────────
 async function fetchWithStickyRetry(body, signal) {
@@ -232,6 +272,7 @@ const $$ = (sel) => document.querySelectorAll(sel);
 // ── Boot ────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   applyClientTheme();
+  applyClientHeaderFaviconLogo();
 
   try {
     sessionStorage.removeItem('rr_session');
@@ -348,9 +389,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Video screen
   $('#btn-skip-video').addEventListener('click', () => transitionTo('complete'));
-  $('#btn-record-video').addEventListener('click', () => {
-    if (PARAMS.videoUrl) window.open(PARAMS.videoUrl, '_blank');
-  });
+  $('#btn-record-video').addEventListener('click', openVideoCaptureModal);
+  $('.video-powered')?.replaceChildren(document.createTextNode('Uploaded to HubSpot'));
 
   // Try to restore after handlers are wired so resumed sessions remain usable.
   if (restoreSession()) return;
@@ -384,11 +424,12 @@ function transitionTo(state) {
       initPostScreen();
       break;
     case 'video':
-      // Skip video if no URL configured
-      if (!PARAMS.videoUrl) {
+      // Skip video if capture isn't enabled for this client.
+      if (!isVideoStepEnabled()) {
         transitionTo('complete');
         return;
       }
+      initVideoScreen();
       break;
     case 'complete':
       initCompleteScreen();
@@ -466,66 +507,234 @@ function applyLeadIdentityFromStorage(identity) {
   if (identity.name) PARAMS.name = String(identity.name);
   if (identity.firstName) PARAMS.firstName = String(identity.firstName);
   if (identity.email) PARAMS.email = String(identity.email);
-  if (identity.customerCompany) {
-    PARAMS.customerCompany = String(identity.customerCompany);
-    PARAMS.company = PARAMS.customerCompany;
-  }
+  if (identity.visitorCompany) PARAMS.visitorCompany = String(identity.visitorCompany);
   refreshDynamicLabels();
 }
 
 /**
- * Normalize HubSpot embed submissionValues (or similar) into PARAMS for agent + notifications.
+ * Normalize HubSpot field names (handles "0-1/firstname", paths, etc.).
+ */
+function normalizeHubSpotFieldKey(raw) {
+  let s = String(raw || '').trim().toLowerCase();
+  if (!s) return '';
+  const tail = s.split(/[/\\]/).pop();
+  s = String(tail || s).replace(/-/g, '_');
+  s = s.replace(/^\d+_\d+_?/, '');
+  return s;
+}
+
+function rowValueToString(v) {
+  if (v == null) return '';
+  if (Array.isArray(v)) return v.map((x) => String(x).trim()).filter(Boolean).join(', ');
+  return String(v).trim();
+}
+
+function parseSubmissionValuesFromHubSpotData(data) {
+  if (!data || typeof data !== 'object') return [];
+  if (Array.isArray(data.submissionValues)) return data.submissionValues;
+  if (Array.isArray(data.submittedValues)) return data.submittedValues;
+  if (Array.isArray(data.fields)) return data.fields;
+  const sv = data.submissionValues;
+  if (sv && typeof sv === 'object' && !Array.isArray(sv)) {
+    return Object.entries(sv).map(([name, value]) => ({ name, value: rowValueToString(value) }));
+  }
+  return [];
+}
+
+function scrapeLeadFieldsFromHubSpotDom(rootEl) {
+  if (!rootEl || typeof rootEl.querySelectorAll !== 'function') return [];
+  const out = [];
+  rootEl.querySelectorAll('input[name], select[name], textarea[name]').forEach((field) => {
+    const name = field.name;
+    if (!name) return;
+    const t = (field.type || '').toLowerCase();
+    if (t === 'button' || t === 'submit') return;
+    if (t === 'hidden' && /utm|hs_context|csrf|goog-|hutk|__hstc|__hssc|content[_-]?type/i.test(name)) {
+      return;
+    }
+    if ((t === 'checkbox' || t === 'radio') && !field.checked) return;
+    const value = rowValueToString(field.value);
+    if (!value) return;
+    out.push({ name, value });
+  });
+  return out;
+}
+
+/**
+ * Merge HubSpot embed submission + DOM into PARAMS for agent + Slack.
  */
 function applyHubSpotSubmissionToParams(submissionValues) {
   const map = {};
   (submissionValues || []).forEach((row) => {
-    const key = String(row.name || '').toLowerCase().replace(/-/g, '_');
-    map[key] = row.value != null ? String(row.value).trim() : '';
+    const rawName = row.name != null ? String(row.name) : '';
+    if (!rawName) return;
+    const val = rowValueToString(row.value);
+    const nk = normalizeHubSpotFieldKey(rawName);
+    if (nk) map[nk] = val;
   });
 
-  const first = map.firstname || map.first_name || '';
-  const last = map.lastname || map.last_name || '';
-  const fullName =
+  const first =
+    map.firstname ||
+    map.first_name ||
+    map.fname ||
+    '';
+  const last = map.lastname || map.last_name || map.lname || '';
+  let fullName =
     [first, last].filter(Boolean).join(' ').trim() ||
     map.name ||
     map.fullname ||
     map.full_name ||
+    map.contact_name ||
     '';
+
+  if (!fullName) {
+    for (const [k, v] of Object.entries(map)) {
+      if (!v) continue;
+      if (
+        k.includes('full_name') ||
+        k === 'your_name' ||
+        (k.includes('name') && !k.includes('company') && !k.includes('username') && k.length <= 20)
+      ) {
+        fullName = v;
+        break;
+      }
+    }
+  }
+
   if (fullName) PARAMS.name = fullName;
   if (first) PARAMS.firstName = first;
   else if (fullName) PARAMS.firstName = fullName.split(/\s+/)[0] || 'there';
   else PARAMS.firstName = 'there';
 
-  if (map.email) PARAMS.email = map.email;
+  let email =
+    map.email ||
+    map.work_email ||
+    map.workemail ||
+    map.contact_email ||
+    map.businessemail ||
+    '';
+  if (!email) {
+    for (const [k, v] of Object.entries(map)) {
+      if (!v) continue;
+      if (
+        k === 'email' ||
+        k.endsWith('_email') ||
+        (k.includes('email') && !k.includes('confirm') && !k.includes('second'))
+      ) {
+        email = v;
+        break;
+      }
+    }
+  }
+  if (email) PARAMS.email = email;
 
-  const co =
+  let co =
     map.company ||
     map.companyname ||
     map.company_name ||
     map.organization ||
+    map.organisation ||
+    map.account_name ||
+    map.your_company ||
     '';
+  if (!co) {
+    for (const [k, v] of Object.entries(map)) {
+      if (!v) continue;
+      if (
+        (k.includes('company') || k.includes('organization')) &&
+        !k.includes('associated') &&
+        !k.includes('companyid') &&
+        !k.includes('company_id')
+      ) {
+        co = v;
+        break;
+      }
+    }
+  }
   if (co) {
-    PARAMS.customerCompany = co;
-    PARAMS.company = co;
+    PARAMS.visitorCompany = co;
   }
 
   refreshDynamicLabels();
 }
 
 function extractSubmissionFromHubSpotCallback($form, data) {
-  if (data && Array.isArray(data.submissionValues)) return data.submissionValues;
-  const el = $form && $form.length ? $form[0] : $form;
+  const fromData = parseSubmissionValuesFromHubSpotData(data);
+  if (fromData.length) return fromData;
+
+  let el = $form && $form.length ? $form[0] : $form;
+  if (el && typeof el.querySelector === 'function' && !el.querySelector('input[name]')) {
+    const innerForm = el.querySelector('form.hs-form, form');
+    if (innerForm) el = innerForm;
+  }
   if (el && typeof el.querySelectorAll === 'function') {
-    const out = [];
-    el.querySelectorAll('input, select, textarea').forEach((field) => {
-      const name = field.name;
-      if (!name || field.type === 'button' || field.type === 'submit') return;
-      if ((field.type === 'checkbox' || field.type === 'radio') && !field.checked) return;
-      out.push({ name, value: field.value });
-    });
-    return out;
+    return scrapeLeadFieldsFromHubSpotDom(el);
+  }
+
+  const host = document.getElementById('hubspot-lead-form-target');
+  if (host) {
+    const form = host.querySelector('form.hs-form, form');
+    if (form) return scrapeLeadFieldsFromHubSpotDom(form);
+    return scrapeLeadFieldsFromHubSpotDom(host);
   }
   return [];
+}
+
+/**
+ * Prefer callback rows; fill missing normalized keys from fallback (e.g. live DOM).
+ */
+function mergeHubSpotSubmissionRows(primary, fallback) {
+  const byKey = new Map();
+  const ingest = (rows, gapsOnly) => {
+    for (const row of rows || []) {
+      const nk = normalizeHubSpotFieldKey(row.name);
+      if (!nk) continue;
+      const val = rowValueToString(row.value);
+      if (!val) continue;
+      if (gapsOnly && byKey.has(nk)) continue;
+      byKey.set(nk, { name: row.name, value: val });
+    }
+  };
+  ingest(primary, false);
+  ingest(fallback, true);
+  return Array.from(byKey.values());
+}
+
+/** Resolved lead for agent + Slack (PARAMS + saved session leadIdentity fallback). */
+function getLeadFieldsForApi() {
+  let name = (PARAMS.name || '').trim();
+  let email = (PARAMS.email || '').trim();
+  let visitorCompany = (PARAMS.visitorCompany || '').trim();
+  const reviewedCompany = (PARAMS.customerCompany || PARAMS.providerName || '').trim();
+
+  try {
+    const raw = sessionStorage.getItem(getSessionStorageKey());
+    if (raw) {
+      const data = JSON.parse(raw);
+      const li = data.leadIdentity;
+      if (li && typeof li === 'object') {
+        if (!name && li.name) name = String(li.name).trim();
+        if (!email && li.email) email = String(li.email).trim();
+        if (!visitorCompany && li.visitorCompany) visitorCompany = String(li.visitorCompany).trim();
+      }
+    }
+  } catch (_) { /* ignore */ }
+
+  return {
+    client_name: reviewedCompany,
+    customer_name: name,
+    customer_email: email,
+    visitor_company: visitorCompany,
+  };
+}
+
+function getNotifyLeadSnapshot() {
+  const L = getLeadFieldsForApi();
+  return {
+    client: L.client_name || PARAMS.providerName,
+    customer_name: L.customer_name || 'Unknown',
+    customer_email: L.customer_email || 'Unknown',
+  };
 }
 
 let hubspotFormsLoadingPromise = null;
@@ -682,8 +891,32 @@ async function openHubSpotLeadModalAndMountForm(onSuccess) {
       region,
       target: targetSelector,
       onFormSubmitted: ($form, data) => {
-        const values = extractSubmissionFromHubSpotCallback($form, data);
+        const fromCallback = parseSubmissionValuesFromHubSpotData(data);
+
+        let el = $form && $form.length ? $form[0] : $form;
+        if (el && typeof el.querySelector === 'function' && !el.querySelector('input[name]')) {
+          const innerForm = el.querySelector('form.hs-form, form');
+          if (innerForm) el = innerForm;
+        }
+
+        let fromDom = [];
+        if (el && typeof el.querySelectorAll === 'function') {
+          fromDom = scrapeLeadFieldsFromHubSpotDom(el);
+        }
+        if (!fromDom.length) {
+          const host = document.getElementById('hubspot-lead-form-target');
+          if (host) {
+            const inner = host.querySelector('form.hs-form, form') || host;
+            fromDom = scrapeLeadFieldsFromHubSpotDom(inner);
+          }
+        }
+
+        let values = mergeHubSpotSubmissionRows(fromCallback, fromDom);
+        if (!values.length) {
+          values = extractSubmissionFromHubSpotCallback($form, data);
+        }
         applyHubSpotSubmissionToParams(values);
+        saveSession();
         hideHubSpotLeadModal();
         if (typeof onSuccess === 'function') onSuccess();
       },
@@ -723,6 +956,7 @@ function initChat() {
   if (chatHistory.length === 0) {
     sendMessage('Please start the review process.', true);
   }
+  syncChatDraftPromptVisibility();
 }
 
 async function sendMessage(text, isHidden = false) {
@@ -745,14 +979,15 @@ async function sendMessage(text, isHidden = false) {
   showTypingIndicator(true);
 
   try {
+    const L = getLeadFieldsForApi();
     const body = {
       prompt: text,
       agent: CONFIG.AGENT,
       session_id: sessionId,
       config: {
-        client_name: PARAMS.customerCompany,
-        customer_name: PARAMS.name,
-        customer_email: PARAMS.email,
+        client_name: L.client_name,
+        customer_name: L.customer_name,
+        customer_email: L.customer_email,
         platforms: PARAMS.platforms,
         review_links: PARAMS.reviewLinks,
         // video_testimonial_url intentionally omitted — frontend handles Screen 5
@@ -840,12 +1075,13 @@ async function sendMessage(text, isHidden = false) {
       // Negative path: show empathy message, then transition after delay
       setTimeout(() => transitionTo('negative'), 2500);
     } else if (draftsParsed) {
-      // Multi-platform drafts ready: show "View Your Draft" button
+      renderChatDraftPrompt();
       $('#chat-draft-prompt').classList.add('visible');
     } else if (detectDraft(displayText)) {
       // Backwards-compat fallback: legacy single-draft text
       reviewDraft = extractDraft(displayText);
       draftLooksGood = {};
+      renderChatDraftPrompt();
       $('#chat-draft-prompt').classList.add('visible');
     }
 
@@ -1123,6 +1359,85 @@ function draftTabLogoCandidates(plat) {
   return urls;
 }
 
+function getChatDraftPromptPlatformList() {
+  const keys = Object.keys(drafts).filter((k) => drafts[k] != null && String(drafts[k]).trim());
+  if (keys.length) return keys;
+  if (Array.isArray(PARAMS.platforms) && PARAMS.platforms.length) return [...PARAMS.platforms];
+  return ['hubspot'];
+}
+
+function renderChatDraftPrompt() {
+  const sub = $('#chat-draft-prompt-subhead');
+  const grid = $('#chat-draft-prompt-platforms');
+  if (!sub || !grid) return;
+
+  const platformList = getChatDraftPromptPlatformList();
+  const n = platformList.length;
+  sub.textContent = `${n} review ${n === 1 ? 'draft' : 'drafts'} can be reviewed and edited:`;
+
+  grid.innerHTML = '';
+  platformList.forEach((plat) => {
+    const card = document.createElement('div');
+    card.className = 'chat-draft-prompt__mini';
+
+    const iconWrap = document.createElement('div');
+    iconWrap.className = 'chat-draft-prompt__mini-icon';
+
+    const img = document.createElement('img');
+    img.alt = '';
+    img.width = 36;
+    img.height = 36;
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    img.referrerPolicy = 'no-referrer';
+
+    const candidates = draftTabLogoCandidates(plat);
+    let idx = 0;
+    const loadNextLogo = () => {
+      if (idx >= candidates.length) {
+        img.style.display = 'none';
+        iconWrap.classList.add('chat-draft-prompt__mini-icon--empty');
+        return;
+      }
+      img.src = candidates[idx++];
+    };
+    img.addEventListener('error', loadNextLogo);
+    loadNextLogo();
+    iconWrap.appendChild(img);
+
+    const meta = document.createElement('div');
+    meta.className = 'chat-draft-prompt__mini-meta';
+
+    const nameEl = document.createElement('p');
+    nameEl.className = 'chat-draft-prompt__mini-name';
+    nameEl.textContent = platformDisplayName(plat);
+
+    const status = document.createElement('div');
+    status.className = 'chat-draft-prompt__mini-status';
+    status.innerHTML =
+      '<span class="chat-draft-prompt__mini-status-text">Draft Ready</span><span class="chat-draft-prompt__mini-status-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none"><circle cx="12" cy="12" r="10" fill="currentColor" fill-opacity="0.12"/><path d="M8 12l2.5 2.5L16 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+
+    meta.appendChild(nameEl);
+    meta.appendChild(status);
+    card.appendChild(iconWrap);
+    card.appendChild(meta);
+    grid.appendChild(card);
+  });
+}
+
+function syncChatDraftPromptVisibility() {
+  const el = $('#chat-draft-prompt');
+  if (!el) return;
+  const fromDrafts =
+    Object.keys(drafts).length > 0 &&
+    Object.keys(drafts).some((k) => drafts[k] != null && String(drafts[k]).trim());
+  const fromLegacy = !!(reviewDraft && String(reviewDraft).trim());
+  if (fromDrafts || fromLegacy) {
+    el.classList.add('visible');
+    renderChatDraftPrompt();
+  }
+}
+
 function renderDraftTabs() {
   const tabsEl = $('#draft-tabs');
   if (!tabsEl) return;
@@ -1293,14 +1608,15 @@ function handleRegenerate() {
 
 async function sendRegenerateRequest(platform) {
   try {
+    const L = getLeadFieldsForApi();
     const body = {
       prompt: `Please regenerate ONLY the ${platform} draft with a slightly different angle. Wrap the new draft in <drafts><draft platform="${platform}">...</draft></drafts>. Do not include any other platforms.`,
       agent: CONFIG.AGENT,
       session_id: sessionId,
       config: {
-        client_name: PARAMS.customerCompany,
-        customer_name: PARAMS.name,
-        customer_email: PARAMS.email,
+        client_name: L.client_name,
+        customer_name: L.customer_name,
+        customer_email: L.customer_email,
         platforms: PARAMS.platforms,
         review_links: PARAMS.reviewLinks,
       },
@@ -1840,7 +2156,7 @@ function updatePostContinueButton() {
   if (btn) btn.disabled = postedCount === 0;
   const sub = $('#post-continue-sub');
   if (!sub) return;
-  if (PARAMS.videoUrl) {
+  if (isVideoStepEnabled()) {
     sub.hidden = false;
     sub.textContent = 'Next up: Record a quick video';
   } else {
@@ -1861,10 +2177,593 @@ function updatePostProgress() {
 }
 
 function handleContinueAfterPost() {
-  if (PARAMS.videoUrl) {
+  if (isVideoStepEnabled()) {
     transitionTo('video');
   } else {
     transitionTo('complete');
+  }
+}
+
+function isVideoStepEnabled() {
+  return Boolean(CLIENT_CONFIG.videoCaptureEnabled || PARAMS.videoUrl);
+}
+
+function initVideoScreen() {
+  const status = document.getElementById('video-status-text');
+  if (status) {
+    const maxMins = Math.floor(VIDEO_CAPTURE_SETTINGS.maxSeconds / 60);
+    status.textContent = `Record up to ${maxMins} minutes (~${VIDEO_CAPTURE_SETTINGS.maxUploadMB}MB). Upload only happens after you confirm.`;
+    status.classList.remove('error');
+  }
+}
+
+function ensureVideoCaptureModal() {
+  let modal = document.getElementById('video-capture-modal');
+  if (modal) return modal;
+
+  modal = document.createElement('div');
+  modal.id = 'video-capture-modal';
+  modal.className = 'video-capture-modal';
+  modal.setAttribute('hidden', '');
+  modal.setAttribute('aria-hidden', 'true');
+  modal.innerHTML = `
+    <button type="button" class="video-capture-modal__backdrop" aria-label="Close dialog"></button>
+    <div class="video-capture-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="video-capture-title">
+      <button type="button" class="video-capture-modal__close" aria-label="Close dialog">×</button>
+      <h3 id="video-capture-title" class="video-capture-modal__title">Record your testimonial</h3>
+      <p class="video-capture-modal__hint">Max length: ${formatVideoDuration(VIDEO_CAPTURE_SETTINGS.maxSeconds)}. Please keep your camera and mic on while recording.</p>
+
+      <div id="video-capture-step-permission" class="video-capture-modal__step">
+        <div id="video-capture-permission" class="video-capture-modal__permission">
+          <p class="video-capture-modal__permission-text">
+            Allow camera and microphone access in your browser prompt.
+            If blocked, click the lock/camera icon near the address bar and enable access for this site.
+          </p>
+          <button type="button" id="btn-video-enable-permissions" class="btn btn-primary btn-sm">Enable camera & microphone</button>
+        </div>
+        <p id="video-capture-setup-error" class="video-capture-modal__error" hidden></p>
+      </div>
+
+      <div id="video-capture-step-settings" class="video-capture-modal__step" hidden>
+        <div class="video-capture-modal__device-grid">
+          <label class="video-capture-modal__field">
+            <span>Camera</span>
+            <select id="video-input-select" class="video-capture-modal__select"></select>
+          </label>
+          <label class="video-capture-modal__field">
+            <span>Microphone</span>
+            <select id="audio-input-select" class="video-capture-modal__select"></select>
+          </label>
+        </div>
+        <p id="video-capture-settings-error" class="video-capture-modal__error" hidden></p>
+
+        <div class="video-capture-modal__upload">
+          <button type="button" id="btn-video-continue" class="btn btn-primary">Continue to recorder</button>
+        </div>
+      </div>
+
+      <div id="video-capture-step-recorder" class="video-capture-modal__step" hidden>
+        <div class="video-capture-modal__questions">
+          <p class="video-capture-modal__questions-label">Interview questions</p>
+          <ol class="video-capture-modal__questions-list">
+            <li>What problem or trigger event led you to hire us?</li>
+            <li>What were you looking for in a solution?</li>
+            <li>Why did you choose us over other options?</li>
+            <li>What concerns did you have, and how were they addressed?</li>
+            <li>What part of the solution made the biggest difference?</li>
+          </ol>
+        </div>
+
+        <div class="video-capture-modal__preview">
+          <video id="video-capture-preview" playsinline muted autoplay></video>
+        </div>
+
+        <div class="video-capture-modal__meta">
+          <span id="video-capture-timer">00:00 / ${formatVideoDuration(VIDEO_CAPTURE_SETTINGS.maxSeconds)}</span>
+          <span id="video-capture-size">0.0 MB</span>
+        </div>
+        <p id="video-capture-error" class="video-capture-modal__error" hidden></p>
+
+        <div id="video-capture-recorder-controls" class="video-capture-modal__actions">
+          <button type="button" id="btn-video-start" class="btn btn-primary btn-sm">Record my video</button>
+          <button type="button" id="btn-video-stop" class="btn btn-secondary btn-sm" hidden>Stop</button>
+          <button type="button" id="btn-video-reset" class="btn btn-secondary btn-sm" hidden>Reset</button>
+        </div>
+
+        <div id="video-capture-upload-wrap" class="video-capture-modal__upload">
+          <button type="button" id="btn-video-upload" class="btn btn-primary">Submit video</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  modal.addEventListener('click', (e) => {
+    if (e.target.classList.contains('video-capture-modal__backdrop') || e.target.closest('.video-capture-modal__close')) {
+      e.preventDefault();
+      closeVideoCaptureModal();
+    }
+  });
+
+  document.getElementById('btn-video-start')?.addEventListener('click', handlePrimaryVideoButton);
+  document.getElementById('btn-video-enable-permissions')?.addEventListener('click', requestVideoPermissions);
+  document.getElementById('btn-video-continue')?.addEventListener('click', continueToVideoRecorderStep);
+  document.getElementById('btn-video-stop')?.addEventListener('click', stopVideoRecording);
+  document.getElementById('btn-video-reset')?.addEventListener('click', resetVideoRecordingState);
+  document.getElementById('btn-video-upload')?.addEventListener('click', uploadRecordedVideoToHubSpot);
+  document.getElementById('video-input-select')?.addEventListener('change', handleVideoInputChange);
+  document.getElementById('audio-input-select')?.addEventListener('change', handleAudioInputChange);
+
+  return modal;
+}
+
+async function openVideoCaptureModal() {
+  const modal = ensureVideoCaptureModal();
+  modal.removeAttribute('hidden');
+  modal.setAttribute('aria-hidden', 'false');
+  terminateVideoCaptureSession();
+  hideVideoCaptureError();
+  updateVideoRecorderMeta();
+  await refreshMediaDeviceOptions();
+
+  const camPermission = await getMediaPermissionState('camera');
+  const micPermission = await getMediaPermissionState('microphone');
+  const alreadyGranted = camPermission === 'granted' && micPermission === 'granted';
+  setVideoModalStep(alreadyGranted ? 'settings' : 'permission');
+  renderVideoRecorderState();
+}
+
+function closeVideoCaptureModal() {
+  const modal = document.getElementById('video-capture-modal');
+  if (!modal) return;
+  terminateVideoCaptureSession();
+  modal.setAttribute('hidden', '');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+async function ensureVideoStream() {
+  if (videoStream) return videoStream;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    throw new Error('This browser does not support camera recording.');
+  }
+
+  const videoConstraint = videoInputDeviceId
+    ? { deviceId: { exact: videoInputDeviceId } }
+    : {
+      width: { ideal: VIDEO_CAPTURE_SETTINGS.width },
+      height: { ideal: VIDEO_CAPTURE_SETTINGS.height },
+      facingMode: 'user',
+    };
+  const audioConstraint = audioInputDeviceId
+    ? { deviceId: { exact: audioInputDeviceId } }
+    : true;
+
+  try {
+    videoStream = await navigator.mediaDevices.getUserMedia({
+      video: videoConstraint,
+      audio: audioConstraint,
+    });
+  } catch (err) {
+    if (err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')) {
+      throw new Error('Camera/microphone access was blocked. Please enable access for this site and try again.');
+    }
+    throw err;
+  }
+  const preview = document.getElementById('video-capture-preview');
+  if (preview) {
+    preview.srcObject = videoStream;
+    preview.muted = true;
+    preview.play().catch(() => {});
+  }
+  await refreshMediaDeviceOptions();
+  return videoStream;
+}
+
+function setVideoModalStep(step) {
+  const permission = document.getElementById('video-capture-step-permission');
+  const settings = document.getElementById('video-capture-step-settings');
+  const recorder = document.getElementById('video-capture-step-recorder');
+  if (permission) permission.hidden = step !== 'permission';
+  if (settings) settings.hidden = step !== 'settings';
+  if (recorder) recorder.hidden = step !== 'recorder';
+}
+
+async function getMediaPermissionState(name) {
+  if (!navigator.permissions || !navigator.permissions.query) return 'unknown';
+  try {
+    const result = await navigator.permissions.query({ name });
+    return result.state || 'unknown';
+  } catch (_) {
+    return 'unknown';
+  }
+}
+
+async function refreshMediaDeviceOptions() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+  let devices = [];
+  try {
+    devices = await navigator.mediaDevices.enumerateDevices();
+  } catch (_) {
+    return;
+  }
+  const cameras = devices.filter((d) => d.kind === 'videoinput');
+  const mics = devices.filter((d) => d.kind === 'audioinput');
+  populateMediaSelect('video-input-select', cameras, 'Camera', videoInputDeviceId, (nextId) => {
+    videoInputDeviceId = nextId;
+  });
+  populateMediaSelect('audio-input-select', mics, 'Microphone', audioInputDeviceId, (nextId) => {
+    audioInputDeviceId = nextId;
+  });
+}
+
+function populateMediaSelect(selectId, devices, fallbackLabel, selectedId, onSelect) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  const nextSelected = selectedId && devices.some((d) => d.deviceId === selectedId)
+    ? selectedId
+    : (devices[0] ? devices[0].deviceId : '');
+  onSelect(nextSelected);
+
+  const options = devices.map((device, idx) => {
+    const label = (device.label || `${fallbackLabel} ${idx + 1}`).trim();
+    return `<option value="${escapeHtml(device.deviceId)}">${escapeHtml(label)}</option>`;
+  }).join('');
+
+  select.innerHTML = options || `<option value="">No ${fallbackLabel.toLowerCase()} detected</option>`;
+  select.value = nextSelected;
+}
+
+async function continueToVideoRecorderStep() {
+  hideVideoCaptureError();
+  try {
+    stopVideoStream();
+    await ensureVideoStream();
+    setVideoModalStep('recorder');
+    renderVideoRecorderState();
+  } catch (err) {
+    showVideoCaptureError(err.message || 'Unable to access camera/microphone.');
+  }
+}
+
+function handleVideoInputChange(e) {
+  videoInputDeviceId = e.target.value || '';
+}
+
+function handleAudioInputChange(e) {
+  audioInputDeviceId = e.target.value || '';
+}
+
+async function requestVideoPermissions() {
+  hideVideoCaptureError();
+  try {
+    await ensureVideoStream();
+    stopVideoStream();
+    await refreshMediaDeviceOptions();
+    setVideoModalStep('settings');
+  } catch (err) {
+    showVideoCaptureError(err.message || 'Unable to access camera/microphone.');
+  }
+}
+
+function stopVideoStream() {
+  if (!videoStream) return;
+  videoStream.getTracks().forEach((track) => track.stop());
+  videoStream = null;
+  const preview = document.getElementById('video-capture-preview');
+  if (preview) preview.srcObject = null;
+}
+
+function pickRecorderMimeType() {
+  const candidates = [
+    'video/webm;codecs=vp8,opus',
+    'video/mp4',
+    'video/webm',
+    'video/webm;codecs=vp9,opus',
+  ];
+  for (const mime of candidates) {
+    if (window.MediaRecorder && MediaRecorder.isTypeSupported(mime)) return mime;
+  }
+  return '';
+}
+
+function startVideoTimer() {
+  clearVideoTimer();
+  videoTimerId = setInterval(() => {
+    videoElapsedSec += 1;
+    if (videoElapsedSec >= VIDEO_CAPTURE_SETTINGS.maxSeconds) {
+      stopVideoRecording();
+      showVideoCaptureError(`Recording stopped at the ${formatVideoDuration(VIDEO_CAPTURE_SETTINGS.maxSeconds)} limit.`);
+    }
+    updateVideoRecorderMeta();
+  }, 1000);
+}
+
+function clearVideoTimer() {
+  if (videoTimerId) clearInterval(videoTimerId);
+  videoTimerId = null;
+}
+
+function updateVideoRecorderMeta() {
+  const timer = document.getElementById('video-capture-timer');
+  if (timer) {
+    timer.textContent = `${formatVideoDuration(videoElapsedSec)} / ${formatVideoDuration(VIDEO_CAPTURE_SETTINGS.maxSeconds)}`;
+  }
+  const sizeEl = document.getElementById('video-capture-size');
+  if (sizeEl) {
+    const bytes = videoChunks.reduce((sum, c) => sum + (c ? c.size : 0), 0);
+    sizeEl.textContent = `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+}
+
+function formatVideoDuration(totalSeconds) {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+async function startVideoRecording() {
+  hideVideoCaptureError();
+  await ensureVideoStream();
+  if (!window.MediaRecorder) {
+    showVideoCaptureError('This browser does not support recording.');
+    return;
+  }
+
+  const mimeType = pickRecorderMimeType();
+  try {
+    videoChunks = [];
+    videoRecordedBlob = null;
+    videoRecordedMime = mimeType || 'video/webm';
+    videoElapsedSec = 0;
+    videoRecorder = new MediaRecorder(videoStream, {
+      mimeType: mimeType || undefined,
+      videoBitsPerSecond: VIDEO_CAPTURE_SETTINGS.videoBitsPerSecond,
+      audioBitsPerSecond: VIDEO_CAPTURE_SETTINGS.audioBitsPerSecond,
+    });
+  } catch (err) {
+    showVideoCaptureError(`Unable to start recording: ${err.message}`);
+    return;
+  }
+
+  videoRecorder.ondataavailable = (evt) => {
+    if (!evt.data || !evt.data.size) return;
+    videoChunks.push(evt.data);
+    const total = videoChunks.reduce((sum, c) => sum + c.size, 0);
+    if (total > VIDEO_CAPTURE_SETTINGS.maxUploadBytes) {
+      showVideoCaptureError(`Recording reached the max upload size (~${VIDEO_CAPTURE_SETTINGS.maxUploadMB}MB).`);
+      stopVideoRecording();
+    }
+    updateVideoRecorderMeta();
+  };
+
+  videoRecorder.onstop = () => {
+    clearVideoTimer();
+    videoRecordedBlob = new Blob(videoChunks, { type: videoRecordedMime || 'video/webm' });
+    const preview = document.getElementById('video-capture-preview');
+    if (preview && videoRecordedBlob && videoRecordedBlob.size > 0) {
+      preview.srcObject = null;
+      preview.src = URL.createObjectURL(videoRecordedBlob);
+      preview.controls = true;
+      preview.muted = false;
+    }
+    renderVideoRecorderState();
+  };
+
+  videoRecorder.onerror = (evt) => {
+    showVideoCaptureError(`Recording error: ${evt.error?.message || 'Unknown issue'}`);
+    clearVideoTimer();
+    renderVideoRecorderState();
+  };
+
+  videoRecorder.start(1000);
+  startVideoTimer();
+  renderVideoRecorderState();
+}
+
+async function handlePrimaryVideoButton() {
+  const state = videoRecorder ? videoRecorder.state : 'inactive';
+  if (state === 'inactive') {
+    await startVideoRecording();
+    return;
+  }
+  if (state === 'recording') {
+    videoRecorder.pause();
+    clearVideoTimer();
+    renderVideoRecorderState();
+    return;
+  }
+  if (state === 'paused') {
+    videoRecorder.resume();
+    startVideoTimer();
+    renderVideoRecorderState();
+  }
+}
+
+function stopVideoRecording() {
+  if (!videoRecorder) return;
+  if (videoRecorder.state === 'inactive') return;
+  clearVideoTimer();
+  try {
+    if (videoRecorder.state === 'recording' || videoRecorder.state === 'paused') {
+      videoRecorder.requestData();
+    }
+  } catch (_) { /* ignore */ }
+  videoRecorder.stop();
+  renderVideoRecorderState();
+}
+
+function resetVideoRecordingState() {
+  if (videoRecorder && videoRecorder.state !== 'inactive') {
+    videoRecorder.stop();
+  }
+  videoRecorder = null;
+  videoChunks = [];
+  videoRecordedBlob = null;
+  videoRecordedMime = '';
+  videoElapsedSec = 0;
+  clearVideoTimer();
+  const preview = document.getElementById('video-capture-preview');
+  if (preview) {
+    preview.controls = false;
+    preview.muted = true;
+    preview.removeAttribute('src');
+    preview.load();
+    if (videoStream) {
+      preview.srcObject = videoStream;
+      preview.play().catch(() => {});
+    }
+  }
+  updateVideoRecorderMeta();
+  renderVideoRecorderState();
+  hideVideoCaptureError();
+}
+
+function terminateVideoCaptureSession() {
+  clearVideoTimer();
+  if (videoRecorder) {
+    try {
+      videoRecorder.ondataavailable = null;
+      videoRecorder.onerror = null;
+      videoRecorder.onstop = null;
+      if (videoRecorder.state !== 'inactive') {
+        videoRecorder.stop();
+      }
+    } catch (_) { /* ignore */ }
+  }
+  videoRecorder = null;
+  videoChunks = [];
+  videoRecordedBlob = null;
+  videoRecordedMime = '';
+  videoElapsedSec = 0;
+  stopVideoStream();
+  const preview = document.getElementById('video-capture-preview');
+  if (preview) {
+    preview.pause();
+    preview.removeAttribute('src');
+    preview.srcObject = null;
+    preview.controls = false;
+    preview.muted = true;
+    preview.load();
+  }
+}
+
+function renderVideoRecorderState() {
+  const state = videoRecorder ? videoRecorder.state : 'inactive';
+  const hasBlob = !!(videoRecordedBlob && videoRecordedBlob.size > 0);
+
+  const start = document.getElementById('btn-video-start');
+  const stop = document.getElementById('btn-video-stop');
+  const reset = document.getElementById('btn-video-reset');
+  const upload = document.getElementById('btn-video-upload');
+
+  if (start) {
+    start.hidden = false;
+    start.disabled = videoIsUploading;
+    if (state === 'recording') start.textContent = 'Pause';
+    else if (state === 'paused') start.textContent = 'Resume';
+    else if (hasBlob) start.textContent = 'Record again';
+    else start.textContent = 'Record my video';
+  }
+  if (stop) {
+    const canStop = state === 'recording' || state === 'paused';
+    stop.hidden = !canStop;
+    stop.disabled = !canStop || videoIsUploading;
+  }
+  if (reset) {
+    reset.hidden = !(state === 'inactive' && hasBlob);
+    reset.disabled = !(state === 'inactive' && hasBlob) || videoIsUploading;
+  }
+  if (upload) {
+    upload.disabled = !hasBlob || videoIsUploading;
+    upload.textContent = videoIsUploading ? 'Submitting...' : 'Submit video';
+  }
+}
+
+function showVideoCaptureError(message) {
+  const els = [
+    document.getElementById('video-capture-error'),
+    document.getElementById('video-capture-setup-error'),
+    document.getElementById('video-capture-settings-error'),
+  ].filter(Boolean);
+  els.forEach((el) => {
+    el.hidden = false;
+    el.textContent = message;
+  });
+}
+
+function hideVideoCaptureError() {
+  const els = [
+    document.getElementById('video-capture-error'),
+    document.getElementById('video-capture-setup-error'),
+    document.getElementById('video-capture-settings-error'),
+  ].filter(Boolean);
+  els.forEach((el) => {
+    el.hidden = true;
+    el.textContent = '';
+  });
+}
+
+async function uploadRecordedVideoToHubSpot() {
+  if (!videoRecordedBlob || videoIsUploading) return;
+  hideVideoCaptureError();
+  videoIsUploading = true;
+  renderVideoRecorderState();
+
+  const lead = getLeadFieldsForApi();
+  const portalId = String(CLIENT_CONFIG.hubspotPortalId || '').trim();
+  if (!portalId) {
+    showVideoCaptureError('This client is missing hubspotPortalId in config.js.');
+    videoIsUploading = false;
+    renderVideoRecorderState();
+    return;
+  }
+  const ext = videoRecordedMime.includes('mp4') ? 'mp4' : 'webm';
+  const fileName =
+    `${String(PARAMS.firstName || PARAMS.name || 'visitor').split(/\s+/)[0]}_reprocket_testimonial.${ext}`;
+
+  const form = new FormData();
+  form.append('video', videoRecordedBlob, fileName);
+  form.append('portalId', portalId);
+  form.append('clientSlug', String(PARAMS.clientSlug || 'default'));
+  form.append('sessionId', String(sessionId || ''));
+  form.append('firstName', String(PARAMS.firstName || '').trim());
+  form.append('visitorCompany', String(PARAMS.visitorCompany || '').trim());
+  form.append('customerName', lead.customer_name || '');
+  form.append('customerEmail', lead.customer_email || '');
+  form.append('customerCompany', lead.client_name || PARAMS.customerCompany || '');
+
+  try {
+    const res = await fetch(CONFIG.VIDEO_UPLOAD_URL, { method: 'POST', body: form });
+    const text = await res.text();
+    let payload = {};
+    try { payload = text ? JSON.parse(text) : {}; } catch (_) {}
+    if (!res.ok) {
+      throw new Error(payload.error || payload.message || `Upload failed (${res.status})`);
+    }
+    uploadedVideoMeta = {
+      id: payload?.file?.id || '',
+      url: payload?.file?.url || '',
+      name: payload?.file?.name || '',
+      portalId: payload?.portal_id || portalId,
+      uploadedAt: new Date().toISOString(),
+    };
+    closeVideoCaptureModal();
+    const status = document.getElementById('video-status-text');
+    if (status) {
+      status.textContent = 'Video uploaded to HubSpot successfully.';
+      status.classList.remove('error');
+    }
+    transitionTo('complete');
+  } catch (err) {
+    showVideoCaptureError(err.message || 'Upload failed. Please try again.');
+    const status = document.getElementById('video-status-text');
+    if (status) {
+      status.textContent = 'Video upload failed. You can retry or skip.';
+      status.classList.add('error');
+    }
+  } finally {
+    videoIsUploading = false;
+    renderVideoRecorderState();
   }
 }
 
@@ -1879,6 +2778,10 @@ function showToast() {
 function initCompleteScreen() {
   const posted = Object.values(platformsPosted).filter(Boolean).length;
   $('#stat-reviews').textContent = posted;
+  const videoStat = document.getElementById('stat-video-container');
+  if (videoStat) {
+    videoStat.style.display = uploadedVideoMeta ? '' : 'none';
+  }
   triggerConfetti();
   sendLifecycleNotification('completed');
   maybeRedirectToThankYou();
@@ -1963,19 +2866,22 @@ function initNegativeScreen() {
 async function sendLifecycleNotification(event) {
   if (!CONFIG.NOTIFY_URL || notificationsSent[event]) return;
 
+  const lead = getNotifyLeadSnapshot();
   const payload = {
     event,
     client_slug: PARAMS.clientSlug,
     provider: PARAMS.providerName,
-    client: PARAMS.customerCompany,
-    customer_name: PARAMS.name,
-    customer_email: PARAMS.email,
+    client: lead.client,
+    visitor_company: lead.visitor_company || '',
+    customer_name: lead.customer_name,
+    customer_email: lead.customer_email,
     rating: starRating,
     posted: Object.keys(platformsPosted).filter(platform => platformsPosted[platform]),
     platforms: PARAMS.platforms,
     session_id: sessionId,
     ts: new Date().toISOString(),
     negative_flag: event === 'negative' ? negativeFlagData : null,
+    video_testimonial: uploadedVideoMeta || null,
   };
   if (PARAMS.supportEmail) {
     payload.support_email = PARAMS.supportEmail;
@@ -2070,12 +2976,13 @@ function saveSession() {
         negativeFlagData,
         lastAgentMessage,
         notificationsSent,
+        uploadedVideoMeta,
         draftLooksGood,
         leadIdentity: {
           name: PARAMS.name,
           firstName: PARAMS.firstName,
           email: PARAMS.email,
-          customerCompany: PARAMS.customerCompany,
+          visitorCompany: PARAMS.visitorCompany,
         },
       }),
     );
@@ -2109,6 +3016,9 @@ function restoreSession() {
     negativeFlagData = data.negativeFlagData || null;
     lastAgentMessage = data.lastAgentMessage || '';
     notificationsSent = data.notificationsSent || {};
+    uploadedVideoMeta = data.uploadedVideoMeta && typeof data.uploadedVideoMeta === 'object'
+      ? data.uploadedVideoMeta
+      : null;
     draftLooksGood = data.draftLooksGood && typeof data.draftLooksGood === 'object'
       ? data.draftLooksGood
       : {};

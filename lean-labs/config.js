@@ -1,6 +1,8 @@
 window.CLIENT_CONFIG = {
   clientSlug: 'lean-labs',
   providerName: 'Lean Labs',
+  /** Root domain for the header logo (Google s2 favicons). No protocol or path. */
+  logoFaviconDomain: 'leanlabs.com',
   agentEndpoint: '/api/agent',
   notificationEndpoint: '/api/notify',
   platforms: ['hubspot', 'g2', 'google'],
@@ -10,8 +12,8 @@ window.CLIENT_CONFIG = {
     google: 'https://g.page/lean-labs/review',
   },
   welcomeVideoUrl: '',
-  videoUrl: 'https://testimonial.to/lean-labs',
-  thankYouUrl: 'https://leanlabs.com/reputation-rocket/thanks',
+  videoCaptureEnabled: true,
+  thankYouUrl: 'https://leanlabs.com/reputation-rocket/thank-you',
   allowedRedirectHosts: ['leanlabs.com', 'www.leanlabs.com'],
   supportEmail: 'help@leanlabs.com',
   /**

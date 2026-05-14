@@ -10,7 +10,7 @@ window.CLIENT_CONFIG = {
     google: 'https://g.page/lean-abs/review',
   },
   welcomeVideoUrl: '',
-  videoUrl: 'https://testimonial.to/lean-labs',
+  videoCaptureEnabled: true,
   thankYouUrl: 'https://leanlabs.com/reputation-rocket/thanks',
   allowedRedirectHosts: ['get.eimmigration.com', 'www.get.eimmigration.com'],
   supportEmail: '',

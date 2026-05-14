@@ -11,13 +11,14 @@ For **Vercel, env vars, client folders, local Node dev, and optional n8n**, see 
 
 ```text
 reputation-rocket-prototype/
-  index.html           # Generic entry (config.js at root)
-  config.js
+  index.html           # Directory: pick a client (dark landing, links to /{slug}/)
+  config.js            # Reference / toolbox only; each client folder has its own config.js
   app.js               # State machine, theming, chat, post flow
   styles.css           # Shared UI + Lean Labs / Figma-aligned tokens
   api/
     agent.js           # POST /api/agent → Factor8 (uses FACTOR8_API_KEY)
     notify.js          # POST /api/notify → Slack and/or n8n webhook
+    upload-video.js    # POST /api/upload-video → HubSpot Files API
   lean-labs/           # Template “client folder”: index.html, config.js, styles.css
   local-dev-server.js  # npm run dev: static + same /api/* behavior locally
   serve.py             # Optional: Python static server + /api/* proxy to Fly (no local secrets)
@@ -52,7 +53,7 @@ Optional **per-client Slack** channel: `SLACK_REPUTATION_WEBHOOK_<SLUG_UPPER_WIT
 
 ```bash
 npm run dev
-# → http://localhost:8888
+# → http://localhost:8888  (company picker; open a client folder e.g. /lean-labs/)
 ```
 
 Example (Lean Labs folder):
@@ -79,11 +80,12 @@ Proxies `/api/*` to Fly with CORS. It does **not** load `api/agent.js` / `api/no
 ## New client page
 
 1. Copy `lean-labs/` → `your-client-slug/`.
-2. Edit `your-client-slug/config.js`: `clientSlug`, `providerName` (vendor being reviewed), `reviewLinks`, `platforms`, `welcomeVideoUrl`, `videoUrl`, `thankYouUrl`, `allowedRedirectHosts`, optional `supportEmail` (negative alerts), optional `platformLogos` (per-slug transparent PNG/SVG URLs for draft tabs — overrides Clearbit/Google fallbacks), optional `theme: { }` (overrides `DEFAULT_CLIENT_THEME` in `app.js`).
+2. Edit `your-client-slug/config.js`: `clientSlug`, `providerName` (vendor being reviewed), `reviewLinks`, `platforms`, `welcomeVideoUrl`, `videoUrl`, `videoCaptureEnabled`, `thankYouUrl`, `allowedRedirectHosts`, optional `supportEmail` (negative alerts), optional `platformLogos` (per-slug transparent PNG/SVG URLs for draft tabs — overrides Clearbit/Google fallbacks), optional `theme: { }` (overrides `DEFAULT_CLIENT_THEME` in `app.js`).
 3. Adjust `your-client-slug/styles.css` for brand overrides that belong in CSS.
 4. Add `/your-client-slug` → `/your-client-slug/` (308) in `vercel.json` and `_redirects` so links without a trailing slash still load assets correctly (query string is preserved).
 5. Deploy on Vercel; set environment variables in the project (see below).
-6. Share either `https://<your-domain>/<client-slug>?…` or `https://<your-domain>/<client-slug>/?…` (both end up on the trailing-slash URL).
+6. Add a card for the company on the root `index.html` directory (href `your-client-slug/`) so visitors on the apex domain can find the review flow.
+7. Share either `https://<your-domain>/<client-slug>?…` or `https://<your-domain>/<client-slug>/?…` (both end up on the trailing-slash URL).
 
 ---
 
@@ -100,6 +102,8 @@ Proxies `/api/*` to Fly with CORS. It does **not** load `api/agent.js` / `api/no
 | `RESEND_API_KEY` | Optional | [Resend](https://resend.com) API key — enables negative-feedback email |
 | `RESEND_FROM` | With Resend | Verified sender, e.g. `Reputation Rocket <alerts@yourdomain.com>` |
 | `NEGATIVE_ALERT_EMAIL_<CLIENT>` | Optional | Overrides `supportEmail` from the client `config.js` for the inbox (same suffix rule as Slack, e.g. `NEGATIVE_ALERT_EMAIL_LEAN_LABS`) |
+| `HUBSPOT_FILES_ACCESS_TOKEN_<CLIENT>` | For video upload | Per-client HubSpot private app token (slug suffix like Slack, e.g. `HUBSPOT_FILES_ACCESS_TOKEN_LEAN_LABS`) |
+| `HUBSPOT_FILES_ACCESS_TOKEN_<PORTAL_ID>` | Optional fallback | Portal-specific token override (e.g. `HUBSPOT_FILES_ACCESS_TOKEN_275827`) |
 
 When `event` is `negative`, Slack (or n8n) still runs first; then, if Resend is configured and a recipient exists (`NEGATIVE_ALERT_EMAIL_*` or `support_email` in the POST body from `CLIENT_CONFIG.supportEmail`), a plain-text email is sent with the same fields as the Slack message and subject `[Reputation Rocket] Negative feedback — …`.
 
@@ -140,7 +144,7 @@ Still supported alongside `config.js` defaults (see `app.js` / HANDOFF for full 
 | `app.js` | State machine, Factor8 calls, review popups, overlays, session, theme application |
 | `styles.css` | Shared layout, stepper, chat, platform grid, components |
 | `config.js`, `lean-labs/config.js` | `CLIENT_CONFIG` (endpoints, links, theme) |
-| `api/agent.js`, `api/notify.js` | Vercel / local-dev serverless handlers |
+| `api/agent.js`, `api/notify.js`, `api/upload-video.js` | Vercel / local-dev serverless handlers |
 | `local-dev-server.js` | `npm run dev` |
 | `.env.local.example` | Template for local secrets (not committed) |
 | `VERCEL_N8N_SETUP.md` | Deploy, env, n8n workflow, limitations |

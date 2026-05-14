@@ -23,8 +23,8 @@
   <div class="site-header-inner">
     <div class="site-header-side"></div>
     <div class="nav-brand site-header-brand">
-      <img class="rr-logo-icon" src="../reprocket-icon.svg" alt="" aria-hidden="true">
-      <span class="nav-title">Reputation Rocket</span>
+      <img class="rr-logo-icon" src="../reprocket-icon.svg" alt="" width="256" height="256" decoding="async" aria-hidden="true">
+      <span class="nav-title">Lean Labs review</span>
     </div>
     <div class="site-header-actions">
       <button type="button" id="btn-start-over" class="nav-start-over" title="Clear saved progress and start from the beginning">Start over</button>
@@ -118,10 +118,30 @@
       </div>
       <div id="chat-messages" class="chat-messages"></div>
       <div id="typing-indicator" class="typing-indicator"><div class="typing-dots"><span></span><span></span><span></span></div></div>
-      <div id="chat-draft-prompt" class="chat-draft-prompt"><button id="btn-view-draft" class="btn btn-primary btn-sm">View Your Draft <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <path d="M4.1665 10H15.8332" stroke="white" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M10 4.16675L15.8333 10.0001L10 15.8334" stroke="white" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg></button></div>
+      <div id="chat-draft-prompt" class="chat-draft-prompt">
+        <div class="chat-draft-prompt__card">
+          <div class="chat-draft-prompt__header">
+            <p class="chat-draft-prompt__headline">
+              <span class="chat-draft-prompt__emoji" aria-hidden="true">🎉</span>
+              Great news: Your results are ready!
+            </p>
+          </div>
+          <div class="chat-draft-prompt__body">
+            <p id="chat-draft-prompt-subhead" class="chat-draft-prompt__subhead"></p>
+            <div id="chat-draft-prompt-platforms" class="chat-draft-prompt__platforms"></div>
+            <div class="chat-draft-prompt__actions">
+              <button type="button" id="btn-view-draft" class="btn btn-primary chat-draft-prompt__cta">
+                Review All Drafts
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="M4.1665 10H15.8332" stroke="currentColor" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M10 4.16675L15.8333 10.0001L10 15.8334" stroke="currentColor" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+              <p class="chat-draft-prompt__hint">You’ll be able to edit and approve in the next screen.</p>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="chat-input-bar">
         <input id="chat-input" type="text" placeholder="Type your answer..." autocomplete="off">
         <button id="chat-send" class="chat-send-btn" disabled aria-label="Send message">
@@ -260,7 +280,7 @@
   <div class="screen-content">
     <div class="screen-header"><h3>One more thing: record a quick video testimonial?</h3><p>A short video goes a long way. We'll show you the questions on screen so you know exactly what to say.</p></div>
     <div class="video-card">
-      <div class="video-card-header"><div class="video-title"><div class="icon-circle"><svg viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div><span><span class="company-name">Company</span> Testimonials</span></div><span class="video-powered">Powered by Testimonial.to</span></div>
+      <div class="video-card-header"><div class="video-title"><div class="icon-circle"><svg viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div><span><span class="company-name">Company</span> Testimonials</span></div><span class="video-powered">Uploaded to HubSpot</span></div>
       <div class="video-card-body">
         <div class="video-intro">Hey there! We loved working with you and we hope you feel the same. We look forward to hearing your feedback and allowing us to share this with future clients.</div>
         <p class="video-questions-label">Interview Questions</p>
@@ -271,9 +291,10 @@
           <div class="video-question"><span class="q-num">4</span><p>What concerns or doubts did you have during the buying process, and how did we address them?</p></div>
           <div class="video-question"><span class="q-num">5</span><p>How did it feel to work with us, and what part of the solution made the biggest difference for you?</p></div>
         </div>
-        <div class="video-preview"><div class="cam-icon"><svg viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div><span>Camera preview area</span></div>
+        <div class="video-preview"><div class="cam-icon"><svg viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div><span>Open recorder to preview camera</span></div>
+        <p id="video-status-text" class="video-status-text">Record up to 5 minutes. Upload only happens after you confirm.</p>
       </div>
-      <div class="video-card-footer"><button id="btn-skip-video" class="btn btn-secondary btn-sm">Skip for Now</button><div class="btn-group"><button class="btn btn-secondary btn-sm">Audio Only</button><button id="btn-record-video" class="btn btn-primary btn-sm">Record Video</button></div></div>
+      <div class="video-card-footer"><button id="btn-skip-video" class="btn btn-secondary btn-sm">Skip for Now</button><div class="btn-group"><button id="btn-record-video" class="btn btn-primary btn-sm">Record Video</button></div></div>
     </div>
   </div>
 </div>

@@ -161,6 +161,12 @@ function buildSlackMessage(payload) {
   const posted = Array.isArray(payload.posted) && payload.posted.length
     ? payload.posted.join(', ')
     : 'None marked posted';
+  const video = payload.video_testimonial && typeof payload.video_testimonial === 'object'
+    ? payload.video_testimonial
+    : null;
+  const videoLine = video && video.url
+    ? `<${video.url}|Open HubSpot video file>`
+    : (video && video.id ? `HubSpot file ID: ${video.id}` : 'Not submitted');
 
   return {
     text: `:rocket: ${payload.customer_name || 'A customer'} completed Reputation Rocket for ${payload.client || 'a client'}`,
@@ -182,6 +188,13 @@ function buildSlackMessage(payload) {
             { type: 'mrkdwn', text: `*Marked posted:*\n${posted}` },
             { type: 'mrkdwn', text: `*Rating:*\n${payload.rating || 'Unknown'}` },
           ],
+        },
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `*Video testimonial:*\n${videoLine}`,
+          },
         },
     ],
   };

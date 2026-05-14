@@ -10,7 +10,7 @@ window.CLIENT_CONFIG = {
     google: 'https://g.page/lean-abs/review',
   },
   welcomeVideoUrl: '',
-  videoUrl: 'https://testimonial.to/lean-labs',
+  videoCaptureEnabled: true,
   thankYouUrl: 'https://leanlabs.com/reputation-rocket/thanks',
   allowedRedirectHosts: ['leanlabs.com', 'www.leanlabs.com'],
   /** Receives plain-text negative alert (same content as Slack) when RESEND_API_KEY is set on the server. */
