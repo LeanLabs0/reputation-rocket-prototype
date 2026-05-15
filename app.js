@@ -106,6 +106,11 @@ function applyClientHeaderFaviconLogo() {
   });
 }
 
+function applyCurrentYearTokens() {
+  const year = String(new Date().getFullYear());
+  $$('[data-current-year]').forEach((el) => { el.textContent = year; });
+}
+
 const CONFIG = {
   API_URL: CLIENT_CONFIG.agentEndpoint || '/api/agent',
   NOTIFY_URL: CLIENT_CONFIG.notificationEndpoint || '/api/notify',
@@ -258,6 +263,7 @@ const $$ = (sel) => document.querySelectorAll(sel);
 document.addEventListener('DOMContentLoaded', () => {
   applyClientTheme();
   applyClientHeaderFaviconLogo();
+  applyCurrentYearTokens();
 
   try {
     sessionStorage.removeItem('rr_session');
@@ -310,7 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   $('#chat-input').addEventListener('input', () => {
-    $('#chat-send').disabled = !$('#chat-input').value.trim() || isWaitingForAgent;
+    syncChatComposerState();
   });
   $('#chat-send').addEventListener('click', handleChatSend);
 
@@ -920,12 +926,46 @@ function startExperience() {
 // ── Chat Logic ──────────────────────────────────────────────
 function initChat() {
   const chatInput = $('#chat-input');
-  chatInput.focus();
+  if (chatInput) chatInput.focus();
 
   if (chatHistory.length === 0) {
     sendMessage('Please start the review process.', true);
   }
   syncChatDraftPromptVisibility();
+}
+
+function isChatDraftPromptVisible() {
+  const el = $('#chat-draft-prompt');
+  return !!(el && el.classList.contains('visible'));
+}
+
+function setChatDraftPromptVisible(visible) {
+  const el = $('#chat-draft-prompt');
+  if (!el) return;
+  el.classList.toggle('visible', !!visible);
+  syncChatComposerState();
+}
+
+function syncChatComposerState() {
+  const inputBar = $('.chat-input-bar');
+  const chatInput = $('#chat-input');
+  const chatSend = $('#chat-send');
+  if (!chatInput || !chatSend) return;
+
+  const promptVisible = isChatDraftPromptVisible();
+  if (inputBar) {
+    inputBar.hidden = promptVisible;
+    inputBar.setAttribute('aria-hidden', promptVisible ? 'true' : 'false');
+  }
+
+  if (promptVisible) {
+    chatInput.disabled = true;
+    chatSend.disabled = true;
+    return;
+  }
+
+  chatInput.disabled = !!isWaitingForAgent;
+  chatSend.disabled = !chatInput.value.trim() || !!isWaitingForAgent;
 }
 
 async function sendMessage(text, isHidden = false) {
@@ -1035,13 +1075,13 @@ async function sendMessage(text, isHidden = false) {
       setTimeout(() => transitionTo('negative'), 2500);
     } else if (draftsParsed) {
       renderChatDraftPrompt();
-      $('#chat-draft-prompt').classList.add('visible');
+      setChatDraftPromptVisible(true);
     } else if (detectDraft(displayText)) {
       // Backwards-compat fallback: legacy single-draft text
       reviewDraft = extractDraft(displayText);
       draftLooksGood = {};
       renderChatDraftPrompt();
-      $('#chat-draft-prompt').classList.add('visible');
+      setChatDraftPromptVisible(true);
     }
 
   } catch (err) {
@@ -1053,8 +1093,10 @@ async function sendMessage(text, isHidden = false) {
     }
   } finally {
     isWaitingForAgent = false;
-    chatInput.disabled = false;
-    chatInput.focus();
+    syncChatComposerState();
+    if (!isChatDraftPromptVisible()) {
+      chatInput.focus();
+    }
     saveSession();
   }
 }
@@ -1379,9 +1421,11 @@ function syncChatDraftPromptVisibility() {
     Object.keys(drafts).some((k) => drafts[k] != null && String(drafts[k]).trim());
   const fromLegacy = !!(reviewDraft && String(reviewDraft).trim());
   if (fromDrafts || fromLegacy) {
-    el.classList.add('visible');
     renderChatDraftPrompt();
+    setChatDraftPromptVisible(true);
+    return;
   }
+  setChatDraftPromptVisible(false);
 }
 
 function renderDraftTabs() {
@@ -1489,8 +1533,7 @@ function updateDraftScreenChrome() {
   const approveAll = $('#btn-approve-all');
   if (!approveAll) return;
   const order = orderedDraftPlatforms();
-  const allOk = order.length > 0 && order.every((p) => draftLooksGood[p]);
-  approveAll.disabled = !allOk;
+  approveAll.disabled = order.length === 0;
 }
 
 function handleLooksGoodDraft() {
@@ -1513,19 +1556,25 @@ function handleLooksGoodDraft() {
   if (nextPlat && nextPlat !== activeDraftPlatform) {
     setActiveDraft(nextPlat);
   } else {
-    updateDraftScreenChrome();
-    saveSession();
+    reviewDraft = drafts[activeDraftPlatform] || reviewDraft;
+    transitionTo('post');
   }
 }
 
 function handleApproveAllDrafts() {
   const order = orderedDraftPlatforms();
   if (order.length === 0) return;
-  for (const p of order) {
-    if (!draftLooksGood[p]) return;
+  if (activeDraftPlatform) {
+    drafts[activeDraftPlatform] = $('#draft-textarea').value.trim();
   }
-  drafts[activeDraftPlatform] = $('#draft-textarea').value.trim();
-  reviewDraft = drafts[activeDraftPlatform];
+  for (const p of order) {
+    draftLooksGood[p] = true;
+  }
+  if (!activeDraftPlatform) activeDraftPlatform = order[0];
+  reviewDraft = drafts[activeDraftPlatform] || reviewDraft;
+  renderDraftTabs();
+  updateDraftScreenChrome();
+  saveSession();
   transitionTo('post');
 }
 

@@ -53,5 +53,13 @@
       Not sure you’re in the right place? Use the link from your invitation email—it opens the correct company automatically.
     </p>
   </main>
+  <footer class="rr-legal-footer">
+    <p>© <span data-current-year></span> All Rights Reserved. Reputation Rocket&reg; is a registered trademark of <a href="https://www.brandvious.com" target="_blank" rel="noopener noreferrer">Brandvious</a>, Inc.</p>
+  </footer>
+  <script>
+    document.querySelectorAll('[data-current-year]').forEach((el) => {
+      el.textContent = String(new Date().getFullYear());
+    });
+  </script>
 </body>
 </html>
