@@ -4,37 +4,43 @@ const CLIENT_CONFIG = window.CLIENT_CONFIG || {};
 const DEFAULT_CLIENT_THEME = {
   fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
   googleFontQuery: 'Plus+Jakarta+Sans:wght@400;500;600;700',
-  headingColor: '#0d0d0d',
-  bodyColor: 'rgba(43, 43, 43, 0.5)',
+  headingColor: '#ffffff',
+  bodyColor: '#949494',
   mutedColor: '#93949f',
-  primary: '#5b2ee6',
-  primaryDark: '#4f25d1',
+  primary: '#ffffff',
+  primaryDark: '#f0f0f0',
   accent: '#25c196',
   pageBackground:
-    'radial-gradient(ellipse 85% 72% at 50% 30%, rgb(233, 239, 255) 0%, rgb(255, 255, 255) 48%, rgb(243, 237, 255) 100%)',
+    '#0d0d0d',
   navBackground: 'transparent',
-  stepperGradient: 'linear-gradient(270deg, #E9EFFF -105%, #FFF 25.81%)',
-  stepperShadow: '6px 8px 28px rgba(29, 0, 68, 0.08)',
+  stepperGradient: 'linear-gradient(270deg, #0d0d0d -105%, #000000 25.81%)',
+  stepperShadow: '0 4px 24px rgba(0, 0, 0, 0.24)',
   stepperRadius: '16px',
   brandGradient:
-    'radial-gradient(120% 120% at 80% 20%, rgba(117, 47, 239, 1) 0%, rgb(13, 13, 13) 55%, rgb(42, 42, 42) 100%)',
+    'radial-gradient(120% 120% at 80% 20%, rgba(255, 255, 255, 0.08) 0%, rgb(13, 13, 13) 55%, rgb(42, 42, 42) 100%)',
   brandBorder: '#2b2b2b',
-  gradient: 'linear-gradient(135deg, #752fef 0%, #9333ea 52%, #c026d3 100%)',
-  primaryButtonStyle: 'solid',
+  gradient: 'linear-gradient(135deg, #1c1c1c 0%, #2a2a2a 100%)',
+  primaryButtonBg: '#1c1c1c',
+  primaryButtonText: '#ffffff',
+  primaryButtonBorder: '#2b2b2b',
+  primaryButtonShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 6px 18px rgba(0, 0, 0, 0.28)',
+  welcomeButtonShadow:
+    '-1px 0 24px rgba(117, 47, 239, 0.6), 1px 0 4px rgba(54, 14, 109, 0.22), 0 1px 4px rgba(250, 18, 227, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.82)',
+  primaryButtonDisabledOpacity: '0.45',
   buttonRadius: '10px',
-  cardRadiusChat: '20px',
-  purpleTint: 'rgba(117, 47, 239, 0.09)',
-  purpleTintLight: 'rgba(117, 47, 239, 0.05)',
-  purpleBorder: 'rgba(117, 47, 239, 0.22)',
-  chatMessageArea: '#f7f8fc',
-  chatMessageAvatarBg: 'rgba(117, 47, 239, 0.08)',
-  pendingBadgeBg: '#f0f0f2',
+  cardRadiusChat: '16px',
+  purpleTint: 'rgba(255, 255, 255, 0.06)',
+  purpleTintLight: 'rgba(255, 255, 255, 0.04)',
+  purpleBorder: '#2b2b2b',
+  chatMessageArea: '#0d0d0d',
+  chatMessageAvatarBg: '#141414',
+  pendingBadgeBg: '#1c1c1c',
   pendingBadgeText: '#93949f',
-  activeBadgeBg: 'rgba(117, 47, 239, 0.12)',
-  activeBadgeText: '#5b2ee6',
+  activeBadgeBg: '#1c1c1c',
+  activeBadgeText: '#ffffff',
   doneBadgeBg: 'rgba(37, 193, 150, 0.12)',
   doneBadgeText: '#25c196',
-  starGradientStops: ['#752fef', '#a855f7', '#ec4899'],
+  starGradientStops: ['#1b1b1b', '#2b2b2b', '#ffffff'],
 };
 
 function applyClientTheme() {
@@ -48,8 +54,6 @@ function applyClientTheme() {
     link.href = `https://fonts.googleapis.com/css2?family=${t.googleFontQuery}&display=swap`;
     document.head.appendChild(link);
   }
-
-  const btnPrimaryBg = t.primaryButtonStyle === 'gradient' ? t.gradient : t.primary;
 
   root.style.setProperty('--font-family', t.fontFamily);
   root.style.setProperty('--ll-heading', t.headingColor);
@@ -67,7 +71,12 @@ function applyClientTheme() {
   root.style.setProperty('--ll-brand-gradient', t.brandGradient);
   root.style.setProperty('--ll-brand-border', t.brandBorder);
   root.style.setProperty('--ll-gradient', t.gradient);
-  root.style.setProperty('--ll-btn-primary-bg', btnPrimaryBg);
+  root.style.setProperty('--ll-btn-primary-bg', t.primaryButtonBg);
+  root.style.setProperty('--ll-btn-primary-text', t.primaryButtonText);
+  root.style.setProperty('--ll-btn-primary-border', t.primaryButtonBorder);
+  root.style.setProperty('--ll-btn-primary-shadow', t.primaryButtonShadow);
+  root.style.setProperty('--ll-btn-welcome-shadow', t.welcomeButtonShadow);
+  root.style.setProperty('--ll-btn-primary-disabled-opacity', t.primaryButtonDisabledOpacity);
   root.style.setProperty('--radius-md', t.buttonRadius);
   root.style.setProperty('--radius-chat-card', t.cardRadiusChat);
   root.style.setProperty('--ll-purple-tint', t.purpleTint);
@@ -209,12 +218,12 @@ let videoIsUploading = false;
 let videoInputDeviceId = '';
 let audioInputDeviceId = '';
 const VIDEO_CAPTURE_SETTINGS = {
-  maxSeconds: 5 * 60,
-  maxUploadMB: 55,
-  videoBitsPerSecond: 1_400_000,
-  audioBitsPerSecond: 128_000,
-  width: 1280,
-  height: 720,
+  maxSeconds: 15 * 60,
+  maxUploadMB: 600,
+  videoBitsPerSecond: 4_500_000,
+  audioBitsPerSecond: 160_000,
+  width: 1920,
+  height: 1080,
 };
 VIDEO_CAPTURE_SETTINGS.maxUploadBytes = VIDEO_CAPTURE_SETTINGS.maxUploadMB * 1024 * 1024;
 
@@ -357,6 +366,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const reviewOverlay = $('#review-complete-overlay');
   const confirmReviewBtn = $('#btn-review-complete-confirm');
   const laterReviewBtn = $('#btn-review-complete-later');
+  const copyReviewBtn = $('#btn-review-complete-copy');
   if (reviewOverlay && confirmReviewBtn && laterReviewBtn) {
     confirmReviewBtn.addEventListener('click', () => {
       const plat = reviewOverlay.dataset.platform;
@@ -370,6 +380,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!reviewOverlay.hidden) hideReviewCompleteOverlay();
     });
   }
+  copyReviewBtn?.addEventListener('click', async () => {
+    const plat = reviewOverlay?.dataset.platform || '';
+    const text = String((plat && drafts[plat]) || reviewDraft || '').trim();
+    if (!text) return;
+    const ok = await copyToClipboard(text);
+    if (ok) showToast();
+  });
 
   $('#btn-skip-video').addEventListener('click', () => transitionTo('complete'));
   $('#btn-record-video').addEventListener('click', openVideoCaptureModal);
@@ -1777,7 +1794,7 @@ function mountRichPasteUnpostedCard(card, plat, index1, meta) {
     ${renderRichStarsRow()}
     <p class="platform-card-snippet">${escapeHtml(truncatePostSnippet(drafts[plat] || reviewDraft || ''))}</p>
     <div class="platform-card-actions platform-card-actions--stack">
-      <button type="button" class="btn btn-primary btn-sm" data-action="post-paste" data-platform="${escapeHtml(plat)}">
+      <button type="button" class="btn btn-primary btn-md" data-action="post-paste" data-platform="${escapeHtml(plat)}">
         Open ${escapeHtml(meta.name)} review form ${iconExternalLink()}
       </button>
     </div>
@@ -1796,6 +1813,13 @@ function parseG2Fields(draft) {
     out.push({ label: m[1].trim(), body: m[2].trim() });
   }
   return out;
+}
+
+function formatDraftForOverlay(platform, draftText) {
+  const text = String(draftText || '').trim();
+  if (!text) return '';
+  if (String(platform || '').toLowerCase() !== 'g2') return text;
+  return text.replace(/\[FIELD:\s*([^\]]+?)\]/g, '$1');
 }
 
 function mountRichG2UnpostedCard(card, plat, index1, meta) {
@@ -1820,10 +1844,7 @@ function mountRichG2UnpostedCard(card, plat, index1, meta) {
     )
     .join('');
 
-  const showG2Confirm = !!reviewFormOpened[plat];
-  const g2Hint = showG2Confirm
-    ? 'Copy each answer into G2. When you’ve submitted, confirm in the dialog or tap the button below.'
-    : 'Open the G2 form with the button below, then copy each answer. You’ll be asked to confirm once the site opens.';
+  const g2Hint = 'Open the G2 form with the button below, then copy each answer.';
 
   card.innerHTML = `
     <div class="platform-card-top">
@@ -1837,7 +1858,7 @@ function mountRichG2UnpostedCard(card, plat, index1, meta) {
     ${renderRichStarsRow()}
     <p class="platform-card-snippet">${escapeHtml(truncatePostSnippet(draft))}</p>
     <div class="platform-card-actions platform-card-actions--stack">
-      <button type="button" class="btn btn-primary btn-sm" data-action="open-form" data-platform="${escapeHtml(plat)}">
+      <button type="button" class="btn btn-primary btn-md" data-action="open-form" data-platform="${escapeHtml(plat)}">
         Open ${escapeHtml(meta.name)} review form ${iconExternalLink()}
       </button>
     </div>
@@ -1845,8 +1866,7 @@ function mountRichG2UnpostedCard(card, plat, index1, meta) {
     <details class="card-details card-details--rich" open>
       <summary>Your answers for G2 (${fields.length})</summary>
       <div class="card-details-body">${fieldRows}</div>
-    </details>
-    ${showG2Confirm ? `<button type="button" class="btn btn-confirm platform-card-confirm-g2" data-action="confirm-posted" data-platform="${escapeHtml(plat)}">I have completed my G2 review</button>` : ''}`;
+    </details>`;
 
   const wrap = card.querySelector('.platform-card-logo-wrap');
   if (wrap) wrap.appendChild(createPlatformCardLogo(plat));
@@ -1855,6 +1875,10 @@ function mountRichG2UnpostedCard(card, plat, index1, meta) {
 function hideReviewCompleteOverlay() {
   const overlay = $('#review-complete-overlay');
   if (!overlay) return;
+  const draftWrap = $('#review-complete-draft-wrap');
+  const draftEl = $('#review-complete-draft');
+  if (draftWrap) draftWrap.hidden = true;
+  if (draftEl) draftEl.textContent = '';
   overlay.hidden = true;
   overlay.setAttribute('aria-hidden', 'true');
   delete overlay.dataset.platform;
@@ -1866,7 +1890,15 @@ function showReviewCompleteOverlay(platform) {
   if (currentState !== 'post') return;
   const meta = PLATFORM_META[platform] || { name: platform };
   const titleEl = $('#review-complete-title');
+  const draftWrap = $('#review-complete-draft-wrap');
+  const draftEl = $('#review-complete-draft');
+  const rawDraftText = String((drafts[platform] || reviewDraft || '')).trim();
+  const draftText = formatDraftForOverlay(platform, rawDraftText);
   if (titleEl) titleEl.textContent = `Finished on ${meta.name}?`;
+  if (draftWrap && draftEl) {
+    draftWrap.hidden = !draftText;
+    draftEl.textContent = draftText;
+  }
   overlay.dataset.platform = platform;
   overlay.hidden = false;
   overlay.setAttribute('aria-hidden', 'false');
@@ -2075,10 +2107,7 @@ function renderG2CardBody(plat) {
     </div>
   `).join('');
 
-  const showG2Confirm = !!reviewFormOpened[plat];
-  const g2Hint = showG2Confirm
-    ? 'Copy each answer below into the matching G2 question. When you have submitted the form on G2, confirm below.'
-    : 'Open the G2 form first (button above). Then copy each answer below into G2. A confirmation button will appear after you open the form.';
+  const g2Hint = 'Open the G2 form first (button above). Then copy each answer below into G2.';
 
   return `
     <span class="platform-status ready" data-action="open-form" data-platform="${plat}">Open G2 review form →</span>
@@ -2089,7 +2118,6 @@ function renderG2CardBody(plat) {
         ${fieldRows}
       </div>
     </details>
-    ${showG2Confirm ? `<button type="button" class="btn-confirm" data-action="confirm-posted" data-platform="${plat}">I have completed my G2 review</button>` : ''}
   `;
 }
 
@@ -2257,7 +2285,6 @@ function ensureVideoCaptureModal() {
 
         <div class="video-capture-modal__meta">
           <span id="video-capture-timer">00:00 / ${formatVideoDuration(VIDEO_CAPTURE_SETTINGS.maxSeconds)}</span>
-          <span id="video-capture-size">0.0 MB</span>
         </div>
         <p id="video-capture-error" class="video-capture-modal__error" hidden></p>
 
@@ -2324,7 +2351,18 @@ function closeVideoCaptureModal() {
 }
 
 async function ensureVideoStream() {
-  if (videoStream) return videoStream;
+  if (videoStream) {
+    const preview = document.getElementById('video-capture-preview');
+    if (preview) {
+      preview.pause();
+      preview.removeAttribute('src');
+      preview.srcObject = videoStream;
+      preview.controls = false;
+      preview.muted = true;
+      preview.play().catch(() => {});
+    }
+    return videoStream;
+  }
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     throw new Error('This browser does not support camera recording.');
   }
@@ -2447,8 +2485,10 @@ function stopVideoStream() {
 
 function pickRecorderMimeType() {
   const candidates = [
-    'video/webm;codecs=vp8,opus',
+    'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+    'video/mp4;codecs=h264,aac',
     'video/mp4',
+    'video/webm;codecs=vp8,opus',
     'video/webm',
     'video/webm;codecs=vp9,opus',
   ];
@@ -2480,11 +2520,6 @@ function updateVideoRecorderMeta() {
   if (timer) {
     timer.textContent = `${formatVideoDuration(videoElapsedSec)} / ${formatVideoDuration(VIDEO_CAPTURE_SETTINGS.maxSeconds)}`;
   }
-  const sizeEl = document.getElementById('video-capture-size');
-  if (sizeEl) {
-    const bytes = videoChunks.reduce((sum, c) => sum + (c ? c.size : 0), 0);
-    sizeEl.textContent = `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }
 }
 
 function formatVideoDuration(totalSeconds) {
@@ -2496,6 +2531,15 @@ function formatVideoDuration(totalSeconds) {
 async function startVideoRecording() {
   hideVideoCaptureError();
   await ensureVideoStream();
+  const preview = document.getElementById('video-capture-preview');
+  if (preview) {
+    preview.pause();
+    preview.removeAttribute('src');
+    preview.srcObject = videoStream || null;
+    preview.controls = false;
+    preview.muted = true;
+    preview.play().catch(() => {});
+  }
   if (!window.MediaRecorder) {
     showVideoCaptureError('This browser does not support recording.');
     return;
@@ -2547,7 +2591,8 @@ async function startVideoRecording() {
     renderVideoRecorderState();
   };
 
-  videoRecorder.start(1000);
+  // Use a single finalized recording blob for better media metadata compatibility.
+  videoRecorder.start();
   startVideoTimer();
   renderVideoRecorderState();
 }
@@ -2575,11 +2620,6 @@ function stopVideoRecording() {
   if (!videoRecorder) return;
   if (videoRecorder.state === 'inactive') return;
   clearVideoTimer();
-  try {
-    if (videoRecorder.state === 'recording' || videoRecorder.state === 'paused') {
-      videoRecorder.requestData();
-    }
-  } catch (_) { /* ignore */ }
   videoRecorder.stop();
   renderVideoRecorderState();
 }
@@ -2807,11 +2847,11 @@ function triggerConfetti(opts = {}) {
   const cs = getComputedStyle(document.documentElement);
   const pick = (v, fallback) => (v && v.trim()) || fallback;
   const colors = [
-    pick(cs.getPropertyValue('--ll-purple'), '#752fef'),
+    pick(cs.getPropertyValue('--ll-purple'), '#ffffff'),
     pick(cs.getPropertyValue('--ll-accent'), '#22c55e'),
-    '#0c63ff',
-    '#9333ea',
-    '#ec4899',
+    '#d5d7da',
+    '#949494',
+    '#ffffff',
     pick(cs.getPropertyValue('--ll-muted'), '#93949f'),
   ];
 

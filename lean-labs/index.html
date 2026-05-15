@@ -78,24 +78,23 @@
 <div id="screen-welcome" class="screen active">
   <div class="screen-content welcome-content">
     <div class="screen-header">
-      <h1>Ready to share your experience with <span class="company-name">Company</span>?</h1>
+      <h1>Ready to share your <span class="text-accent">experience with <span class="company-name">Company</span>?</span></h1>
       <p>We'd love to capture your honest feedback. If you're happy with how things are going, we'll make it easy to post a 5-star review in a few key places.</p>
     </div>
     <div id="welcome-video-host" class="welcome-media"></div>
-    <div class="welcome-callout">
-      <span class="welcome-callout-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8.5 13.5c1.2 1.4 5.8 1.4 7 0"/><path d="M9 9.5h.01M15 9.5h.01"/></svg>
-      </span>
-      <p><strong>Heads up:</strong> the hardest part is logging into review sites — we'll handle the drafting and walk you through every step.</p>
+    <div>
+      <div class="welcome-callout">
+        <span class="welcome-callout-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8.5 13.5c1.2 1.4 5.8 1.4 7 0"/><path d="M9 9.5h.01M15 9.5h.01"/></svg>
+        </span>
+        <p><strong>Heads up:</strong> the hardest part is logging into review sites — we'll handle the drafting and walk you through every step.</p>
+      </div>
+      <p class="welcome-note">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <span>Takes about 3 minutes. We'll draft everything for you.</span>
+      </p>
     </div>
-    <p class="welcome-note">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-      <span>Takes about 3 minutes. We'll draft everything for you.</span>
-    </p>
-    <div class="welcome-cta"><button id="btn-start" class="btn btn-primary btn-lg">Begin<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
-    <path d="M4.1665 10H15.8332" stroke="white" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M10 4.16675L15.8333 10.0001L10 15.8334" stroke="white" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
-  </svg></button></div>
+    <div class="welcome-cta"><button id="btn-start" class="btn btn-primary btn-lg">Begin<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-right-icon lucide-arrow-right"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></button></div>
   </div>
 </div>
 
@@ -132,7 +131,7 @@
             <p id="chat-draft-prompt-subhead" class="chat-draft-prompt__subhead"></p>
             <div id="chat-draft-prompt-platforms" class="chat-draft-prompt__platforms"></div>
             <div class="chat-draft-prompt__actions">
-              <button type="button" id="btn-view-draft" class="btn btn-primary chat-draft-prompt__cta">
+              <button type="button" id="btn-view-draft" class="btn btn-primary btn-lg">
                 Review All Drafts
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
                   <path d="M4.1665 10H15.8332" stroke="currentColor" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
@@ -187,9 +186,9 @@
         </div>
       </div>
       <div class="draft-card-footer">
-        <button id="btn-regenerate" class="btn btn-tertiary btn-sm"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-ccw-icon lucide-refresh-ccw"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>Regenerate this draft</button>
+        <button id="btn-regenerate" class="btn btn-tertiary btn-md"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-ccw-icon lucide-refresh-ccw"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>Regenerate this draft</button>
         <div class="draft-approve-stack">
-          <button id="btn-approve" type="button" class="btn btn-primary btn-sm">Looks Good<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
+          <button id="btn-approve" type="button" class="btn btn-primary btn-md">Looks Good<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
         <path d="M4.1665 10H15.8332" stroke="white" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
         <path d="M10 4.16675L15.8333 10.0001L10 15.8334" stroke="white" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
         </svg></button>
@@ -294,7 +293,7 @@
           <div class="video-question"><span class="q-num">5</span><p>How did it feel to work with us, and what part of the solution made the biggest difference for you?</p></div>
         </div>
         <div class="video-preview"><div class="cam-icon"><svg viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div><span>Open recorder to preview camera</span></div>
-        <p id="video-status-text" class="video-status-text">Record up to 5 minutes. Upload only happens after you confirm.</p>
+        <p id="video-status-text" class="video-status-text">Record up to 15 minutes (~600MB). Upload only happens after you confirm.</p>
       </div>
       <div class="video-card-footer"><button id="btn-skip-video" class="btn btn-secondary btn-sm">Skip for Now</button><div class="btn-group"><button id="btn-record-video" class="btn btn-primary btn-sm">Record Video</button></div></div>
     </div>
@@ -323,8 +322,15 @@
   <div class="review-complete-modal">
     <h3 id="review-complete-title">Finished posting?</h3>
     <p id="review-complete-hint" class="review-complete-hint">When you've submitted your review on that site, confirm below so we can celebrate.</p>
+    <div id="review-complete-draft-wrap" class="review-complete-draft-wrap" hidden>
+      <div class="review-complete-draft-head">
+        <p class="review-complete-draft-label">Review text for this platform</p>
+        <button type="button" id="btn-review-complete-copy" class="review-complete-copy">Copy review</button>
+      </div>
+      <pre id="review-complete-draft" class="review-complete-draft-box"></pre>
+    </div>
     <div class="review-complete-actions">
-      <button type="button" id="btn-review-complete-confirm" class="btn btn-primary btn-sm">I have completed the review</button>
+      <button type="button" id="btn-review-complete-confirm" class="btn btn-primary btn-md">I have completed the review</button>
       <button type="button" id="btn-review-complete-later" class="btn btn-secondary btn-sm">Not yet</button>
     </div>
   </div>
@@ -332,7 +338,7 @@
 <div id="toast" class="toast"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span>Copied to clipboard!</span></div>
 
 <footer class="rr-legal-footer">
-  <p>© <span data-current-year></span> All Rights Reserved. Reputation Rocket&reg; is a registered trademark of <a href="https://www.brandvious.com" target="_blank" rel="noopener noreferrer">Brandvious</a>, Inc.</p>
+  <p>© <span data-current-year></span> All Rights Reserved. Reputation Rocket&reg; is a registered trademark of <a class="link-inline" href="https://www.brandvious.com" target="_blank" rel="noopener noreferrer">Brandvious, Inc.</a></p>
 </footer>
 
 <script src="config.js"></script>

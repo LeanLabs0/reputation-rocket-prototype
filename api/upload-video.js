@@ -2,8 +2,8 @@ const fs = require('fs/promises');
 const { formidable } = require('formidable');
 
 const HUBSPOT_FILES_API_URL = 'https://api.hubapi.com/files/v3/files';
-const HUBSPOT_HARD_MAX_BYTES = 70 * 1024 * 1024;
-const HUBSPOT_DEFAULT_SAFE_MAX_BYTES = 55 * 1024 * 1024;
+const HUBSPOT_HARD_MAX_BYTES = 1024 * 1024 * 1024;
+const HUBSPOT_DEFAULT_SAFE_MAX_BYTES = 600 * 1024 * 1024;
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {

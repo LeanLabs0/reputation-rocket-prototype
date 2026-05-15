@@ -1,12 +1,5 @@
-:root {
-  --ll-purple: #7612fa;
-  --ll-magenta: #c109af;
-  --ll-orange: #ff6221;
-  --ll-blue: #0c63ff;
-  --ll-gradient: linear-gradient(135deg, #7612fa, #c109af, #ff6221);
-  --ll-gradient-hover: linear-gradient(135deg, #8a33fb, #d01cc0, #ff7a42);
-}
+:root {}
 
 body {
-  background: url('light-gradient-bg.svg') center / cover no-repeat fixed;
+  background: #0d0d0d !important;
 }
