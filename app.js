@@ -1765,6 +1765,10 @@ function mountRichPostedCard(card, plat, meta, postedAtIso) {
     </div>
     ${renderRichStarsRow()}
     <p class="platform-card-snippet">${escapeHtml(truncatePostSnippet(drafts[plat] || reviewDraft || ''))}</p>
+    <p class="platform-card-confirmed-meta">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
+      Confirmed on ${escapeHtml(whenLabel)}
+    </p>
     <div class="platform-card-actions platform-card-actions--split">
       <button type="button" class="btn btn-secondary btn-sm" data-action="view-review-link" data-platform="${escapeHtml(plat)}">
         View my review ${iconExternalLink()}
@@ -1772,11 +1776,7 @@ function mountRichPostedCard(card, plat, meta, postedAtIso) {
       <button type="button" class="btn btn-secondary btn-sm" data-action="post-another" data-platform="${escapeHtml(plat)}">
         Post another review
       </button>
-    </div>
-    <p class="platform-card-confirmed-meta">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
-      Confirmed on ${escapeHtml(whenLabel)}
-    </p>`;
+    </div>`;
   const wrap = card.querySelector('.platform-card-logo-wrap');
   if (wrap) wrap.appendChild(createPlatformCardLogo(plat));
 }

@@ -4,6 +4,8 @@ const { formidable } = require('formidable');
 const HUBSPOT_FILES_API_URL = 'https://api.hubapi.com/files/v3/files';
 const HUBSPOT_HARD_MAX_BYTES = 1024 * 1024 * 1024;
 const HUBSPOT_DEFAULT_SAFE_MAX_BYTES = 600 * 1024 * 1024;
+const HUBSPOT_ALLOWED_ACCESS = new Set(['PUBLIC_INDEXABLE', 'PUBLIC_NOT_INDEXABLE', 'PRIVATE']);
+const HUBSPOT_DEFAULT_ACCESS = 'PUBLIC_NOT_INDEXABLE';
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -234,7 +236,9 @@ async function uploadToHubSpot({
   formData.append('file', new Blob([fileBuffer], { type: mimeType }), fileName);
   formData.append('fileName', fileName);
   if (includeFolder) formData.append('folderPath', folderPath);
-  if (includeOptions) formData.append('options', JSON.stringify({ access: 'PRIVATE' }));
+  if (includeOptions) {
+    formData.append('options', JSON.stringify({ access: resolveHubSpotFileAccess() }));
+  }
 
   const upstream = await fetch(HUBSPOT_FILES_API_URL, {
     method: 'POST',
@@ -250,4 +254,12 @@ async function uploadToHubSpot({
     body = {};
   }
   return { upstream, text, body };
+}
+
+function resolveHubSpotFileAccess() {
+  const raw = String(process.env.HUBSPOT_FILES_ACCESS_LEVEL || '')
+    .trim()
+    .toUpperCase();
+  if (HUBSPOT_ALLOWED_ACCESS.has(raw)) return raw;
+  return HUBSPOT_DEFAULT_ACCESS;
 }
