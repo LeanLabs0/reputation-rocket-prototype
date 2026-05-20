@@ -2271,12 +2271,11 @@ function ensureVideoCaptureModal() {
         <div class="video-capture-modal__questions">
           <p class="video-capture-modal__questions-label">Interview questions</p>
           <ol class="video-capture-modal__questions-list">
-            <li>What problem or trigger event led you to hire us?</li>
-            <li>What were you looking for in a solution?</li>
-            <li>Why did you choose us over other options?</li>
-            <li>What concerns did you have, and how were they addressed?</li>
-            <li>What part of the solution made the biggest difference?</li>
+            <li>Why did you choose Lean Labs?</li>
+            <li>What were you hoping to achieve?</li>
+            <li>How did we deliver on your expectations?</li>
           </ol>
+          <p style="margin-top: 14px;font-size: 14px">Just imagine you're telling a friend about your experience. That's it!</p>
         </div>
 
         <div class="video-capture-modal__preview">
