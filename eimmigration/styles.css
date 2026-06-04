@@ -345,10 +345,16 @@ body {
   --hubspot-input-border: var(--ei-border);
   --hubspot-input-placeholder: var(--ei-muted);
 }
+/* Lead-form submit ("Start my review") matches the primary button:
+   purple→blue gradient, white text, 8px radius, no shadow/border. */
 .hubspot-lead-modal__form .hs-form .hs-button,
 .hubspot-lead-modal__form .hs-form input[type='submit'],
 .hubspot-lead-modal__form .hs-form input.hs-button.primary {
   color: #ffffff;
+  background: var(--ei-btn-gradient);
+  border-color: transparent;
+  border-radius: 8px;
+  box-shadow: none;
 }
 
 /* ── Tertiary purple (Figma: Tertiary #A643F2, Links #A643F2 →
