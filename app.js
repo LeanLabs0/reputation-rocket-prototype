@@ -1,102 +1,10 @@
 const CLIENT_CONFIG = window.CLIENT_CONFIG || {};
 
-/** Default visual tokens; override per client via `CLIENT_CONFIG.theme`. */
-const DEFAULT_CLIENT_THEME = {
-  fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-  googleFontQuery: 'Plus+Jakarta+Sans:wght@400;500;600;700',
-  headingColor: '#ffffff',
-  bodyColor: '#949494',
-  mutedColor: '#93949f',
-  primary: '#ffffff',
-  primaryDark: '#f0f0f0',
-  accent: '#25c196',
-  pageBackground:
-    '#0d0d0d',
-  navBackground: 'transparent',
-  stepperGradient: 'linear-gradient(270deg, #0d0d0d -105%, #000000 25.81%)',
-  stepperShadow: '0 4px 24px rgba(0, 0, 0, 0.24)',
-  stepperRadius: '16px',
-  brandGradient:
-    'radial-gradient(120% 120% at 80% 20%, rgba(255, 255, 255, 0.08) 0%, rgb(13, 13, 13) 55%, rgb(42, 42, 42) 100%)',
-  brandBorder: '#2b2b2b',
-  gradient: 'linear-gradient(135deg, #1c1c1c 0%, #2a2a2a 100%)',
-  primaryButtonBg: '#1c1c1c',
-  primaryButtonText: '#ffffff',
-  primaryButtonBorder: '#2b2b2b',
-  primaryButtonShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 6px 18px rgba(0, 0, 0, 0.28)',
-  welcomeButtonShadow:
-    '-1px 0 24px rgba(117, 47, 239, 0.6), 1px 0 4px rgba(54, 14, 109, 0.22), 0 1px 4px rgba(250, 18, 227, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.82)',
-  primaryButtonDisabledOpacity: '0.45',
-  buttonRadius: '10px',
-  cardRadiusChat: '16px',
-  purpleTint: 'rgba(255, 255, 255, 0.06)',
-  purpleTintLight: 'rgba(255, 255, 255, 0.04)',
-  purpleBorder: '#2b2b2b',
-  chatMessageArea: '#0d0d0d',
-  chatMessageAvatarBg: '#141414',
-  pendingBadgeBg: '#1c1c1c',
-  pendingBadgeText: '#93949f',
-  activeBadgeBg: '#1c1c1c',
-  activeBadgeText: '#ffffff',
-  doneBadgeBg: 'rgba(37, 193, 150, 0.12)',
-  doneBadgeText: '#25c196',
-  starGradientStops: ['#1b1b1b', '#2b2b2b', '#ffffff'],
-};
-
-function applyClientTheme() {
-  const t = { ...DEFAULT_CLIENT_THEME, ...(CLIENT_CONFIG.theme || {}) };
-  const root = document.documentElement;
-
-  if (t.googleFontQuery && !document.getElementById('rr-theme-font')) {
-    const link = document.createElement('link');
-    link.id = 'rr-theme-font';
-    link.rel = 'stylesheet';
-    link.href = `https://fonts.googleapis.com/css2?family=${t.googleFontQuery}&display=swap`;
-    document.head.appendChild(link);
-  }
-
-  root.style.setProperty('--font-family', t.fontFamily);
-  root.style.setProperty('--ll-heading', t.headingColor);
-  root.style.setProperty('--ll-body', t.bodyColor);
-  root.style.setProperty('--ll-muted', t.mutedColor);
-  root.style.setProperty('--ll-purple', t.primary);
-  root.style.setProperty('--ll-purple-dark', t.primaryDark);
-  root.style.setProperty('--ll-accent', t.accent);
-  root.style.setProperty('--ll-success', t.accent);
-  root.style.setProperty('--ll-page-bg', t.pageBackground);
-  root.style.setProperty('--ll-nav-bg', t.navBackground);
-  root.style.setProperty('--ll-stepper-bg', t.stepperGradient);
-  root.style.setProperty('--ll-stepper-shadow', t.stepperShadow);
-  root.style.setProperty('--ll-stepper-radius', t.stepperRadius);
-  root.style.setProperty('--ll-brand-gradient', t.brandGradient);
-  root.style.setProperty('--ll-brand-border', t.brandBorder);
-  root.style.setProperty('--ll-gradient', t.gradient);
-  root.style.setProperty('--ll-btn-primary-bg', t.primaryButtonBg);
-  root.style.setProperty('--ll-btn-primary-text', t.primaryButtonText);
-  root.style.setProperty('--ll-btn-primary-border', t.primaryButtonBorder);
-  root.style.setProperty('--ll-btn-primary-shadow', t.primaryButtonShadow);
-  root.style.setProperty('--ll-btn-welcome-shadow', t.welcomeButtonShadow);
-  root.style.setProperty('--ll-btn-primary-disabled-opacity', t.primaryButtonDisabledOpacity);
-  root.style.setProperty('--radius-md', t.buttonRadius);
-  root.style.setProperty('--radius-chat-card', t.cardRadiusChat);
-  root.style.setProperty('--ll-purple-tint', t.purpleTint);
-  root.style.setProperty('--ll-purple-tint-light', t.purpleTintLight);
-  root.style.setProperty('--ll-purple-border', t.purpleBorder);
-  root.style.setProperty('--ll-chat-messages-bg', t.chatMessageArea);
-  root.style.setProperty('--ll-chat-message-avatar-bg', t.chatMessageAvatarBg);
-  root.style.setProperty('--ll-pending-badge-bg', t.pendingBadgeBg);
-  root.style.setProperty('--ll-pending-badge-text', t.pendingBadgeText);
-  root.style.setProperty('--ll-active-badge-bg', t.activeBadgeBg);
-  root.style.setProperty('--ll-active-badge-text', t.activeBadgeText);
-  root.style.setProperty('--ll-done-badge-bg', t.doneBadgeBg);
-  root.style.setProperty('--ll-done-badge-text', t.doneBadgeText);
-
-  const stops = Array.isArray(t.starGradientStops) ? t.starGradientStops : DEFAULT_CLIENT_THEME.starGradientStops;
-  ['a', 'b', 'c'].forEach((id, i) => {
-    const el = document.getElementById(`star-stop-${id}`);
-    if (el) el.setAttribute('stop-color', stops[i] || stops[stops.length - 1]);
-  });
-}
+/**
+ * Visual theming is CSS-driven (no JS). Defaults live in `styles.css` (`:root`),
+ * and each client folder's `styles.css` overrides the `--ll-*` tokens, fonts
+ * (@import), and the star-gradient `<stop>` colors. `config.js` is data only.
+ */
 
 /** Normalize host for Google s2 favicons (no scheme, no path, no leading www). */
 function normalizeLogoFaviconDomain(raw) {
@@ -165,6 +73,19 @@ const PARAMS = (() => {
     if (link) reviewLinks[plat] = link;
   });
 
+  // Interview questions shown on the video screen + record modal. Clients set a
+  // plain array of strings in config.js; numbering/markup is added by the script.
+  const defaultInterviewQuestions = [
+    `Why did you choose ${providerName}?`,
+    'What were you hoping to achieve?',
+    'How did we deliver on your expectations?',
+  ];
+  const interviewQuestions = (
+    Array.isArray(CLIENT_CONFIG.interviewQuestions) && CLIENT_CONFIG.interviewQuestions.length
+      ? CLIENT_CONFIG.interviewQuestions
+      : defaultInterviewQuestions
+  ).map((q) => String(q == null ? '' : q).trim()).filter(Boolean);
+
   return {
     clientSlug: CLIENT_CONFIG.clientSlug || window.location.pathname.split('/').filter(Boolean)[0] || 'default',
     name,
@@ -178,6 +99,8 @@ const PARAMS = (() => {
     reviewLinks,
     videoUrl: p.get('video_url') || CLIENT_CONFIG.videoUrl || '',
     welcomeVideoUrl: p.get('welcome_video_url') || CLIENT_CONFIG.welcomeVideoUrl || '',
+    welcomeVideoPoster: p.get('welcome_video_poster') || CLIENT_CONFIG.welcomeVideoPoster || '',
+    interviewQuestions,
     thankYouUrl: p.get('thank_you_url') || CLIENT_CONFIG.thankYouUrl || '',
     allowedRedirectHosts: CLIENT_CONFIG.allowedRedirectHosts || [],
     supportEmail: (CLIENT_CONFIG.supportEmail || '').trim(),
@@ -270,7 +193,6 @@ const $$ = (sel) => document.querySelectorAll(sel);
 
 // ── Boot ────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  applyClientTheme();
   applyClientHeaderFaviconLogo();
   applyCurrentYearTokens();
 
@@ -282,6 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $$('.company-name').forEach(el => { el.textContent = PARAMS.customerCompany; });
   $$('.provider-name').forEach(el => { el.textContent = PARAMS.providerName; });
   $$('.first-name').forEach(el => { el.textContent = PARAMS.firstName; });
+  renderVideoScreenQuestions();
   document.title = `Reputation Rocket — ${PARAMS.customerCompany}`;
 
   // Optional welcome video. The element is injected only when a client provides a URL
@@ -292,6 +215,10 @@ document.addEventListener('DOMContentLoaded', () => {
     vid.className = 'welcome-video';
     vid.controls = true;
     vid.playsInline = true;
+    if (PARAMS.welcomeVideoPoster) {
+      vid.poster = PARAMS.welcomeVideoPoster;
+      vid.preload = 'none';
+    }
 
     const src = document.createElement('source');
     src.id = 'welcome-video-source';
@@ -1328,6 +1255,7 @@ const PLATFORM_FAVICON_HOST = {
   google: 'google.com',
   trustpilot: 'trustpilot.com',
   clutch: 'clutch.co',
+  capterra: 'capterra.com',
 };
 
 function platformFaviconHost(platform) {
@@ -1679,6 +1607,7 @@ const PLATFORM_META = {
   g2:         { name: 'G2',              desc: 'Where buyers compare software',  icon: 'star',   flow: 'fields' },
   trustpilot: { name: 'Trustpilot',      desc: 'Trusted by millions of consumers', icon: 'shield', flow: 'paste' },
   google:     { name: 'Google Business', desc: 'Your most visible review',       icon: 'globe',  flow: 'paste'  },
+  capterra:   { name: 'Capterra',        desc: 'Software reviews for businesses', icon: 'star',  flow: 'paste'  },
 };
 
 function isRichPostLayout() {
@@ -1906,40 +1835,13 @@ function showReviewCompleteOverlay(platform) {
 }
 
 /**
- * Opens a review-site URL in a smaller popup window. Must be called from a user
- * gesture (click); falls back to a new tab if popups are blocked.
+ * Opens a review-site URL in a new browser tab. Must be called from a user
+ * gesture (click). Uses a temporary anchor with target="_blank" for reliable,
+ * popup-blocker-friendly behavior (no popup window sizing/quirks).
  */
-function openReviewPlatform(url, windowName = 'reputationRocketReview') {
+function openReviewPlatform(url) {
   if (!url) return null;
 
-  const width = Math.min(960, window.screen.availWidth - 80);
-  const height = Math.min(820, window.screen.availHeight - 80);
-  const left = Math.max(0, Math.round((window.screen.availWidth - width) / 2));
-  const top = Math.max(0, Math.round((window.screen.availHeight - height) / 2));
-
-  const features = [
-    `width=${width}`,
-    `height=${height}`,
-    `left=${left}`,
-    `top=${top}`,
-    'popup=yes',
-    'scrollbars=yes',
-    'resizable=yes',
-    'toolbar=no',
-    'menubar=no',
-    'status=no',
-    'location=no',
-  ].join(',');
-
-  const w = window.open('about:blank', windowName, features);
-  if (w) {
-    try { w.opener = null; } catch (_) { /* ignore */ }
-    try { w.location.href = url; } catch (_) { /* ignore */ }
-    try { w.focus(); } catch (_) { /* ignore */ }
-    return w;
-  }
-
-  // Last-resort fallback for stricter popup blockers.
   const a = document.createElement('a');
   a.href = url;
   a.target = '_blank';
@@ -2039,15 +1941,16 @@ function initPostScreen() {
     btn.addEventListener('click', () => {
       const plat = btn.dataset.platform;
       const link = PARAMS.reviewLinks[plat];
+      // Only open the tab when a link is configured, but ALWAYS surface the
+      // confirm overlay (matching the post-paste flow) so an empty/missing
+      // reviewLink can never silently swallow the click.
       if (link) {
-        openReviewPlatform(link, `rr-review-${plat}`);
-        reviewFormOpened[plat] = true;
-        saveSession();
-        initPostScreen();
-        if (isRichPostLayout()) {
-          showReviewCompleteOverlay(plat);
-        }
+        openReviewPlatform(link);
       }
+      reviewFormOpened[plat] = true;
+      saveSession();
+      initPostScreen();
+      showReviewCompleteOverlay(plat);
     });
   });
   grid.querySelectorAll('[data-action="open-only"]').forEach(btn => {
@@ -2055,7 +1958,7 @@ function initPostScreen() {
       const plat = btn.dataset.platform;
       const link = PARAMS.reviewLinks[plat];
       if (link) {
-        openReviewPlatform(link, `rr-review-${plat}`);
+        openReviewPlatform(link);
         showReviewCompleteOverlay(plat);
       }
     });
@@ -2146,7 +2049,7 @@ async function handlePastePost(platform, opts = {}) {
   const draftText = drafts[platform] || reviewDraft || '';
 
   if (link) {
-    openReviewPlatform(link, `rr-review-${platform}`);
+    openReviewPlatform(link);
   }
 
   if (!skipOverlay) {
@@ -2170,7 +2073,7 @@ async function handlePastePost(platform, opts = {}) {
 function markPlatformPosted(platform) {
   platformsPosted[platform] = true;
   platformPostedAt[platform] = new Date().toISOString();
-  triggerConfetti({ count: 25, duration: 2 });
+  triggerConfetti({ count: 50, duration: 2 });
   initPostScreen();
   saveSession();
 }
@@ -2222,6 +2125,20 @@ function initVideoScreen() {
   }
 }
 
+/** Build the interview-question list items (modal <ol>) from PARAMS.interviewQuestions. */
+function interviewQuestionsListHTML() {
+  return PARAMS.interviewQuestions.map((q) => `<li>${escapeHtml(q)}</li>`).join('');
+}
+
+/** Populate the video screen's question list (numbered cards) from config. */
+function renderVideoScreenQuestions() {
+  const wrap = document.querySelector('#screen-video .video-questions');
+  if (!wrap) return;
+  wrap.innerHTML = PARAMS.interviewQuestions
+    .map((q, i) => `<div class="video-question"><span class="q-num">${i + 1}</span><p>${escapeHtml(q)}</p></div>`)
+    .join('');
+}
+
 function ensureVideoCaptureModal() {
   let modal = document.getElementById('video-capture-modal');
   if (modal) return modal;
@@ -2271,9 +2188,7 @@ function ensureVideoCaptureModal() {
         <div class="video-capture-modal__questions">
           <p class="video-capture-modal__questions-label">Interview questions</p>
           <ol class="video-capture-modal__questions-list">
-            <li>Why did you choose Lean Labs?</li>
-            <li>What were you hoping to achieve?</li>
-            <li>How did we deliver on your expectations?</li>
+            ${interviewQuestionsListHTML()}
           </ol>
           <p style="margin-top: 14px;font-size: 14px">Just imagine you're telling a friend about your experience. That's it!</p>
         </div>
@@ -2977,7 +2892,7 @@ function isAllowedRedirectUrl(rawUrl) {
 function platformDisplayName(platform) {
   const names = {
     hubspot: 'HubSpot', g2: 'G2', trustpilot: 'Trustpilot',
-    clutch: 'Clutch', google: 'Google Business',
+    clutch: 'Clutch', google: 'Google Business', capterra: 'Capterra',
   };
   return names[platform] || platform.charAt(0).toUpperCase() + platform.slice(1);
 }

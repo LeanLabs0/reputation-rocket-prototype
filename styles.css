@@ -1,7 +1,14 @@
 /* ============================================================
    Reputation Rocket — styles.css
+
+   Theming is CSS-driven. This file holds the default (Lean Labs)
+   brand tokens in `:root`. Each client folder's `styles.css`
+   loads AFTER this file and overrides the `--ll-*` tokens, the
+   font (@import), and the star-gradient `<stop>` colors.
+   `config.js` is data only — no visual theme there.
    ============================================================ */
 
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 
 /* ── Brand Tokens ─────────────────────────────────────────── */
 :root {
@@ -62,6 +69,12 @@
   --shadow-lg: 0 16px 42px rgba(0,0,0,0.45);
   --transition: 0.2s ease;
 }
+
+/* Star gradient stops (the inline #starGradient SVG in each index.html).
+   Default = Lean Labs; clients override these in their own styles.css. */
+#star-stop-a { stop-color: #1b1b1b; }
+#star-stop-b { stop-color: #2b2b2b; }
+#star-stop-c { stop-color: #ffffff; }
 
 /* ── Reset & Base ─────────────────────────────────────────── */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -189,6 +202,10 @@ a:hover { text-decoration: underline; }
   padding: 0 32px;
   font-size: 1rem;
   font-weight: 600;
+}
+
+.btn-lg svg {
+  min-width: 16px
 }
 
 .btn-icon {
@@ -530,7 +547,6 @@ a:hover { text-decoration: underline; }
 .welcome-video {
   display: block;
   width: 100%;
-  max-width: 544px;
   aspect-ratio: 16 / 9;
   border-radius: var(--radius-lg);
   background: #000;
@@ -539,8 +555,8 @@ a:hover { text-decoration: underline; }
 }
 
 .welcome-callout {
+  width: 100%;
   max-width: 544px;
-  max-width: 100%;
   display: flex;
   align-items: flex-start;
   gap: 16px;
@@ -1339,6 +1355,7 @@ a:hover { text-decoration: underline; }
   gap: 16px;
   width: 100%;
   justify-content: center;
+  max-width: min(1040px, 100%);
 }
 
 .draft-footer-privacy {

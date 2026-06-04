@@ -12,6 +12,18 @@ window.CLIENT_CONFIG = {
     google: 'https://g.page/lean-labs/review',
   },
   welcomeVideoUrl: '',
+  /** Optional poster image shown before the welcome video plays (URL). */
+  welcomeVideoPoster: '',
+  /**
+   * Interview questions for the video screen + record modal. Plain text only —
+   * numbering and HTML markup are added automatically by the script. Add, edit,
+   * or remove items freely. Omit/empty to fall back to the built-in defaults.
+   */
+  interviewQuestions: [
+    'Why did you choose Lean Labs?',
+    'What were you hoping to achieve?',
+    'How did we deliver on your expectations?',
+  ],
   videoCaptureEnabled: true,
   thankYouUrl: 'https://leanlabs.com/reputation-rocket/thank-you',
   allowedRedirectHosts: ['leanlabs.com', 'www.leanlabs.com'],
@@ -23,5 +35,9 @@ window.CLIENT_CONFIG = {
   hubspotPortalId: '275827',
   hubspotFormId: '102ade8e-7204-41f9-80a0-6a5808c71089',
   hubspotFormRegion: 'na1',
-  /** Optional: overrides for tokens in app.js `DEFAULT_CLIENT_THEME` (Lean Labs Figma baseline). */
+  /**
+   * config.js is data only. Visual theming is CSS-driven:
+   * defaults live in styles.css (:root); per-client overrides live in
+   * <client>/styles.css (--ll-* tokens, @import font, #star-stop-* colors).
+   */
 };

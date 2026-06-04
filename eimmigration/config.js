@@ -1,0 +1,27 @@
+window.CLIENT_CONFIG = {
+  clientSlug: 'eimmigration',
+  providerName: 'eImmigration',
+  logoFaviconDomain: 'get.eimmigration.com',
+  agentEndpoint: '/api/agent',
+  notificationEndpoint: '/api/notify',
+  platforms: ['g2', 'trustpilot', 'capterra'],
+  reviewLinks: {
+    g2: 'https://www.g2.com/products/eimmigration-by-cerenade/reviews/start',
+    trustpilot: 'https://www.trustpilot.com/evaluate/cerenade.com',
+    capterra: 'https://reviews.capterra.com/products/new/881172b4-8a5f-4984-86e4-be61fe75b4d0/',
+  },
+  welcomeVideoUrl: 'https://www.lean-labs.com/hubfs/LL%20V4.1/videos/Context%20for%20Kevin.mp4',
+  welcomeVideoPoster: 'Context for Kevin-thumb-1.webp',
+  interviewQuestions: [
+    'Why did you choose eImmigration?',
+    'What were you hoping to achieve?',
+    'How did we deliver on your expectations?',
+  ],
+  videoCaptureEnabled: true,
+  thankYouUrl: 'https://get.eimmigration.com/reputation-rocket/thank-you',
+  allowedRedirectHosts: ['eimmigration.com', 'www.eimmigration.com'],
+  supportEmail: 'help@eimmigration.com',
+  hubspotPortalId: '45248900',
+  hubspotFormId: 'd636fadd-2e72-4663-bf26-e465c7d419a5',
+  hubspotFormRegion: 'na1',
+};

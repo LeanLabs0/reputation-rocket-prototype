@@ -80,8 +80,8 @@ Proxies `/api/*` to Fly with CORS. It does **not** load `api/agent.js` / `api/no
 ## New client page
 
 1. Copy `lean-labs/` → `your-client-slug/`.
-2. Edit `your-client-slug/config.js`: `clientSlug`, `providerName` (vendor being reviewed), `reviewLinks`, `platforms`, `welcomeVideoUrl`, `videoUrl`, `videoCaptureEnabled`, `thankYouUrl`, `allowedRedirectHosts`, optional `supportEmail` (negative alerts), optional `platformLogos` (per-slug transparent PNG/SVG URLs for draft tabs — overrides Clearbit/Google fallbacks), optional `theme: { }` (overrides `DEFAULT_CLIENT_THEME` in `app.js`).
-3. Adjust `your-client-slug/styles.css` for brand overrides that belong in CSS.
+2. Edit `your-client-slug/config.js` (**data only — no visual theme**): `clientSlug`, `providerName` (vendor being reviewed), `reviewLinks`, `platforms`, `welcomeVideoUrl`, `videoUrl`, `videoCaptureEnabled`, `thankYouUrl`, `allowedRedirectHosts`, optional `supportEmail` (negative alerts), optional `platformLogos` (per-slug transparent PNG/SVG URLs for draft tabs — overrides Clearbit/Google fallbacks).
+3. Brand the client in `your-client-slug/styles.css` (**all theming is CSS**): override the `--ll-*` tokens in `:root` (colors, page bg, buttons, badges, stepper), `@import` the brand font and set `--font-family`, and set the `#star-stop-a|b|c { stop-color }` values. Defaults (Lean Labs) live in the root `styles.css :root`; your file loads after it and wins. See `eimmigration/styles.css` for a complete example.
 4. Add `/your-client-slug` → `/your-client-slug/` (308) in `vercel.json` and `_redirects` so links without a trailing slash still load assets correctly (query string is preserved).
 5. Deploy on Vercel; set environment variables in the project (see below).
 6. Add a card for the company on the root `index.html` directory (href `your-client-slug/`) so visitors on the apex domain can find the review flow.
@@ -115,7 +115,7 @@ Payload shape, n8n branching, and example Slack copy: [VERCEL_N8N_SETUP.md](./VE
 
 ## Theming
 
-Per-client visuals use `CLIENT_CONFIG.theme` merged into `DEFAULT_CLIENT_THEME` in `app.js` (fonts, colors, page background, stepper, chat area, buttons, badges, etc.). Root `styles.css` consumes `--ll-*` CSS variables set at runtime.
+Theming is **CSS-driven — there is no JS theme layer**. The root `styles.css :root` holds the default (Lean Labs) `--ll-*` tokens (fonts, colors, page background, stepper, chat area, buttons, badges, etc.). Each client folder's `styles.css` loads after it and overrides those tokens, `@import`s the brand font (and sets `--font-family`), and sets the inline star-gradient `#star-stop-*` colors. `config.js` carries no visual settings. See `eimmigration/styles.css` for a full example.
 
 ---
 
@@ -141,9 +141,9 @@ Still supported alongside `config.js` defaults (see `app.js` / HANDOFF for full 
 | Path | Role |
 |------|------|
 | `index.html`, `lean-labs/index.html` | Screens: welcome, chat, draft, post, video, complete, negative |
-| `app.js` | State machine, Factor8 calls, review popups, overlays, session, theme application |
-| `styles.css` | Shared layout, stepper, chat, platform grid, components |
-| `config.js`, `lean-labs/config.js` | `CLIENT_CONFIG` (endpoints, links, theme) |
+| `app.js` | State machine, Factor8 calls, review popups, overlays, session (no theming) |
+| `styles.css` | Shared layout + default `--ll-*` theme tokens; per-client `styles.css` overrides them |
+| `config.js`, `lean-labs/config.js` | `CLIENT_CONFIG` data (endpoints, links, IDs) — no visual theme |
 | `api/agent.js`, `api/notify.js`, `api/upload-video.js` | Vercel / local-dev serverless handlers |
 | `local-dev-server.js` | `npm run dev` |
 | `.env.local.example` | Template for local secrets (not committed) |

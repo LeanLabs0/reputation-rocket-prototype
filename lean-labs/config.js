@@ -11,6 +11,12 @@ window.CLIENT_CONFIG = {
     google: 'https://g.page/lean-labs/review',
   },
   welcomeVideoUrl: '',
+  welcomeVideoPoster: '',
+  interviewQuestions: [
+    'Why did you choose Lean Labs?',
+    'What were you hoping to achieve?',
+    'How did we deliver on your expectations?',
+  ],
   videoCaptureEnabled: true,
   thankYouUrl: 'https://leanlabs.com/reputation-rocket/thank-you',
   allowedRedirectHosts: ['leanlabs.com', 'www.leanlabs.com'],

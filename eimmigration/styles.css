@@ -1,0 +1,407 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  /* Brand palette (eImmigration-scoped helpers) */
+  --ei-blue: #0099ff;
+  --ei-blue-dark: #0077cc;
+  --ei-teal: #00cab0;
+  --ei-purple: #a643f2;
+  --ei-purple-hover: #8222cc;
+  --ei-purple-active: #561786;
+  --ei-purple-tint: rgba(166, 67, 242, 0.08);
+  --ei-navy: #1d2e4e;
+
+  /* Primary button gradient  */
+  --ei-btn-gradient: linear-gradient(100.15deg, #a643f2 3.29%, #0099ff 99.71%);
+  --ei-body: #2a3e70;
+  --ei-muted: #7b87a5;
+
+  /* Surfaces */
+  --ei-surface: #ffffff;
+  --ei-surface-soft: #f4f8fd;
+  --ei-surface-tint: #eef6ff;
+  --ei-border: #dce8f5;
+  --ei-border-strong: #c4e3f7;
+  --ei-shadow-sm: 0 4px 20px rgba(29, 46, 78, 0.08);
+  --ei-shadow-md: 0 12px 32px rgba(29, 46, 78, 0.12);
+
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  --ll-heading: #1d2e4e;
+  --ll-body: #2a3e70;
+  --ll-muted: #7b87a5;
+  --ll-purple: #0099ff;
+  --ll-purple-dark: #0077cc;
+  --ll-accent: #00cab0;
+  --ll-success: #00cab0;
+
+  --ll-page-bg: #f0f9ff;
+  --ll-nav-bg: transparent;
+
+  --ll-stepper-bg: linear-gradient(180deg, #ffffff 0%, #f4faff 100%);
+  --ll-stepper-shadow: 0 12px 32px rgba(29, 46, 78, 0.10);
+  --ll-stepper-radius: 16px;
+
+  --ll-brand-gradient: radial-gradient(120% 120% at 80% 20%, rgba(166, 67, 242, 0.14) 0%, rgba(0, 153, 255, 0.08) 45%, rgba(0, 202, 176, 0.12) 100%);
+  --ll-brand-border: #c4e3f7;
+  --ll-gradient: linear-gradient(135deg, #0099ff 0%, #00cab0 100%);
+
+  --ll-btn-primary-bg: var(--ei-btn-gradient);
+  --ll-btn-primary-text: #ffffff;
+  --ll-btn-primary-border: transparent;
+
+  --ll-btn-primary-shadow: none;
+  --ll-btn-welcome-shadow: none;
+  --ll-btn-primary-disabled-opacity: 0.45;
+
+  --radius-md: 5px;
+  --radius-chat-card: 16px;
+
+  --ll-purple-tint: rgba(0, 153, 255, 0.10);
+  --ll-purple-tint-light: #F0F9FF;
+  --ll-purple-border: #c4e3f7;
+
+  --ll-chat-messages-bg: #ffffff;
+  --ll-chat-message-avatar-bg: #f0f9ff;
+
+  --ll-pending-badge-bg: #f0f4fa;
+  --ll-pending-badge-text: #7b87a5;
+  --ll-active-badge-bg: rgba(0, 153, 255, 0.12);
+  --ll-active-badge-text: #0077cc;
+  --ll-done-badge-bg: rgba(0, 202, 176, 0.16);
+  --ll-done-badge-text: #0f9e8c;
+
+  --ll-off-white: #f4f8fd;
+  --ll-dark-alt: #f4f8fd;
+  --ll-light-purple: #eef6ff;
+  --ll-border: #dce8f5;
+  --ll-border-light: #e6eef7;
+}
+
+#star-stop-a { stop-color: #00cab0; }
+#star-stop-b { stop-color: #0099ff; }
+#star-stop-c { stop-color: #a643f2; }
+
+body {
+  background-image: url('Gradient Accent-2.svg');
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: cover;
+}
+
+/* ── Cards / containers (was --ll-dark) ───────────────────── */
+.chat-container,
+.draft-card,
+.video-card,
+.platform-card,
+.platform-card--rich,
+.post-progress-rich,
+.review-complete-modal,
+.hubspot-lead-modal__dialog,
+.video-capture-modal__dialog {
+  background: var(--ei-surface);
+  border-color: var(--ei-border);
+  box-shadow: var(--ei-shadow-sm);
+}
+
+/* ── Chat ─────────────────────────────────────────────────── */
+.chat-header,
+.chat-input-bar,
+.chat-draft-prompt {
+  background: var(--ei-surface);
+}
+.chat-header {
+  border-bottom-color: var(--ei-border);
+}
+.chat-input-bar {
+  border-top-color: var(--ei-border);
+}
+.chat-messages {
+  background: var(--ei-surface);
+}
+
+.chat-bubble.agent {
+  background: var(--ei-surface-soft);
+  border-color: var(--ei-border);
+  color: var(--ei-navy);
+}
+.chat-bubble.user {
+  background: var(--ei-blue);
+  border-color: var(--ei-blue);
+  color: #ffffff;
+}
+.chat-bubble.user a {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.chat-message-avatar {
+  border-color: var(--ei-border);
+}
+
+/* Inputs (was --ll-dark with white text) */
+.chat-input-bar input,
+#draft-textarea,
+.draft-textarea,
+.video-capture-modal__select {
+  background: var(--ei-surface);
+  border-color: var(--ei-border);
+  color: var(--ei-navy);
+}
+.chat-input-bar input::placeholder,
+.draft-textarea::placeholder {
+  color: var(--ei-muted);
+}
+.chat-input-bar input:focus,
+#draft-textarea:focus,
+.draft-textarea:focus,
+.video-capture-modal__select:focus {
+  border-color: var(--ei-blue);
+  box-shadow: 0 0 0 3px rgba(0, 153, 255, 0.16);
+}
+
+.chat-send-btn {
+  background: var(--ei-blue);
+  color: #ffffff;
+}
+
+/* Draft-ready prompt (in chat) */
+.chat-draft-prompt__card {
+  background: var(--ei-surface);
+  border-color: var(--ei-border);
+}
+.chat-draft-prompt__header {
+  border-bottom-color: var(--ei-border);
+}
+.chat-draft-prompt__headline,
+.chat-draft-prompt__mini-name {
+  color: var(--ei-navy);
+}
+.chat-draft-prompt__subhead {
+  color: var(--ei-body);
+}
+.chat-draft-prompt__mini {
+  background: var(--ei-surface);
+  border-color: var(--ei-border);
+  box-shadow: var(--ei-shadow-sm);
+}
+
+/* ── Buttons ──────────────────────────────────────────────── */
+.btn-primary {
+  gap: 10px;
+  border-radius: 8px;
+}
+.btn-primary:not(.btn-sm):not(.btn-lg) {
+  padding: 0 30px;
+  font-size: 18px;
+  line-height: 21px;
+}
+.welcome-cta .btn-primary {
+  background: var(--ei-btn-gradient);
+  color: #ffffff;
+}
+.btn-secondary,
+.btn-tertiary {
+  background: var(--ei-surface);
+  color: var(--ei-body);
+  border-color: var(--ei-border);
+}
+.btn-secondary:hover,
+.btn-tertiary:hover {
+  background: var(--ei-surface-tint);
+  border-color: var(--ei-blue);
+  color: var(--ei-blue);
+}
+.btn-copy {
+  background: var(--ei-surface);
+  color: var(--ei-body);
+  border-color: var(--ei-border);
+}
+.btn-copy:hover {
+  background: var(--ei-surface-tint);
+  border-color: var(--ei-blue);
+}
+
+.welcome-content,
+.screen-header h1 {
+  max-width: 992px;
+}
+
+.welcome-media {
+  width: 100%;
+  max-width: 720px
+}
+
+.welcome-callout {
+  background: white;
+}
+
+.welcome-callout strong {
+  color: var(--ei-navy);
+}
+
+/* ── Progress stepper ─────────────────────────────────────── */
+.progress-bar {
+  border-color: var(--ei-border);
+}
+.progress-dot {
+  background: #ffffff;
+  border-color: var(--ei-border);
+  color: var(--ei-muted);
+}
+.progress-step.active .progress-dot {
+  background: var(--ei-blue);
+  border-color: var(--ei-blue);
+  color: #ffffff;
+  box-shadow: 0 0 0 4px rgba(0, 153, 255, 0.16);
+}
+.progress-step.done .progress-dot {
+  background: var(--ei-teal);
+  border-color: var(--ei-teal);
+  color: #ffffff;
+}
+.progress-step.done .progress-dot::before {
+  --progress-icon: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='m5 12 4 4 10-10' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+.progress-step.done .progress-connector {
+  background: var(--ei-teal);
+}
+.progress-step.active .progress-connector {
+  background: linear-gradient(
+    to right,
+    var(--ei-blue) 0%,
+    var(--ei-blue) 50%,
+    var(--ll-border-light) 50%,
+    var(--ll-border-light) 100%
+  );
+}
+.progress-step.done .progress-badge {
+  border-color: rgba(0, 202, 176, 0.42);
+}
+
+/* ── Draft screen ─────────────────────────────────────────── */
+.draft-tab {
+  background: var(--ei-surface);
+  border-color: var(--ei-border);
+  color: var(--ei-body);
+  box-shadow: var(--ei-shadow-sm);
+}
+.draft-tab:hover {
+  border-color: var(--ei-blue);
+  color: var(--ei-blue);
+}
+.draft-tab.active {
+  background: var(--ei-surface-tint);
+  border-color: var(--ei-blue);
+  color: var(--ei-blue);
+}
+.draft-tab-icon--empty {
+  background: var(--ei-surface-soft);
+  border-color: var(--ei-border);
+}
+.edit-hint {
+  background: var(--ei-surface-soft);
+  color: var(--ei-body);
+  border-color: var(--ei-border);
+}
+.edit-hint:hover {
+  background: var(--ei-surface-tint);
+  border-color: var(--ei-blue);
+}
+
+/* ── Post screen ──────────────────────────────────────────── */
+.platform-status.ready {
+  background: var(--ei-blue);
+  border-color: var(--ei-blue);
+  color: #ffffff;
+}
+.platform-status.ready:hover {
+  filter: brightness(1.05);
+}
+.platform-status.done {
+  background: var(--ei-teal);
+  border-color: var(--ei-teal);
+  color: #ffffff;
+}
+.btn-confirm {
+  color: #ffffff;
+}
+
+/* ── Field rows / details ─────────────────────────────────── */
+.field-row {
+  background: var(--ei-surface-soft);
+  border-color: var(--ei-border);
+}
+
+/* ── Video screen ─────────────────────────────────────────── */
+.video-intro,
+.platform-icon,
+.video-card-header .video-title .icon-circle {
+  background: var(--ei-surface-soft);
+}
+
+/* ── HubSpot embedded form (only used when portal/form IDs set) ── */
+.hubspot-lead-modal__form {
+  --hubspot-input-bg: #ffffff;
+  --hubspot-input-border: var(--ei-border);
+  --hubspot-input-placeholder: var(--ei-muted);
+}
+.hubspot-lead-modal__form .hs-form .hs-button,
+.hubspot-lead-modal__form .hs-form input[type='submit'],
+.hubspot-lead-modal__form .hs-form input.hs-button.primary {
+  color: #ffffff;
+}
+
+/* ── Tertiary purple (Figma: Tertiary #A643F2, Links #A643F2 →
+   hover #8222CC → active #561786). Blue stays primary, teal stays
+   success; purple carries links + the tertiary action + accents. ── */
+a,
+.link-inline,
+.chat-bubble a,
+.card-details summary {
+  color: var(--ei-purple);
+}
+a:hover,
+.link-inline:hover,
+.chat-bubble a:hover,
+.card-details summary:hover,
+.rr-legal-footer a:hover {
+  color: var(--ei-purple-hover);
+  text-decoration-color: var(--ei-purple-hover);
+}
+a:active,
+.link-inline:active,
+.chat-bubble a:active {
+  color: var(--ei-purple-active);
+}
+
+/* "Regenerate this draft" is the tertiary action → purple accent
+   (distinct from the blue-accented secondary buttons) */
+.btn-tertiary {
+  color: var(--ei-purple);
+  border-color: color-mix(in srgb, var(--ei-purple) 30%, var(--ei-border));
+}
+.btn-tertiary:hover {
+  color: var(--ei-purple-hover);
+  border-color: var(--ei-purple);
+  background: var(--ei-purple-tint);
+}
+
+/* Decorative accents pulled to the tertiary purple */
+
+.text-accent {
+
+}
+.welcome-callout-icon {
+  background: var(--ei-purple-tint);
+  color: var(--ei-purple);
+}
+.draft-tip .draft-tip-icon {
+  color: var(--ei-purple);
+}
+.draft-tip {
+  border-color: color-mix(in srgb, var(--ei-purple) 22%, var(--ei-border));
+  background: var(--ei-purple-tint);
+}
+.draft-tip .text-primary {
+  color: var(--ei-purple);
+}
