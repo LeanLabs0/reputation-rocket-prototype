@@ -10,8 +10,8 @@ window.CLIENT_CONFIG = {
     g2: 'https://www.g2.com/products/lean-labs/take_survey',
     google: 'https://g.page/lean-labs/review',
   },
-  welcomeVideoUrl: '',
-  welcomeVideoPoster: '',
+  welcomeVideoUrl: 'https://www.leanlabs.com/hubfs/LL%20v5/videos/Reputation%20Rocket%20Intro.mp4',
+  welcomeVideoPoster: 'https://www.leanlabs.com/hubfs/LL%20v5/videos/7c248b618a126294316f6a.gif',
   interviewQuestions: [
     'Why did you choose Lean Labs?',
     'What were you hoping to achieve?',

@@ -10,8 +10,8 @@ window.CLIENT_CONFIG = {
     trustpilot: 'https://www.trustpilot.com/evaluate/cerenade.com',
     capterra: 'https://reviews.capterra.com/products/new/881172b4-8a5f-4984-86e4-be61fe75b4d0/',
   },
-  welcomeVideoUrl: 'https://www.lean-labs.com/hubfs/LL%20V4.1/videos/Context%20for%20Kevin.mp4',
-  welcomeVideoPoster: 'Context for Kevin-thumb-1.webp',
+  welcomeVideoUrl: 'https://www.leanlabs.com/hubfs/LL%20v5/videos/Reputation%20Rocket%20Intro.mp4',
+  welcomeVideoPoster: 'https://www.leanlabs.com/hubfs/LL%20v5/videos/7c248b618a126294316f6a.gif',
   interviewQuestions: [
     'Why did you choose eImmigration?',
     'What were you hoping to achieve?',
