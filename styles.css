@@ -771,7 +771,6 @@ a:hover { text-decoration: underline; }
   border-radius: 8px;
   align-self: flex-end;
   min-width: 54px;
-  min-height: 38px;
   padding: 8px 20px;
   display: inline-flex;
   align-items: center;

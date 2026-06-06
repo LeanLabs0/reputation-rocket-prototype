@@ -1,6 +1,6 @@
 window.CLIENT_CONFIG = {
   clientSlug: 'eimmigration',
-  providerName: 'eImmigration',
+  providerName: 'eimmigration',
   logoFaviconDomain: 'get.eimmigration.com',
   agentEndpoint: '/api/agent',
   notificationEndpoint: '/api/notify',
@@ -13,7 +13,7 @@ window.CLIENT_CONFIG = {
   welcomeVideoUrl: 'https://www.leanlabs.com/hubfs/LL%20v5/videos/Reputation%20Rocket%20Intro.mp4',
   welcomeVideoPoster: 'https://www.leanlabs.com/hubfs/LL%20v5/videos/7c248b618a126294316f6a.gif',
   interviewQuestions: [
-    'Why did you choose eImmigration?',
+    'Why did you choose eimmigration?',
     'What were you hoping to achieve?',
     'How did we deliver on your expectations?',
   ],
