@@ -1256,6 +1256,7 @@ const PLATFORM_FAVICON_HOST = {
   trustpilot: 'trustpilot.com',
   clutch: 'clutch.co',
   capterra: 'capterra.com',
+  gartner: 'gartner.com',
 };
 
 function platformFaviconHost(platform) {
@@ -1608,6 +1609,7 @@ const PLATFORM_META = {
   trustpilot: { name: 'Trustpilot',      desc: 'Trusted by millions of consumers', icon: 'shield', flow: 'paste' },
   google:     { name: 'Google Business', desc: 'Your most visible review',       icon: 'globe',  flow: 'paste'  },
   capterra:   { name: 'Capterra',        desc: 'Software reviews for businesses', icon: 'star',  flow: 'paste'  },
+  gartner:    { name: 'Gartner',         desc: 'Enterprise buyer reviews',       icon: 'star',   flow: 'fields' },
 };
 
 function isRichPostLayout() {
@@ -1747,7 +1749,8 @@ function parseG2Fields(draft) {
 function formatDraftForOverlay(platform, draftText) {
   const text = String(draftText || '').trim();
   if (!text) return '';
-  if (String(platform || '').toLowerCase() !== 'g2') return text;
+  const meta = PLATFORM_META[String(platform || '').toLowerCase()];
+  if (!meta || meta.flow !== 'fields') return text;
   return text.replace(/\[FIELD:\s*([^\]]+?)\]/g, '$1');
 }
 
@@ -1773,7 +1776,7 @@ function mountRichG2UnpostedCard(card, plat, index1, meta) {
     )
     .join('');
 
-  const g2Hint = 'Open the G2 form with the button below, then copy each answer.';
+  const g2Hint = `Open the ${meta.name} form with the button below, then copy each answer.`;
 
   card.innerHTML = `
     <div class="platform-card-top">
@@ -1793,7 +1796,7 @@ function mountRichG2UnpostedCard(card, plat, index1, meta) {
     </div>
     <p class="platform-card-foot-hint">${iconLockSmall()}<span>${escapeHtml(g2Hint)}</span></p>
     <details class="card-details card-details--rich" open>
-      <summary>Your answers for G2 (${fields.length})</summary>
+      <summary>Your answers for ${escapeHtml(meta.name)} (${fields.length})</summary>
       <div class="card-details-body">${fieldRows}</div>
     </details>`;
 
@@ -1991,11 +1994,12 @@ function renderG2CardBody(plat) {
   const draft = drafts[plat] || reviewDraft || '';
   const fields = parseG2Fields(draft);
   const link = PARAMS.reviewLinks[plat] || '';
+  const name = platformDisplayName(plat);
 
   if (fields.length === 0) {
     // backwards-compat fallback: no markers found, treat as paste flow
     return `
-      <span class="platform-status ready" data-action="post-paste" data-platform="${plat}">Copy &amp; open G2 →</span>
+      <span class="platform-status ready" data-action="post-paste" data-platform="${plat}">Copy &amp; open ${escapeHtml(name)} →</span>
       <p class="platform-hint">We'll ask you to confirm once the review site opens</p>
     `;
   }
@@ -2010,13 +2014,13 @@ function renderG2CardBody(plat) {
     </div>
   `).join('');
 
-  const g2Hint = 'Open the G2 form first (button above). Then copy each answer below into G2.';
+  const g2Hint = `Open the ${name} form first (button above). Then copy each answer below into ${name}.`;
 
   return `
-    <span class="platform-status ready" data-action="open-form" data-platform="${plat}">Open G2 review form →</span>
-    <p class="platform-hint">${g2Hint}</p>
+    <span class="platform-status ready" data-action="open-form" data-platform="${plat}">Open ${escapeHtml(name)} review form →</span>
+    <p class="platform-hint">${escapeHtml(g2Hint)}</p>
     <details class="card-details" open>
-      <summary>Your answers for G2 (${fields.length})</summary>
+      <summary>Your answers for ${escapeHtml(name)} (${fields.length})</summary>
       <div class="card-details-body">
         ${fieldRows}
       </div>
@@ -2893,6 +2897,7 @@ function platformDisplayName(platform) {
   const names = {
     hubspot: 'HubSpot', g2: 'G2', trustpilot: 'Trustpilot',
     clutch: 'Clutch', google: 'Google Business', capterra: 'Capterra',
+    gartner: 'Gartner',
   };
   return names[platform] || platform.charAt(0).toUpperCase() + platform.slice(1);
 }

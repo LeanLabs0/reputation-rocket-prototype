@@ -4,11 +4,11 @@ window.CLIENT_CONFIG = {
   logoFaviconDomain: 'get.eimmigration.com',
   agentEndpoint: '/api/agent',
   notificationEndpoint: '/api/notify',
-  platforms: ['g2', 'trustpilot', 'capterra'],
+  platforms: ['gartner', 'g2', 'trustpilot'],
   reviewLinks: {
+    gartner: 'https://www.gartner.com/reviews/product/eimmigration',
     g2: 'https://www.g2.com/products/eimmigration-by-cerenade/reviews/start',
     trustpilot: 'https://www.trustpilot.com/evaluate/cerenade.com',
-    capterra: 'https://reviews.capterra.com/products/new/881172b4-8a5f-4984-86e4-be61fe75b4d0/',
   },
   welcomeVideoUrl: 'https://www.leanlabs.com/hubfs/LL%20v5/videos/Reputation%20Rocket%20Intro.mp4',
   welcomeVideoPoster: 'https://www.leanlabs.com/hubfs/LL%20v5/videos/7c248b618a126294316f6a.gif',
