@@ -1,8 +1,11 @@
 const N8N_WEBHOOK_URL = process.env.N8N_REPUTATION_WEBHOOK_URL;
 const N8N_SHARED_SECRET = process.env.N8N_REPUTATION_SHARED_SECRET;
 const DEFAULT_SLACK_WEBHOOK_URL = process.env.SLACK_REPUTATION_WEBHOOK_URL;
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const RESEND_FROM = process.env.RESEND_FROM || process.env.RESEND_FROM_EMAIL;
+// Email sending (Resend) is disabled until Resend is set up. Slack remains the
+// active channel. Re-enable by uncommenting these + the sendNegativeSupportEmail
+// call below and the function itself.
+// const RESEND_API_KEY = process.env.RESEND_API_KEY;
+// const RESEND_FROM = process.env.RESEND_FROM || process.env.RESEND_FROM_EMAIL;
 
 const ALLOWED_EVENTS = new Set(['completed', 'negative']);
 
@@ -84,11 +87,14 @@ module.exports = async function handler(req, res) {
       deliveredTo = 'slack';
     }
 
+    // Email alerts via Resend are disabled until Resend is configured.
+    // Slack (above) is the active notification channel. To re-enable email,
+    // uncomment the block below + sendNegativeSupportEmail() + the env consts.
     let support_email_sent = false;
-    if (payload.event === 'negative') {
-      const emailResult = await sendNegativeSupportEmail(notificationPayload);
-      support_email_sent = Boolean(emailResult.sent);
-    }
+    // if (payload.event === 'negative') {
+    //   const emailResult = await sendNegativeSupportEmail(notificationPayload);
+    //   support_email_sent = Boolean(emailResult.sent);
+    // }
 
     return res.status(200).json({ ok: true, delivered_to: deliveredTo, support_email_sent });
   } catch (error) {
@@ -322,7 +328,12 @@ function buildNegativeEmailSubjectAndText(payload) {
 /**
  * Optional: Resend.com. Set RESEND_API_KEY + RESEND_FROM.
  * Recipient: NEGATIVE_ALERT_EMAIL_<CLIENT_SLUG> env (recommended) or support_email from payload.
+ *
+ * DISABLED: Resend is not set up yet, so this is commented out and unused.
+ * To re-enable email alerts: uncomment this function, the RESEND_* env consts
+ * at the top, and the sendNegativeSupportEmail() call in the handler.
  */
+/*
 async function sendNegativeSupportEmail(payload) {
   try {
     if (!RESEND_API_KEY || !RESEND_FROM) {
@@ -369,3 +380,4 @@ async function sendNegativeSupportEmail(payload) {
     return { sent: false, reason: 'resend_exception', message: error.message };
   }
 }
+*/
