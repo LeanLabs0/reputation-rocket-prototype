@@ -320,6 +320,7 @@ function transitionTo(state) {
   if (screenEl) screenEl.classList.add('active');
 
   updateProgressBar(state);
+  updateNavTitle(state);
 
   switch (state) {
     case 'chat':
@@ -348,6 +349,14 @@ function transitionTo(state) {
 
   saveSession();
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/** Header title: "Review complete" on the final thank-you screen, default otherwise. */
+function updateNavTitle(state) {
+  const el = document.querySelector('.nav-title');
+  if (!el) return;
+  if (el.dataset.defaultTitle == null) el.dataset.defaultTitle = el.textContent;
+  el.textContent = state === 'complete' ? 'Review complete' : el.dataset.defaultTitle;
 }
 
 function getProgressStateToStep() {
