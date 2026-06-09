@@ -1,28 +1,5 @@
 const CLIENT_CONFIG = window.CLIENT_CONFIG || {};
 
-/**
- * Visual theming is CSS-driven (no JS). Defaults live in `styles.css` (`:root`),
- * and each client folder's `styles.css` overrides the `--ll-*` tokens, fonts
- * (@import), and the star-gradient `<stop>` colors. `config.js` is data only.
- */
-
-/** Normalize host for Google s2 favicons (no scheme, no path, no leading www). */
-function normalizeLogoFaviconDomain(raw) {
-  const s = String(raw || '').trim();
-  if (!s) return '';
-  return s.replace(/^https?:\/\//i, '').split('/')[0].replace(/^www\./i, '');
-}
-
-function applyClientHeaderFaviconLogo() {
-  const domain = normalizeLogoFaviconDomain(CLIENT_CONFIG.logoFaviconDomain);
-  if (!domain) return;
-  const src = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
-  document.querySelectorAll('.site-header-brand .rr-logo-icon').forEach((img) => {
-    img.src = src;
-    img.referrerPolicy = 'no-referrer';
-  });
-}
-
 function applyCurrentYearTokens() {
   const year = String(new Date().getFullYear());
   $$('[data-current-year]').forEach((el) => { el.textContent = year; });
@@ -102,6 +79,15 @@ const PARAMS = (() => {
     welcomeVideoPoster: p.get('welcome_video_poster') || CLIENT_CONFIG.welcomeVideoPoster || '',
     interviewQuestions,
     thankYouUrl: p.get('thank_you_url') || CLIENT_CONFIG.thankYouUrl || '',
+    thankYouRedirectDelayMs: (() => {
+      const fromUrl = p.get('thank_you_redirect_delay_ms');
+      if (fromUrl != null && fromUrl !== '') {
+        const n = Number(fromUrl);
+        if (Number.isFinite(n) && n >= 0) return n;
+      }
+      const fromConfig = Number(CLIENT_CONFIG.thankYouRedirectDelayMs);
+      return Number.isFinite(fromConfig) && fromConfig >= 0 ? fromConfig : 5000;
+    })(),
     allowedRedirectHosts: CLIENT_CONFIG.allowedRedirectHosts || [],
     supportEmail: (CLIENT_CONFIG.supportEmail || '').trim(),
   };
@@ -193,8 +179,8 @@ const $$ = (sel) => document.querySelectorAll(sel);
 
 // ── Boot ────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  applyClientHeaderFaviconLogo();
   applyCurrentYearTokens();
+  applyVideoStepVisibility();
 
   try {
     sessionStorage.removeItem('rr_session');
@@ -364,11 +350,15 @@ function transitionTo(state) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+function getProgressStateToStep() {
+  if (isVideoStepEnabled()) {
+    return { welcome: 1, chat: 2, draft: 3, post: 4, video: 5, complete: 6, negative: -1 };
+  }
+  return { welcome: 1, chat: 2, draft: 3, post: 4, complete: 5, negative: -1 };
+}
+
 function updateProgressBar(state) {
-  const stateToStep = {
-    welcome: 1, chat: 2, draft: 3, post: 4, video: 5, complete: 6, negative: -1
-  };
-  const activeStep = stateToStep[state] || 1;
+  const activeStep = getProgressStateToStep()[state] || 1;
 
   $$('.progress-step').forEach(step => {
     const num = parseInt(step.dataset.step, 10);
@@ -2085,14 +2075,21 @@ function markPlatformPosted(platform) {
 function updatePostContinueButton() {
   const postedCount = Object.values(platformsPosted).filter(Boolean).length;
   const btn = $('#btn-continue-post');
-  if (btn) btn.disabled = postedCount === 0;
+  if (btn) {
+    btn.disabled = postedCount === 0;
+    const svg = btn.querySelector('svg');
+    const label = isVideoStepEnabled() ? 'Continue to next step' : 'Finish';
+    btn.textContent = `${label} `;
+    if (svg) btn.appendChild(svg);
+  }
   const sub = $('#post-continue-sub');
   if (!sub) return;
   if (isVideoStepEnabled()) {
     sub.hidden = false;
     sub.textContent = 'Next up: Record a quick video';
   } else {
-    sub.hidden = true;
+    sub.hidden = false;
+    sub.textContent = "You're all set — we'll wrap up on the next screen.";
   }
 }
 
@@ -2118,6 +2115,16 @@ function handleContinueAfterPost() {
 
 function isVideoStepEnabled() {
   return Boolean(CLIENT_CONFIG.videoCaptureEnabled || PARAMS.videoUrl);
+}
+
+/** Hide the Video progress step (and trailing connector) when capture is off. */
+function applyVideoStepVisibility() {
+  const videoStep = document.querySelector('.progress-step[data-step="5"]');
+  const postStep = document.querySelector('.progress-step[data-step="4"]');
+  const postConnector = postStep?.querySelector('.progress-connector');
+  const enabled = isVideoStepEnabled();
+  if (videoStep) videoStep.hidden = !enabled;
+  if (postConnector) postConnector.hidden = !enabled;
 }
 
 function initVideoScreen() {
@@ -2747,14 +2754,18 @@ function maybeRedirectToThankYou() {
   if (!document.getElementById('ty-hint')) {
     const host = document.querySelector('.screen.active .screen-content');
     if (host) {
-      const hint = document.createElement('p');
-      hint.id = 'ty-hint';
-      hint.className = 'muted text-center mt-md';
-      hint.textContent = `Taking you back to ${PARAMS.customerCompany} in a moment…`;
-      host.appendChild(hint);
+      const wrap = document.createElement('p');
+      wrap.className = 'text-center mt-md';
+      const link = document.createElement('a');
+      link.id = 'ty-hint';
+      link.className = 'link-inline';
+      link.href = PARAMS.thankYouUrl;
+      link.textContent = `Go back to ${PARAMS.customerCompany}`;
+      wrap.appendChild(link);
+      host.appendChild(wrap);
     }
   }
-  setTimeout(() => { window.location.href = PARAMS.thankYouUrl; }, 5000);
+  setTimeout(() => { window.location.href = PARAMS.thankYouUrl; }, PARAMS.thankYouRedirectDelayMs);
 }
 
 function triggerConfetti(opts = {}) {
@@ -2976,7 +2987,9 @@ function restoreSession() {
 
     chatHistory.forEach(msg => addChatBubble(msg.role, msg.content));
 
-    transitionTo(data.currentState || 'welcome');
+    let resumeState = data.currentState || 'welcome';
+    if (resumeState === 'video' && !isVideoStepEnabled()) resumeState = 'complete';
+    transitionTo(resumeState);
     return true;
   } catch (_) {
     return false;

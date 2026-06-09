@@ -264,12 +264,12 @@ a:hover { text-decoration: underline; }
 
 .rr-logo-icon,
 .nav-icon {
-  width: 32px;
-  height: 32px;
+  max-width: 100px;
   display: block;
   flex-shrink: 0;
   border-radius: 8px;
-  object-fit: contain;
+  width: 100%;
+  height: 100%;
 }
 
 .nav-powered {
@@ -465,6 +465,8 @@ a:hover { text-decoration: underline; }
   );
 }
 .progress-step:last-child .progress-connector { display: none; }
+.progress-step[hidden] { display: none !important; }
+.progress-connector[hidden] { display: none !important; }
 .nav { display: none; }
 .nav-right { display: none; }
 /* ── Screens ──────────────────────────────────────────────── */

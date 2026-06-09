@@ -1,7 +1,6 @@
 window.CLIENT_CONFIG = {
   clientSlug: 'lean-labs',
   providerName: 'Lean Labs',
-  logoFaviconDomain: 'leanlabs.com',
   agentEndpoint: '/api/agent',
   notificationEndpoint: '/api/notify',
   platforms: ['hubspot', 'g2', 'google'],
@@ -19,6 +18,7 @@ window.CLIENT_CONFIG = {
   ],
   videoCaptureEnabled: true,
   thankYouUrl: 'https://leanlabs.com/reputation-rocket/thank-you',
+  thankYouRedirectDelayMs: 5000,
   allowedRedirectHosts: ['leanlabs.com', 'www.leanlabs.com'],
   supportEmail: 'help@leanlabs.com',
   hubspotPortalId: '275827',

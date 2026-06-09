@@ -1,8 +1,6 @@
 window.CLIENT_CONFIG = {
   clientSlug: 'lean-labs',
   providerName: 'Lean Labs',
-  /** Root domain for the header logo (Google s2 favicons). No protocol or path. */
-  logoFaviconDomain: 'leanlabs.com',
   agentEndpoint: '/api/agent',
   notificationEndpoint: '/api/notify',
   platforms: ['hubspot', 'g2', 'google'],
@@ -26,6 +24,8 @@ window.CLIENT_CONFIG = {
   ],
   videoCaptureEnabled: true,
   thankYouUrl: 'https://leanlabs.com/reputation-rocket/thank-you',
+  /** Milliseconds on the in-app thank-you screen before redirecting to thankYouUrl (default 5s). */
+  thankYouRedirectDelayMs: 5000,
   allowedRedirectHosts: ['leanlabs.com', 'www.leanlabs.com'],
   supportEmail: 'help@leanlabs.com',
   /**
