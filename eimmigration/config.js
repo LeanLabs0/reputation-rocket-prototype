@@ -17,7 +17,7 @@ window.CLIENT_CONFIG = {
     'How did we deliver on your expectations?',
   ],
   videoCaptureEnabled: false,
-  thankYouUrl: 'https://get.eimmigration.com/',
+  thankYouUrl: '',
   thankYouRedirectDelayMs: 120000,
   allowedRedirectHosts: ['eimmigration.com', 'www.eimmigration.com', 'get.eimmigration.com'],
   supportEmail: 'edward@lean-labs.com',

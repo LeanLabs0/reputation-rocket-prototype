@@ -18,7 +18,7 @@ window.CLIENT_CONFIG = {
   ],
   videoCaptureEnabled: true,
   thankYouUrl: 'https://leanlabs.com/reputation-rocket/thank-you',
-  thankYouRedirectDelayMs: 5000,
+  thankYouRedirectDelayMs: 50000,
   allowedRedirectHosts: ['leanlabs.com', 'www.leanlabs.com'],
   supportEmail: 'help@leanlabs.com',
   hubspotPortalId: '275827',

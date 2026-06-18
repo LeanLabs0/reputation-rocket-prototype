@@ -1,11 +1,34 @@
 const N8N_WEBHOOK_URL = process.env.N8N_REPUTATION_WEBHOOK_URL;
 const N8N_SHARED_SECRET = process.env.N8N_REPUTATION_SHARED_SECRET;
-const DEFAULT_SLACK_WEBHOOK_URL = process.env.SLACK_REPUTATION_WEBHOOK_URL;
 // Email sending (Resend) is disabled until Resend is set up. Slack remains the
 // active channel. Re-enable by uncommenting these + the sendNegativeSupportEmail
 // call below and the function itself.
 // const RESEND_API_KEY = process.env.RESEND_API_KEY;
 // const RESEND_FROM = process.env.RESEND_FROM || process.env.RESEND_FROM_EMAIL;
+
+/**
+ * Slack Bot API (chat.postMessage) threading config — per client.
+ *
+ * To enable threaded replies for a client set these env vars:
+ *   SLACK_BOT_TOKEN_<SLUG>   — xoxb-... bot token (falls back to SLACK_BOT_TOKEN)
+ *   SLACK_CHANNEL_<SLUG>     — channel ID the bot was installed into (C0...)
+ *   SLACK_THREAD_P_<SLUG>    — thread_ts of the "positive/completed" parent message
+ *   SLACK_THREAD_N_<SLUG>    — thread_ts of the "negative" parent message
+ *
+ * thread_ts: right-click a Slack message → Copy link → URL ends in p1718725200123456
+ *   → insert a dot before the last 6 digits → 1718725200.123456
+ *
+ * Clients without bot config automatically fall back to the webhook path.
+ */
+function getSlackBotConfig(clientSlug, event) {
+  const suffix = toEnvSuffix(clientSlug);
+  const token = (process.env[`SLACK_BOT_TOKEN_${suffix}`] || process.env.SLACK_BOT_TOKEN || '').trim();
+  const channel = (process.env[`SLACK_CHANNEL_${suffix}`] || '').trim();
+  const threadKey = event === 'negative' ? `SLACK_THREAD_N_${suffix}` : `SLACK_THREAD_P_${suffix}`;
+  const threadTs = (process.env[threadKey] || '').trim();
+  if (!token || !channel || !threadTs) return null;
+  return { token, channel, threadTs };
+}
 
 const ALLOWED_EVENTS = new Set(['completed', 'negative']);
 
@@ -20,16 +43,18 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid notification event' });
   }
 
-  const slackWebhookUrlRaw = getSlackWebhookUrl(payload.client_slug);
-  const slackWebhookValidation = validateSlackWebhookUrl(slackWebhookUrlRaw);
-  if (!N8N_WEBHOOK_URL && !slackWebhookValidation.ok) {
+  const botConfig = getSlackBotConfig(payload.client_slug, payload.event);
+
+  if (!N8N_WEBHOOK_URL && !botConfig) {
+    const suffix = toEnvSuffix(payload.client_slug);
     return res.status(500).json({
-      error: 'Missing or invalid Slack webhook URL',
-      detail: slackWebhookValidation.reason,
+      error: 'No Slack delivery method configured for this client',
+      detail: 'Set a bot token + channel + thread TS for this client (or N8N_REPUTATION_WEBHOOK_URL).',
       expected: [
         'N8N_REPUTATION_WEBHOOK_URL',
-        'SLACK_REPUTATION_WEBHOOK_URL',
-        `SLACK_REPUTATION_WEBHOOK_${toEnvSuffix(payload.client_slug)}`,
+        `SLACK_BOT_TOKEN_${suffix} (or SLACK_BOT_TOKEN)`,
+        `SLACK_CHANNEL_${suffix}`,
+        `SLACK_THREAD_P_${suffix} / SLACK_THREAD_N_${suffix}`,
       ],
     });
   }
@@ -52,6 +77,7 @@ module.exports = async function handler(req, res) {
     let deliveredTo = '';
 
     if (N8N_WEBHOOK_URL) {
+      // n8n webhook — highest priority, handles its own routing
       const upstream = await fetch(N8N_WEBHOOK_URL, {
         method: 'POST',
         headers,
@@ -68,23 +94,32 @@ module.exports = async function handler(req, res) {
       }
 
       deliveredTo = 'n8n';
-    } else {
-      const slack = await fetch(slackWebhookValidation.url, {
+    } else if (botConfig) {
+      // Slack Bot API — threads the reply into the configured positive or negative thread
+      const message = buildSlackMessage(notificationPayload);
+      const slackRes = await fetch('https://slack.com/api/chat.postMessage', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildSlackMessage(notificationPayload)),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${botConfig.token}`,
+        },
+        body: JSON.stringify({
+          channel: botConfig.channel,
+          thread_ts: botConfig.threadTs,
+          ...message,
+        }),
       });
 
-      const slackText = await slack.text();
-      if (!slack.ok || slackText !== 'ok') {
+      const slackData = await slackRes.json();
+      if (!slackRes.ok || !slackData.ok) {
         return res.status(502).json({
-          error: 'Slack notification webhook failed',
-          status: slack.status,
-          body: slackText.slice(0, 500),
+          error: 'Slack Bot API (chat.postMessage) failed',
+          status: slackRes.status,
+          slack_error: slackData.error || 'unknown',
         });
       }
 
-      deliveredTo = 'slack';
+      deliveredTo = 'slack-thread';
     }
 
     // Email alerts via Resend are disabled until Resend is configured.
@@ -105,7 +140,40 @@ module.exports = async function handler(req, res) {
   }
 };
 
+/**
+ * Per-brand Slack mention. Set SLACK_REPUTATION_MENTION_<CLIENT_SLUG> (falls back
+ * to SLACK_REPUTATION_MENTION) to a comma-separated list of targets. Each entry:
+ *   - a user member ID (e.g. U12345678 / W12345678) → <@U12345678>
+ *   - a user group ID (e.g. S12345678)              → <!subteam^S12345678>
+ *   - "channel" | "here"                            → <!channel> | <!here>
+ *   - anything already wrapped in <...>             → used as-is
+ * Member/group IDs come from Slack (profile → "Copy member ID"), NOT the @handle.
+ */
+function getSlackMention(clientSlug) {
+  const suffix = toEnvSuffix(clientSlug);
+  const raw = process.env[`SLACK_REPUTATION_MENTION_${suffix}`] || process.env.SLACK_REPUTATION_MENTION;
+  if (!raw || typeof raw !== 'string') return '';
+  return raw
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .map((token) => {
+      if (token.startsWith('<')) return token;
+      const lower = token.toLowerCase();
+      if (lower === 'channel' || lower === 'here' || lower === 'everyone') return `<!${lower}>`;
+      if (/^S[A-Z0-9]+$/.test(token)) return `<!subteam^${token}>`;
+      return `<@${token}>`;
+    })
+    .join(' ');
+}
+
 function buildSlackMessage(payload) {
+  const mention = getSlackMention(payload.client_slug);
+  const mentionBlock = mention
+    ? [{ type: 'section', text: { type: 'mrkdwn', text: mention } }]
+    : [];
+  const mentionPrefix = mention ? `${mention} ` : '';
+
   if (payload.event === 'negative') {
     const flag = payload.negative_flag || {};
     const receivedAt = formatReceivedAt(payload.received_at || payload.ts);
@@ -119,7 +187,7 @@ function buildSlackMessage(payload) {
     const rating = flag.rating ?? payload.rating ?? '—';
 
     return {
-      text: `Reputation Rocket - Negative feedback - ${payload.client || 'Unknown'} (${receivedAt})`,
+      text: `${mentionPrefix}Reputation Rocket - Negative feedback - ${payload.client || 'Unknown'} (${receivedAt})`,
       blocks: [
         {
           type: 'header',
@@ -128,6 +196,7 @@ function buildSlackMessage(payload) {
             text: `Negative feedback — ${payload.client || 'Unknown client'}`,
           },
         },
+        ...mentionBlock,
         {
           type: 'section',
           fields: [
@@ -175,7 +244,7 @@ function buildSlackMessage(payload) {
     : (video && video.id ? `HubSpot file ID: ${video.id}` : 'Not submitted');
 
   return {
-    text: `:rocket: ${payload.customer_name || 'A customer'} completed Reputation Rocket for ${payload.client || 'a client'}`,
+    text: `${mentionPrefix}:rocket: ${payload.customer_name || 'A customer'} completed Reputation Rocket for ${payload.client || 'a client'}`,
     blocks: [
       {
         type: 'header',
@@ -184,6 +253,7 @@ function buildSlackMessage(payload) {
           text: 'Reputation Rocket Completed',
         },
       },
+        ...mentionBlock,
         {
           type: 'section',
           fields: [
@@ -202,41 +272,62 @@ function buildSlackMessage(payload) {
             text: `*Video testimonial:*\n${videoLine}`,
           },
         },
+        ...formatTranscriptBlocks(payload.transcript),
     ],
   };
 }
 
-function getSlackWebhookUrl(clientSlug) {
-  const suffix = toEnvSuffix(clientSlug);
-  return process.env[`SLACK_REPUTATION_WEBHOOK_${suffix}`] || DEFAULT_SLACK_WEBHOOK_URL;
-}
+/**
+ * Render the interview Q&A as a numbered "Survey responses / summary" list,
+ * matching the negative-feedback format. The transcript is an array of
+ * { role: 'agent' | 'user', content } turns; each agent question is paired with
+ * the customer's next answer. Long lists are split across multiple section
+ * blocks to stay under Slack's 3000-char limit.
+ */
+function formatTranscriptBlocks(transcript) {
+  if (!Array.isArray(transcript) || transcript.length === 0) return [];
 
-function validateSlackWebhookUrl(raw) {
-  if (!raw || typeof raw !== 'string') {
-    return { ok: false, reason: 'Slack webhook URL is empty. Paste the full https://hooks.slack.com/services/... URL from Slack.' };
+  const pairs = [];
+  let pendingQuestion = null;
+  for (const turn of transcript) {
+    if (!turn || !turn.content) continue;
+    const content = String(turn.content).trim();
+    if (!content) continue;
+    if (turn.role === 'user') {
+      if (pendingQuestion) {
+        pairs.push({ question: pendingQuestion, answer: content });
+        pendingQuestion = null;
+      }
+    } else {
+      pendingQuestion = content;
+    }
   }
+  if (pairs.length === 0) return [];
 
-  const trimmed = raw.trim();
-  if (trimmed.includes('...') || trimmed.endsWith('/...')) {
-    return { ok: false, reason: 'Slack webhook URL still looks like a placeholder (...). Replace it with the real URL from Slack.' };
+  const lines = pairs.map((p, i) => `${i + 1}. ${p.question}: ${p.answer}`);
+
+  const MAX = 2900;
+  const chunks = [];
+  let current = '';
+  for (const line of lines) {
+    const piece = current ? `${current}\n${line}` : line;
+    if (piece.length > MAX && current) {
+      chunks.push(current);
+      current = line.length > MAX ? `${line.slice(0, MAX - 1)}…` : line;
+    } else {
+      current = piece.length > MAX ? `${piece.slice(0, MAX - 1)}…` : piece;
+    }
   }
+  if (current) chunks.push(current);
 
-  let parsed;
-  try {
-    parsed = new URL(trimmed);
-  } catch (_) {
-    return { ok: false, reason: 'Slack webhook URL is not a valid URL.' };
-  }
-
-  if (parsed.protocol !== 'https:') {
-    return { ok: false, reason: 'Slack webhook URL must use https.' };
-  }
-
-  if (!parsed.hostname.endsWith('hooks.slack.com')) {
-    return { ok: false, reason: 'Slack incoming webhook URLs should be on hooks.slack.com (Incoming Webhooks app).' };
-  }
-
-  return { ok: true, url: trimmed };
+  const blocks = [{ type: 'divider' }];
+  chunks.forEach((text, i) => {
+    blocks.push({
+      type: 'section',
+      text: { type: 'mrkdwn', text: i === 0 ? `*Survey responses / summary:*\n${text}` : text },
+    });
+  });
+  return blocks;
 }
 
 function toEnvSuffix(value) {

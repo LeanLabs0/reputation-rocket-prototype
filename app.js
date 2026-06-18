@@ -75,10 +75,10 @@ const PARAMS = (() => {
     platforms,
     reviewLinks,
     videoUrl: p.get('video_url') || CLIENT_CONFIG.videoUrl || '',
-    welcomeVideoUrl: p.get('welcome_video_url') || CLIENT_CONFIG.welcomeVideoUrl || '',
+    welcomeVideoUrl: p.has('no-video') ? '' : (p.get('welcome_video_url') || CLIENT_CONFIG.welcomeVideoUrl || ''),
     welcomeVideoPoster: p.get('welcome_video_poster') || CLIENT_CONFIG.welcomeVideoPoster || '',
     interviewQuestions,
-    thankYouUrl: p.get('thank_you_url') || CLIENT_CONFIG.thankYouUrl || '',
+    thankYouUrl: (p.get('thank_you_url') || CLIENT_CONFIG.thankYouUrl || '').trim(),
     thankYouRedirectDelayMs: (() => {
       const fromUrl = p.get('thank_you_redirect_delay_ms');
       if (fromUrl != null && fromUrl !== '') {
@@ -118,6 +118,9 @@ let uploadedVideoMeta = null;
 let draftLooksGood = {};
 let videoRecorder = null;
 let videoStream = null;
+let videoRecordingStream = null;
+let videoFrameRafId = null;
+let videoFrameSourceEl = null;
 let videoChunks = [];
 let videoRecordedBlob = null;
 let videoRecordedMime = '';
@@ -133,6 +136,10 @@ const VIDEO_CAPTURE_SETTINGS = {
   audioBitsPerSecond: 160_000,
   width: 1920,
   height: 1080,
+  // Recordings are normalized to this 16:9 frame. If the camera feed isn't 16:9
+  // it's centered (object-fit: contain) and the rest is filled with this color.
+  frameRate: 30,
+  backgroundFill: '#000000',
 };
 VIDEO_CAPTURE_SETTINGS.maxUploadBytes = VIDEO_CAPTURE_SETTINGS.maxUploadMB * 1024 * 1024;
 
@@ -2410,6 +2417,7 @@ async function requestVideoPermissions() {
 }
 
 function stopVideoStream() {
+  stopFramedRecordingStream();
   if (!videoStream) return;
   videoStream.getTracks().forEach((track) => track.stop());
   videoStream = null;
@@ -2462,35 +2470,108 @@ function formatVideoDuration(totalSeconds) {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+/**
+ * Build a 16:9 recording stream from the raw camera stream. The camera frame is
+ * drawn (centered, object-fit: contain) onto a fixed 16:9 canvas with a
+ * background fill, and the canvas video track is combined with the original
+ * audio. This guarantees the uploaded file is always 16:9 even when the camera
+ * provides a 4:3 or portrait feed. Returns null if canvas capture isn't
+ * supported, in which case the caller falls back to the raw stream.
+ */
+function buildFramedRecordingStream(sourceStream) {
+  if (!sourceStream || typeof document.createElement('canvas').captureStream !== 'function') {
+    return null;
+  }
+  const videoTrack = sourceStream.getVideoTracks()[0];
+  if (!videoTrack) return null;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = VIDEO_CAPTURE_SETTINGS.width;
+  canvas.height = VIDEO_CAPTURE_SETTINGS.height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  const src = document.createElement('video');
+  src.muted = true;
+  src.playsInline = true;
+  src.srcObject = sourceStream;
+  src.play().catch(() => {});
+  videoFrameSourceEl = src;
+
+  const bg = VIDEO_CAPTURE_SETTINGS.backgroundFill || '#000000';
+  const draw = () => {
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const vw = src.videoWidth;
+    const vh = src.videoHeight;
+    if (vw && vh) {
+      const scale = Math.min(canvas.width / vw, canvas.height / vh);
+      const dw = vw * scale;
+      const dh = vh * scale;
+      ctx.drawImage(src, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh);
+    }
+    videoFrameRafId = requestAnimationFrame(draw);
+  };
+  draw();
+
+  const framedStream = canvas.captureStream(VIDEO_CAPTURE_SETTINGS.frameRate || 30);
+  sourceStream.getAudioTracks().forEach((track) => framedStream.addTrack(track));
+  videoRecordingStream = framedStream;
+  return framedStream;
+}
+
+function stopFramedRecordingStream() {
+  if (videoFrameRafId) {
+    cancelAnimationFrame(videoFrameRafId);
+    videoFrameRafId = null;
+  }
+  if (videoFrameSourceEl) {
+    videoFrameSourceEl.pause();
+    videoFrameSourceEl.srcObject = null;
+    videoFrameSourceEl = null;
+  }
+  if (videoRecordingStream) {
+    // Stop only the canvas video track; audio tracks are shared with
+    // videoStream (reused for re-records) and must stay live.
+    videoRecordingStream.getVideoTracks().forEach((track) => track.stop());
+    videoRecordingStream = null;
+  }
+}
+
 async function startVideoRecording() {
   hideVideoCaptureError();
   await ensureVideoStream();
-  const preview = document.getElementById('video-capture-preview');
-  if (preview) {
-    preview.pause();
-    preview.removeAttribute('src');
-    preview.srcObject = videoStream || null;
-    preview.controls = false;
-    preview.muted = true;
-    preview.play().catch(() => {});
-  }
   if (!window.MediaRecorder) {
     showVideoCaptureError('This browser does not support recording.');
     return;
   }
 
   const mimeType = pickRecorderMimeType();
+  const recordingStream = buildFramedRecordingStream(videoStream) || videoStream;
+
+  const preview = document.getElementById('video-capture-preview');
+  if (preview) {
+    preview.pause();
+    preview.removeAttribute('src');
+    // Show the framed (16:9) stream so the preview matches the recording.
+    preview.srcObject = recordingStream;
+    preview.controls = false;
+    preview.muted = true;
+    preview.play().catch(() => {});
+  }
+
   try {
     videoChunks = [];
     videoRecordedBlob = null;
     videoRecordedMime = mimeType || 'video/webm';
     videoElapsedSec = 0;
-    videoRecorder = new MediaRecorder(videoStream, {
+    videoRecorder = new MediaRecorder(recordingStream, {
       mimeType: mimeType || undefined,
       videoBitsPerSecond: VIDEO_CAPTURE_SETTINGS.videoBitsPerSecond,
       audioBitsPerSecond: VIDEO_CAPTURE_SETTINGS.audioBitsPerSecond,
     });
   } catch (err) {
+    stopFramedRecordingStream();
     showVideoCaptureError(`Unable to start recording: ${err.message}`);
     return;
   }
@@ -2508,6 +2589,7 @@ async function startVideoRecording() {
 
   videoRecorder.onstop = () => {
     clearVideoTimer();
+    stopFramedRecordingStream();
     videoRecordedBlob = new Blob(videoChunks, { type: videoRecordedMime || 'video/webm' });
     const preview = document.getElementById('video-capture-preview');
     if (preview && videoRecordedBlob && videoRecordedBlob.size > 0) {
@@ -2522,6 +2604,7 @@ async function startVideoRecording() {
   videoRecorder.onerror = (evt) => {
     showVideoCaptureError(`Recording error: ${evt.error?.message || 'Unknown issue'}`);
     clearVideoTimer();
+    stopFramedRecordingStream();
     renderVideoRecorderState();
   };
 
@@ -2562,6 +2645,7 @@ function resetVideoRecordingState() {
   if (videoRecorder && videoRecorder.state !== 'inactive') {
     videoRecorder.stop();
   }
+  stopFramedRecordingStream();
   videoRecorder = null;
   videoChunks = [];
   videoRecordedBlob = null;
@@ -2851,6 +2935,11 @@ async function sendLifecycleNotification(event) {
     ts: new Date().toISOString(),
     negative_flag: event === 'negative' ? negativeFlagData : null,
     video_testimonial: uploadedVideoMeta || null,
+    transcript: Array.isArray(chatHistory)
+      ? chatHistory
+          .filter((m) => m && m.content && String(m.content).trim())
+          .map((m) => ({ role: m.role, content: String(m.content).trim() }))
+      : [],
   };
   if (PARAMS.supportEmail) {
     payload.support_email = PARAMS.supportEmail;
