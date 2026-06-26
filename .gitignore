@@ -9,3 +9,4 @@ __pycache__/
 node_modules/
 *.log
 VERCEL_N8N_SETUP.md
+delete-slack-messages.js

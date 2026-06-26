@@ -104,6 +104,12 @@ let drafts = {};
 let activeDraftPlatform = '';
 let currentPlatformIndex = 0;
 let starRating = 5;
+/**
+ * Decimal rating computed by the agent (e.g. 4.2). Null until the agent reports
+ * one. Used for negative/positive routing (4.1 cutoff) and Slack reporting so we
+ * never lose precision by treating it as an integer.
+ */
+let agentRating = null;
 let platformsPosted = {};
 /** ISO timestamps when each platform was marked posted (rich post UI). */
 let platformPostedAt = {};
@@ -267,12 +273,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   $('#btn-view-draft').addEventListener('click', () => transitionTo('draft'));
 
-  $$('#draft-stars .star').forEach(star => {
-    star.addEventListener('click', () => {
-      starRating = parseInt(star.dataset.value);
-      updateStarDisplay();
-    });
-  });
+  // Draft-screen stars are display-only: the draft screen is always the
+  // positive path, so the rating is locked at a solid 5 and not clickable.
 
   const editHint = $('#btn-edit-hint');
   if (editHint) {
@@ -995,6 +997,9 @@ async function sendMessage(text, isHidden = false) {
       }
     }
 
+    const parsedRating = extractAgentRating(data, resultText, negativeFlagData);
+    if (parsedRating != null) agentRating = parsedRating;
+
     const draftsMatch = resultText.match(/<drafts>([\s\S]*?)<\/drafts>/);
     let draftsParsed = false;
     if (draftsMatch) {
@@ -1020,7 +1025,16 @@ async function sendMessage(text, isHidden = false) {
     agentMessageCount++;
 
     // Handle transitions
-    if (negativeFlagData) {
+    // Route negative when the agent flags it (covers the sentiment override:
+    // high rating + negative text) OR when the decimal rating is below the 4.1
+    // cutoff. The agent flag always wins; the cutoff is a decimal-aware safety net.
+    const ratingBelowCutoff = agentRating != null && agentRating < RATING_POSITIVE_CUTOFF;
+    if (negativeFlagData || ratingBelowCutoff) {
+      if (!negativeFlagData) {
+        // Routed negative on rating alone — synthesize a minimal flag so the
+        // negative screen + Slack notification still have rating context.
+        negativeFlagData = { rating: agentRating, severity: 'low' };
+      }
       // Negative path: show empathy message, then transition after delay
       setTimeout(() => transitionTo('negative'), 2500);
     } else if (draftsParsed) {
@@ -1150,6 +1164,40 @@ function sanitizeMarkdownHref(href) {
   } catch (_) {
     return '';
   }
+}
+
+// ── Rating routing ──────────────────────────────────────────
+// Ratings of 4.1 and above are positive; 4.0 and below route to the negative
+// ("honesty") path. Decimal ratings (4.2, 4.5, ...) are fully supported.
+const RATING_POSITIVE_CUTOFF = 4.1;
+
+/**
+ * Pull a numeric rating out of the agent response, supporting decimals.
+ * Looks (in order) at structured data, the negative flag, and inline markers.
+ * Returns a finite number or null if none is present.
+ */
+function extractAgentRating(data, resultText, flag) {
+  const candidates = [];
+  if (data && data.data && data.data.rating != null) candidates.push(data.data.rating);
+  if (flag && flag.rating != null) candidates.push(flag.rating);
+
+  if (typeof resultText === 'string') {
+    const soMatch = resultText.match(/<structured_output>([\s\S]*?)<\/structured_output>/);
+    if (soMatch) {
+      try {
+        const parsed = JSON.parse(soMatch[1]);
+        if (parsed && parsed.rating != null) candidates.push(parsed.rating);
+      } catch (_) { /* ignore */ }
+    }
+    const inline = resultText.match(/<!--\s*RATING:\s*([\d.]+)\s*-->/i);
+    if (inline) candidates.push(inline[1]);
+  }
+
+  for (const c of candidates) {
+    const n = parseFloat(c);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
 }
 
 // ── Draft Detection ─────────────────────────────────────────
@@ -2928,7 +2976,7 @@ async function sendLifecycleNotification(event) {
     visitor_company: lead.visitor_company || '',
     customer_name: lead.customer_name,
     customer_email: lead.customer_email,
-    rating: starRating,
+    rating: agentRating != null ? agentRating : starRating,
     posted: Object.keys(platformsPosted).filter(platform => platformsPosted[platform]),
     platforms: PARAMS.platforms,
     session_id: sessionId,
@@ -3028,6 +3076,7 @@ function saveSession() {
         activeDraftPlatform,
         currentPlatformIndex,
         starRating,
+        agentRating,
         platformsPosted,
         platformPostedAt,
         reviewFormOpened,
@@ -3067,6 +3116,7 @@ function restoreSession() {
     activeDraftPlatform = data.activeDraftPlatform || '';
     currentPlatformIndex = data.currentPlatformIndex || 0;
     starRating = data.starRating || 5;
+    agentRating = typeof data.agentRating === 'number' ? data.agentRating : null;
     platformsPosted = data.platformsPosted || {};
     platformPostedAt =
       data.platformPostedAt && typeof data.platformPostedAt === 'object' ? data.platformPostedAt : {};

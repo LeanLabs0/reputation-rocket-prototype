@@ -3,19 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Reputation Rocket — Choose a company to review</title>
+<title>Reputation Rocket — Turn happy customers into 5-star reviews</title>
+<meta name="description" content="Reputation Rocket guides your happiest customers through a short, friendly flow that drafts their review and posts it where it helps most. Try the interactive demo.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="home.css">
 
 <link rel="SHORTCUT ICON" href="/reprocket-icon.svg">
 </head>
-<body class="rr-directory">
+<body class="rr-directory rr-lp">
   <div class="rr-directory-bg" aria-hidden="true"></div>
 
-  <main class="rr-directory-main">
-    <header class="rr-directory-header">
+  <main class="rr-lp-main">
+    <header class="rr-directory-header rr-lp-header">
       <div class="rr-directory-brand">
         <div class="rr-directory-logo-shell">
           <img class="rr-directory-logo" src="reprocket-icon.svg" width="20" height="20" alt="" decoding="async">
@@ -24,50 +26,43 @@
       </div>
     </header>
 
-    <div class="rr-directory-hero">
-      <h1 class="rr-directory-title">Who would you like to leave a review for?</h1>
-      <p class="rr-directory-lead">
-        Pick the company you worked with. You’ll walk through a short guided flow—we’ll help draft your review and post it where it helps most.
+    <section class="rr-lp-hero">
+      <span class="rr-lp-eyebrow">AI-Powered Review Generation</span>
+      <h1 class="rr-lp-title">Turn your happiest customers into <span class="text-white">5-star reviews.</span></h1>
+      <p class="rr-lp-lead">
+        Reputation Rocket walks each customer through a short, friendly conversation, drafts a review in their own words, and posts it where it helps most.
       </p>
-    </div>
-
-    <ul class="rr-directory-grid" role="list">
-      <li>
-        <a class="rr-directory-card" href="eimmigration/">
-          <span class="rr-directory-card-icon-wrap">
-            <img class="rr-directory-card-icon" src="https://www.google.com/s2/favicons?domain=get.eimmigration.com&amp;sz=128" width="40" height="40" alt="" decoding="async" referrerpolicy="no-referrer">
-          </span>
-          <span class="rr-directory-card-body">
-            <span class="rr-directory-card-name">eImmigration</span>
-            <span class="rr-directory-card-desc">Immigration legal services</span>
-          </span>
-          <span class="rr-directory-card-cta">
-            <span class="rr-directory-card-cta-label">Leave a review</span>
-            <span class="rr-directory-card-cta-arrow" aria-hidden="true">→</span>
-          </span>
+      <div class="rr-lp-cta-row">
+        <a class="rr-lp-cta" href="demo/">
+          <span>Try the live demo</span>
+          <span class="rr-lp-cta-arrow" aria-hidden="true">→</span>
         </a>
-      </li>
-      <li>
-        <a class="rr-directory-card" href="lean-labs/">
-          <span class="rr-directory-card-icon-wrap">
-            <img class="rr-directory-card-icon" src="https://www.google.com/s2/favicons?domain=leanlabs.com&amp;sz=128" width="40" height="40" alt="" decoding="async" referrerpolicy="no-referrer">
-          </span>
-          <span class="rr-directory-card-body">
-            <span class="rr-directory-card-name">Lean Labs</span>
-            <span class="rr-directory-card-desc">Growth marketing &amp; HubSpot expertise</span>
-          </span>
-          <span class="rr-directory-card-cta">
-            <span class="rr-directory-card-cta-label">Leave a review</span>
-            <span class="rr-directory-card-cta-arrow" aria-hidden="true">→</span>
-          </span>
-        </a>
-      </li>
-    </ul>
+        <span class="rr-lp-cta-note">No sign-up. Takes about 2 minutes.</span>
+      </div>
+    </section>
 
-    <p class="rr-directory-foot muted">
-      Not sure you’re in the right place? Use the link from your invitation email—it opens the correct company automatically.
-    </p>
+    <section class="rr-lp-steps" aria-label="How it works">
+      <h2 class="rr-lp-steps-title">How it works</h2>
+      <ol class="rr-lp-steps-grid" role="list">
+        <li class="rr-lp-step">
+          <span class="rr-lp-step-num">1</span>
+          <h3 class="rr-lp-step-name">Quick chat</h3>
+          <p class="rr-lp-step-desc">A friendly assistant asks a few questions about the customer's experience.</p>
+        </li>
+        <li class="rr-lp-step">
+          <span class="rr-lp-step-num">2</span>
+          <h3 class="rr-lp-step-name">Instant draft</h3>
+          <p class="rr-lp-step-desc">We turn their answers into a polished, on-brand review they can tweak and approve in seconds.</p>
+        </li>
+        <li class="rr-lp-step">
+          <span class="rr-lp-step-num">3</span>
+          <h3 class="rr-lp-step-name">One-click post</h3>
+          <p class="rr-lp-step-desc">We copy the review and send them straight to each platform. Then, celebrate the win.</p>
+        </li>
+      </ol>
+    </section>
   </main>
+
   <footer class="rr-legal-footer">
     <p>© <span data-current-year></span> All Rights Reserved. Reputation Rocket&reg; is a registered trademark of <a href="https://www.brandvious.com" target="_blank" rel="noopener noreferrer">Brandvious</a>, Inc.</p>
   </footer>

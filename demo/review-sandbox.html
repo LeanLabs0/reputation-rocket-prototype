@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Review Sandbox — Reputation Rocket Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="SHORTCUT ICON" href="../reprocket-icon.svg">
+<style>
+  :root {
+    --bg: #0d0d0d;
+    --card: #141414;
+    --border: #2b2b2b;
+    --text: #ffffff;
+    --muted: #93949f;
+    --accent: #a855f7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--muted);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 20px 56px;
+  }
+  .demo-flag {
+    width: 100%;
+    max-width: 640px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-radius: 999px;
+    background: black;
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-bottom: 28px;
+  }
+  .demo-flag strong { font-weight: 700; }
+  .sandbox-card {
+    width: 100%;
+    max-width: 640px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+  }
+  .sandbox-site {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 6px;
+  }
+  .sandbox-logo {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid var(--border);
+  }
+  .sandbox-logo img { width: 24px; height: 24px; display: block; }
+  .sandbox-site-name { font-size: 1.25rem; font-weight: 700; color: var(--text); }
+  .sandbox-site-sub { font-size: 0.85rem; color: var(--muted); }
+  h1 { font-size: 1.35rem; color: var(--text); margin: 22px 0 4px; letter-spacing: -0.02em; }
+  .lead { margin: 0 0 20px; font-size: 0.95rem; line-height: 1.5; }
+  .stars { display: flex; gap: 6px; margin-bottom: 18px; }
+  .stars span { font-size: 1.75rem; color: #f5b301; line-height: 1; }
+  label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+  textarea {
+    width: 100%;
+    min-height: 140px;
+    resize: vertical;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    font: inherit;
+    padding: 14px;
+  }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .actions { display: flex; align-items: center; gap: 14px; margin-top: 18px; flex-wrap: wrap; }
+  .btn {
+    appearance: none;
+    border: none;
+    cursor: pointer;
+    padding: 12px 22px;
+    border-radius: 999px;
+    font: inherit;
+    font-weight: 600;
+    background: #fff;
+    color: #0d0d0d;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .hint { font-size: 0.85rem; color: var(--muted); }
+  .posted {
+    display: none;
+    margin-top: 18px;
+    padding: 14px 16px;
+    border-radius: 12px;
+    background: rgba(37, 193, 150, 0.14);
+    color: #25c196;
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  .foot { margin-top: 26px; font-size: 0.8rem; color: var(--muted); }
+  .foot a { color: var(--accent); }
+</style>
+</head>
+<body>
+  <div class="demo-flag">
+    <strong>Demo sandbox</strong>
+    <span>This is a stand-in for a real review site. Nothing here is published.</span>
+  </div>
+
+  <div class="sandbox-card">
+    <div class="sandbox-site">
+      <span class="sandbox-logo"><img id="site-favicon" src="" alt="" decoding="async" referrerpolicy="no-referrer"></span>
+      <div>
+        <div class="sandbox-site-name" id="site-name">Review Site</div>
+        <div class="sandbox-site-sub">Verified review · Demo</div>
+      </div>
+    </div>
+
+    <h1>Write a review for <span id="company-name">Acme Co</span></h1>
+    <p class="lead">Paste the review that was copied to your clipboard, then submit. In the real flow this is the actual review platform.</p>
+
+    <div class="stars" aria-label="5 star rating">
+      <span>★</span><span>★</span><span>★</span><span>★</span><span>★</span>
+    </div>
+
+    <label for="review-text">Your review</label>
+    <textarea id="review-text" placeholder="Paste your review here (Ctrl/Cmd + V)…"></textarea>
+
+    <div class="actions">
+      <button type="button" class="btn" id="submit-btn">Submit review</button>
+      <span class="hint">Then return to the Reputation Rocket tab and confirm.</span>
+    </div>
+
+    <div class="posted" id="posted-msg">Thanks! Your demo review was “submitted.” You can close this tab and confirm back in Reputation Rocket.</div>
+  </div>
+
+  <script>
+    var PLATFORMS = {
+      google:     { name: 'Google Business', host: 'google.com' },
+      g2:         { name: 'G2',              host: 'g2.com' },
+      trustpilot: { name: 'Trustpilot',      host: 'trustpilot.com' },
+      capterra:   { name: 'Capterra',        host: 'capterra.com' },
+      gartner:    { name: 'Gartner',         host: 'gartner.com' },
+      hubspot:    { name: 'HubSpot',         host: 'hubspot.com' }
+    };
+    var params = new URLSearchParams(window.location.search);
+    var key = (params.get('platform') || 'google').toLowerCase();
+    var meta = PLATFORMS[key] || { name: key.charAt(0).toUpperCase() + key.slice(1), host: 'example.com' };
+    var company = params.get('company');
+    if (company) document.getElementById('company-name').textContent = company;
+    document.getElementById('site-name').textContent = meta.name;
+    document.title = meta.name + ' — Review Sandbox';
+    var fav = document.getElementById('site-favicon');
+    fav.src = 'https://www.google.com/s2/favicons?domain=' + meta.host + '&sz=64';
+    fav.onerror = function () { fav.style.display = 'none'; };
+
+    var ta = document.getElementById('review-text');
+    // Best-effort: pre-fill from clipboard so the demo feels seamless (may be blocked by the browser).
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      navigator.clipboard.readText().then(function (t) {
+        if (t && !ta.value) ta.value = t;
+      }).catch(function () {});
+    }
+    document.getElementById('submit-btn').addEventListener('click', function () {
+      document.getElementById('posted-msg').style.display = 'block';
+    });
+  </script>
+</body>
+</html>

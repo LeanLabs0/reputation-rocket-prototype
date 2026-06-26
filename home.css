@@ -1,0 +1,235 @@
+.rr-directory-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background: var(--ll-page-bg);
+  opacity: 1;
+}
+.rr-lp-main {
+  position: relative;
+  z-index: 1;
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 40px 24px 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 56px;
+}
+
+.text-white {
+  color: white;
+}
+
+.rr-lp-header {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+/* ── Hero ─────────────────────────────────────────────── */
+.rr-lp-hero {
+  text-align: center;
+  width: 100%;
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.rr-lp-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border: 1px solid #1c1c1c;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--ll-body);
+  font-size: 11px;
+  letter-spacing: 2.09px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.rr-lp-title {
+  margin: 0;
+  font-size: clamp(2rem, 5.5vw, 3.25rem);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.04em;
+  color: var(--ll-body);
+}
+
+.rr-lp-lead {
+  margin: 0;
+  max-width: 56ch;
+  font-size: clamp(1rem, 2.2vw, 1.1875rem);
+  line-height: 1.6;
+  color: var(--ll-body);
+}
+
+/* ── CTA ──────────────────────────────────────────────── */
+.rr-lp-cta-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.rr-lp-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px 28px;
+  border-radius: var(--radius-full);
+  background: var(--ll-white);
+  color: #0d0d0d;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  border: 1px solid transparent;
+  transition: transform var(--transition), box-shadow var(--transition), background var(--transition);
+  box-shadow: 0 10px 30px rgba(168, 85, 247, 0.25);
+}
+
+.rr-lp-cta:hover {
+  transform: translateY(-2px);
+  text-decoration: none;
+  box-shadow: 0 16px 40px rgba(168, 85, 247, 0.35);
+}
+
+.rr-lp-cta:focus-visible {
+  outline: 2px solid #a855f7;
+  outline-offset: 3px;
+}
+
+.rr-lp-cta-arrow {
+  transition: transform var(--transition);
+}
+
+.rr-lp-cta:hover .rr-lp-cta-arrow {
+  transform: translateX(3px);
+}
+
+.rr-lp-cta--secondary {
+  background: transparent;
+  color: var(--ll-white);
+  border-color: var(--ll-border);
+  box-shadow: none;
+}
+
+.rr-lp-cta--secondary:hover {
+  background: var(--ll-purple-tint);
+  box-shadow: none;
+}
+
+.rr-lp-cta-note {
+  font-size: 0.875rem;
+  color: var(--ll-muted);
+}
+
+/* ── How it works ─────────────────────────────────────── */
+.rr-lp-steps {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+}
+
+.rr-lp-steps-title {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 2.09px;
+  font-weight: 600;
+  color: var(--ll-body);
+  text-transform: uppercase;
+}
+
+.rr-lp-steps-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.rr-lp-step {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 24px;
+  border: 1px solid var(--ll-border);
+  border-radius: var(--radius-lg);
+  background: var(--ll-dark-alt);
+  text-align: left;
+  box-shadow: inset 0 -4px 28px 0 rgba(43,43,43,.1),inset 0 4px 48px 0 rgba(43,43,43,.5),0 10px 20px 0 rgba(29,0,68,.1);
+}
+
+.rr-lp-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--ll-purple-tint);
+  border: 1px solid var(--ll-border);
+  color: var(--ll-white);
+  font-weight: 700;
+  font-size: 0.9375rem;
+}
+
+.rr-lp-step-name {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--ll-white);
+}
+
+.rr-lp-step-desc {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--ll-body);
+}
+
+/* ── Final CTA ────────────────────────────────────────── */
+.rr-lp-final {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 40px 24px;
+  border: 1px solid var(--ll-border);
+  border-radius: var(--radius-xl);
+  background: var(--ll-brand-gradient);
+  text-align: center;
+}
+
+.rr-lp-final-text {
+  margin: 0;
+  max-width: 48ch;
+  font-size: 1.0625rem;
+  line-height: 1.55;
+  color: var(--ll-body);
+}
+
+/* ── Responsive ───────────────────────────────────────── */
+@media (max-width: 720px) {
+  .rr-lp-main {
+    gap: 44px;
+    padding: 32px 18px 56px;
+  }
+
+  .rr-lp-steps-grid {
+    grid-template-columns: 1fr;
+  }
+}

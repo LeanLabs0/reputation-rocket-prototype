@@ -1,6 +1,11 @@
 {
   "redirects": [
     {
+      "source": "/demo",
+      "destination": "/demo/",
+      "permanent": true
+    },
+    {
       "source": "/eimmigration",
       "destination": "/eimmigration/",
       "permanent": true
