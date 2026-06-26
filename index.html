@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Authentic Reviews at Scale. | Reputation Rocket — </title>
+<title>Authentic Reviews at Scale | Reputation Rocket — </title>
 <meta name="description" content="Reputation Rocket guides your happiest customers through a short, friendly flow that drafts their review and posts it where it helps most. Try the interactive demo.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -46,6 +46,16 @@
 
     <section class="rr-lp-steps" aria-label="How it works">
       <h2 class="rr-lp-steps-title">How it works</h2>
+      <div id="welcome-video-host" class="welcome-media">
+        <div class="welcome-video-wrap">
+          <video id="welcome-video" class="welcome-video" playsinline poster="https://www.leanlabs.com/hubfs/LL%20v5/videos/7c248b618a126294316f6a.gif" preload="none"><source id="welcome-video-source" src="https://www.leanlabs.com/hubfs/LL%20v5/videos/Reputation%20Rocket%20Intro.mp4" type="video/mp4"></video>
+          <button type="button" class="welcome-video-play" aria-label="Play video">
+            <span class="welcome-video-play-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="18" viewBox="0 0 16 18" fill="none">
+            <path d="M8.78626e-08 2.00059C-0.000104208 1.64868 0.0926453 1.30298 0.268884 0.998383C0.445122 0.693786 0.69861 0.441083 1.00375 0.265789C1.30889 0.090495 1.65488 -0.00118309 2.00679 1.15272e-05C2.3587 0.00120614 2.70406 0.0952313 3.008 0.272593L15.005 7.27059C15.3078 7.44627 15.5591 7.69834 15.7339 8.0016C15.9088 8.30486 16.0009 8.64869 16.0012 8.99873C16.0015 9.34877 15.91 9.69276 15.7357 9.99633C15.5614 10.2999 15.3105 10.5524 15.008 10.7286L3.008 17.7286C2.70406 17.906 2.3587 18 2.00679 18.0012C1.65488 18.0024 1.30889 17.9107 1.00375 17.7354C0.69861 17.5601 0.445122 17.3074 0.268884 17.0028C0.0926453 16.6982 -0.000104208 16.3525 8.78626e-08 16.0006V2.00059Z" fill="#D9D9D9"/>
+          </svg></span>
+          </button>
+        </div>
+      </div>
       <ol class="rr-lp-steps-grid" role="list">
         <li class="rr-lp-step">
           <span class="rr-lp-step-num">1</span>
@@ -73,6 +83,21 @@
     document.querySelectorAll('[data-current-year]').forEach((el) => {
       el.textContent = String(new Date().getFullYear());
     });
+
+    // Welcome video: click the play-button overlay to reveal native controls and play.
+    (function () {
+      const wrap = document.querySelector('.welcome-video-wrap');
+      if (!wrap) return;
+      const vid = wrap.querySelector('video');
+      const btn = wrap.querySelector('.welcome-video-play');
+      if (!vid || !btn) return;
+      btn.addEventListener('click', () => {
+        vid.controls = true;
+        wrap.classList.add('is-playing');
+        const p = vid.play();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      });
+    })();
   </script>
 </body>
 </html>

@@ -29,6 +29,10 @@
   justify-content: center;
 }
 
+.welcome-media {
+  width: 100%;
+}
+
 /* ── Hero ─────────────────────────────────────────────── */
 .rr-lp-hero {
   text-align: center;
@@ -78,6 +82,7 @@
   align-items: center;
   gap: 12px;
   margin-top: 8px;
+  margin-bottom: 30px;
 }
 
 .rr-lp-cta {

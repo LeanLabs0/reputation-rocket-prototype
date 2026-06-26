@@ -206,26 +206,45 @@ document.addEventListener('DOMContentLoaded', () => {
   renderVideoScreenQuestions();
   document.title = `Reputation Rocket — ${PARAMS.customerCompany}`;
 
-  // Optional welcome video. The element is injected only when a client provides a URL
+  // Optional welcome video. The element is injected only when a client provides a URL.
+  // It starts with a centered play-button overlay; clicking it reveals the native
+  // controls and starts playback.
   const welcomeVideoHost = $('#welcome-video-host');
   if (PARAMS.welcomeVideoUrl && welcomeVideoHost) {
+    const wrap = document.createElement('div');
+    wrap.className = 'welcome-video-wrap';
+
     const vid = document.createElement('video');
     vid.id = 'welcome-video';
     vid.className = 'welcome-video';
-    vid.controls = true;
     vid.playsInline = true;
+    vid.preload = PARAMS.welcomeVideoPoster ? 'none' : 'metadata';
     if (PARAMS.welcomeVideoPoster) {
       vid.poster = PARAMS.welcomeVideoPoster;
-      vid.preload = 'none';
     }
 
     const src = document.createElement('source');
     src.id = 'welcome-video-source';
     src.src = PARAMS.welcomeVideoUrl;
     src.type = 'video/mp4';
-
     vid.appendChild(src);
-    welcomeVideoHost.appendChild(vid);
+
+    const playBtn = document.createElement('button');
+    playBtn.type = 'button';
+    playBtn.className = 'welcome-video-play';
+    playBtn.setAttribute('aria-label', 'Play video');
+    playBtn.innerHTML =
+      '<span class="welcome-video-play-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="18" viewBox="0 0 16 18" fill="none"><path d="M8.78626e-08 2.00059C-0.000104208 1.64868 0.0926453 1.30298 0.268884 0.998383C0.445122 0.693786 0.69861 0.441083 1.00375 0.265789C1.30889 0.090495 1.65488 -0.00118309 2.00679 1.15272e-05C2.3587 0.00120614 2.70406 0.0952313 3.008 0.272593L15.005 7.27059C15.3078 7.44627 15.5591 7.69834 15.7339 8.0016C15.9088 8.30486 16.0009 8.64869 16.0012 8.99873C16.0015 9.34877 15.91 9.69276 15.7357 9.99633C15.5614 10.2999 15.3105 10.5524 15.008 10.7286L3.008 17.7286C2.70406 17.906 2.3587 18 2.00679 18.0012C1.65488 18.0024 1.30889 17.9107 1.00375 17.7354C0.69861 17.5601 0.445122 17.3074 0.268884 17.0028C0.0926453 16.6982 -0.000104208 16.3525 8.78626e-08 16.0006V2.00059Z" fill="#D9D9D9"/></svg></span>';
+    playBtn.addEventListener('click', () => {
+      vid.controls = true;
+      wrap.classList.add('is-playing');
+      const p = vid.play();
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    });
+
+    wrap.appendChild(vid);
+    wrap.appendChild(playBtn);
+    welcomeVideoHost.appendChild(wrap);
   }
 
   $('#btn-start').addEventListener('click', startExperience);
