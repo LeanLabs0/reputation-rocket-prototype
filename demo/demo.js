@@ -49,7 +49,6 @@
   // ============================================================
   // 2. Guided tour (coach-marks)
   // ============================================================
-  const TOUR_DISMISSED_KEY = 'rr_demo_tour_dismissed';
 
   // One coach-mark per stage, keyed by the app's screen state. `target` is the
   // element to spotlight (null = centered intro). Shown the first time each
@@ -113,21 +112,6 @@
   const shownSteps = new Set();
   let repositionRaf = 0;
 
-  function isDismissed() {
-    try {
-      return localStorage.getItem(TOUR_DISMISSED_KEY) === '1';
-    } catch (_) {
-      return false;
-    }
-  }
-
-  function setDismissed(v) {
-    try {
-      if (v) localStorage.setItem(TOUR_DISMISSED_KEY, '1');
-      else localStorage.removeItem(TOUR_DISMISSED_KEY);
-    } catch (_) { /* ignore */ }
-  }
-
   function ensureRoot() {
     if (root) return;
     root = document.createElement('div');
@@ -153,8 +137,9 @@
     currentTarget = null;
   }
 
-  function endTour(dismiss) {
-    if (dismiss) setDismissed(true);
+  function endTour() {
+    // Closes the tour for the current page view only (not persisted), so a
+    // reload shows it again.
     tourActive = false;
     introPending = false;
     hideOverlay();
@@ -219,7 +204,7 @@
         <button type="button" class="rr-tour-skip">Skip tour</button>
         <button type="button" class="rr-tour-next">${nextLabel}</button>
       </div>`;
-    popoverEl.querySelector('.rr-tour-skip').addEventListener('click', () => endTour(true));
+    popoverEl.querySelector('.rr-tour-skip').addEventListener('click', () => endTour());
     popoverEl.querySelector('.rr-tour-next').addEventListener('click', () => {
       if (opts && typeof opts.onNext === 'function') opts.onNext();
       else hideOverlay();
@@ -318,10 +303,8 @@
   }
 
   function replayFromStart() {
-    // Re-arm the tour so it auto-plays on load, then reset the whole flow back
-    // to the welcome screen. rrReset() reloads the page; on reload initTour()
-    // sees the tour is no longer dismissed and shows the intro from step 1.
-    setDismissed(false);
+    // Reset the whole flow back to the welcome screen. rrReset() reloads the
+    // page; on reload initTour() shows the intro from step 1.
     if (typeof window.rrReset === 'function') {
       window.rrReset();
     } else {
@@ -338,11 +321,12 @@
     const replayBtn = document.getElementById('rr-demo-replay-tour');
     if (replayBtn) replayBtn.addEventListener('click', replayFromStart);
 
-    if (!isDismissed()) {
-      tourActive = true;
-      // Defer so app.js has finished its initial render/transition.
-      requestAnimationFrame(() => showIntro());
-    }
+    // Always show the tour on page load. Skipping/finishing only closes it for
+    // the current view; a reload brings it back (it's a demo, so re-showing the
+    // walkthrough each visit is the desired behavior).
+    tourActive = true;
+    // Defer so app.js has finished its initial render/transition.
+    requestAnimationFrame(() => showIntro());
   }
 
   if (document.readyState === 'loading') {
