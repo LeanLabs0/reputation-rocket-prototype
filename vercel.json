@@ -6,6 +6,11 @@
       "permanent": true
     },
     {
+      "source": "/eim-demo",
+      "destination": "/eim-demo/",
+      "permanent": true
+    },
+    {
       "source": "/eimmigration",
       "destination": "/eimmigration/",
       "permanent": true
