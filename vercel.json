@@ -24,6 +24,11 @@
       "source": "/lean-labs",
       "destination": "/lean-labs/",
       "permanent": true
+    },
+    {
+      "source": "/propertyradar",
+      "destination": "/propertyradar/",
+      "permanent": true
     }
   ],
   "headers": [

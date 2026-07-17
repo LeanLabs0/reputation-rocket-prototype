@@ -205,6 +205,24 @@
   color: var(--ll-body);
 }
 
+/* ── Client instance directory (on marketing LP) ─────────── */
+.rr-lp-clients {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  --rr-dir-border: var(--ll-border);
+  --rr-dir-text: var(--ll-white);
+  --rr-dir-muted: var(--ll-body);
+  --rr-dir-card-inner: var(--ll-dark-alt);
+  --rr-dir-glow: rgba(255, 255, 255, 0.2);
+}
+
+.rr-lp-clients .rr-directory-grid {
+  max-width: 640px;
+}
+
 /* ── Final CTA ────────────────────────────────────────── */
 .rr-lp-final {
   width: 100%;
