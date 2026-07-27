@@ -35,6 +35,8 @@ window.CLIENT_CONFIG = {
   hubspotPortalId: '275827',
   hubspotFormId: '102ade8e-7204-41f9-80a0-6a5808c71089',
   hubspotFormRegion: 'na1',
+  hubspotCompleteProperty: 'rr_iscomplete',
+  hubspotCompleteValue: 'Yes',
   /**
    * config.js is data only. Visual theming is CSS-driven:
    * defaults live in styles.css (:root); per-client overrides live in

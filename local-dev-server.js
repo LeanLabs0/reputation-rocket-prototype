@@ -8,6 +8,7 @@ loadDotEnv(path.join(__dirname, '.env.local'));
 const agentHandler = require('./api/agent');
 const notifyHandler = require('./api/notify');
 const uploadVideoHandler = require('./api/upload-video');
+const hubspotContactHandler = require('./api/hubspot-contact');
 
 const PORT = Number(process.env.PORT || 8888);
 const ROOT = __dirname;
@@ -43,6 +44,10 @@ const server = http.createServer(async (req, res) => {
 
     if (url.pathname === '/api/upload-video') {
       return callApiHandlerRaw(uploadVideoHandler, req, res);
+    }
+
+    if (url.pathname === '/api/hubspot-contact') {
+      return callApiHandler(hubspotContactHandler, req, res);
     }
 
     return serveStatic(url.pathname, res);

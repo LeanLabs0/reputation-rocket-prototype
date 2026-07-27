@@ -1,5 +1,5 @@
 /*
- * EIM (eImmigration) walkthrough demo — standalone at /eim-demo/.
+ * EIM (eImmigration) walkthrough demo — at /eimmigration/demo/ (legacy /eim-demo redirects here).
  *
  * Uses eImmigration branding and platforms, but does NOT connect to the live
  * EIM portal, HubSpot lead form, Slack, or real review sites. Review links open

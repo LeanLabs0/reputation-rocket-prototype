@@ -102,7 +102,7 @@ Proxies `/api/*` to Fly with CORS. It does **not** load `api/agent.js` / `api/no
 | `RESEND_API_KEY` | Optional | [Resend](https://resend.com) API key — enables negative-feedback email |
 | `RESEND_FROM` | With Resend | Verified sender, e.g. `Reputation Rocket <alerts@yourdomain.com>` |
 | `NEGATIVE_ALERT_EMAIL_<CLIENT>` | Optional | Overrides `supportEmail` from the client `config.js` for the inbox (same suffix rule as Slack, e.g. `NEGATIVE_ALERT_EMAIL_LEAN_LABS`) |
-| `HUBSPOT_FILES_ACCESS_TOKEN_<CLIENT>` | For video upload | Per-client HubSpot private app token (slug suffix like Slack, e.g. `HUBSPOT_FILES_ACCESS_TOKEN_LEAN_LABS`) |
+| `HUBSPOT_FILES_ACCESS_TOKEN_<CLIENT>` | Video upload + contact updates | Per-client HubSpot private app token (slug suffix like Slack, e.g. `HUBSPOT_FILES_ACCESS_TOKEN_LEAN_LABS`). Scopes: files (upload) plus `crm.objects.contacts.read` and `crm.objects.contacts.write` for `rr_iscomplete` on completion. |
 | `HUBSPOT_FILES_ACCESS_TOKEN_<PORTAL_ID>` | Optional fallback | Portal-specific token override (e.g. `HUBSPOT_FILES_ACCESS_TOKEN_275827`) |
 
 When `event` is `negative`, Slack (or n8n) still runs first; then, if Resend is configured and a recipient exists (`NEGATIVE_ALERT_EMAIL_*` or `support_email` in the POST body from `CLIENT_CONFIG.supportEmail`), a plain-text email is sent with the same fields as the Slack message and subject `[Reputation Rocket] Negative feedback — …`.

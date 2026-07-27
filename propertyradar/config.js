@@ -5,10 +5,8 @@ window.CLIENT_CONFIG = {
   notificationEndpoint: '/api/notify',
   platforms: ['g2', 'trustpilot'],
   reviewLinks: {
-    // TODO: fill in PropertyRadar free-version G2 write-review URL (from Jonathan/Sean)
-    g2: '',
-    // TODO: fill in PropertyRadar Trustpilot review URL (from Jonathan/Sean)
-    trustpilot: '',
+    g2: 'https://www.g2.com/products/propertyradar/reviews/start',
+    trustpilot: 'https://www.trustpilot.com/evaluate/propertyradar.com',
   },
   welcomeVideoUrl: '',
   welcomeVideoPoster: '',

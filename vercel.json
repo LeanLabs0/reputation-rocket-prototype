@@ -2,17 +2,42 @@
   "redirects": [
     {
       "source": "/demo",
-      "destination": "/demo/",
+      "destination": "/lean-labs/demo/",
+      "permanent": true
+    },
+    {
+      "source": "/demo/",
+      "destination": "/lean-labs/demo/",
+      "permanent": true
+    },
+    {
+      "source": "/demo/:path*",
+      "destination": "/lean-labs/demo/:path*",
       "permanent": true
     },
     {
       "source": "/eim-demo",
-      "destination": "/eim-demo/",
+      "destination": "/eimmigration/demo/",
+      "permanent": true
+    },
+    {
+      "source": "/eim-demo/",
+      "destination": "/eimmigration/demo/",
+      "permanent": true
+    },
+    {
+      "source": "/eim-demo/:path*",
+      "destination": "/eimmigration/demo/:path*",
       "permanent": true
     },
     {
       "source": "/eimmigration",
       "destination": "/eimmigration/",
+      "permanent": true
+    },
+    {
+      "source": "/eimmigration/demo",
+      "destination": "/eimmigration/demo/",
       "permanent": true
     },
     {
@@ -23,6 +48,11 @@
     {
       "source": "/lean-labs",
       "destination": "/lean-labs/",
+      "permanent": true
+    },
+    {
+      "source": "/lean-labs/demo",
+      "destination": "/lean-labs/demo/",
       "permanent": true
     },
     {

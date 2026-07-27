@@ -1,5 +1,5 @@
-/* eImmigration brand tokens + UI overrides */
-@import url('eimmigration-brand.css');
+/* eImmigration brand (parent portal) + demo chrome / guided tour */
+@import url('../styles.css');
 
 /* Demo chrome + guided tour (tuned for EIM's light theme) */
 .rr-logo-icon {

@@ -9,6 +9,7 @@ const CONFIG = {
   API_URL: CLIENT_CONFIG.agentEndpoint || '/api/agent',
   NOTIFY_URL: CLIENT_CONFIG.notificationEndpoint || '/api/notify',
   VIDEO_UPLOAD_URL: CLIENT_CONFIG.videoUploadEndpoint || '/api/upload-video',
+  HUBSPOT_CONTACT_URL: CLIENT_CONFIG.hubspotContactEndpoint || '/api/hubspot-contact',
   AGENT: 'reputation-rocket',
   TIMEOUT_MS: 60000,
 };
@@ -119,6 +120,7 @@ let negativeFlagData = null;
 let isWaitingForAgent = false;
 let lastAgentMessage = '';
 let notificationsSent = {};
+let hubspotCompleteSent = false;
 let uploadedVideoMeta = null;
 /** Per-platform: user tapped "Looks good" for that draft (required before Approve all). */
 let draftLooksGood = {};
@@ -2901,7 +2903,53 @@ function initCompleteScreen() {
   }
   triggerConfetti();
   sendLifecycleNotification('completed');
+  markHubSpotContactComplete();
   maybeRedirectToThankYou();
+}
+
+async function markHubSpotContactComplete() {
+  if (hubspotCompleteSent || !CONFIG.HUBSPOT_CONTACT_URL) return;
+
+  const property = String(CLIENT_CONFIG.hubspotCompleteProperty || '').trim();
+  if (!property) return;
+
+  const portalId = String(CLIENT_CONFIG.hubspotPortalId || '').trim();
+  if (!portalId) return;
+
+  const email = (getLeadFieldsForApi().customer_email || PARAMS.email || '').trim();
+  if (!email || email === 'Unknown') return;
+
+  const value = String(CLIENT_CONFIG.hubspotCompleteValue || 'Yes').trim();
+  if (!value) return;
+
+  try {
+    const res = await fetch(CONFIG.HUBSPOT_CONTACT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_slug: PARAMS.clientSlug,
+        portal_id: portalId,
+        email,
+        property,
+        value,
+      }),
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      let detail = errorText;
+      try {
+        const parsed = JSON.parse(errorText);
+        detail = parsed.detail || parsed.error || parsed.message || errorText;
+      } catch (_) { /* not JSON */ }
+      throw new Error(`${res.status}: ${detail}`);
+    }
+
+    hubspotCompleteSent = true;
+    saveSession();
+  } catch (err) {
+    console.warn('[Reputation Rocket] HubSpot complete property update failed:', err);
+  }
 }
 
 function maybeRedirectToThankYou() {
@@ -3102,6 +3150,7 @@ function saveSession() {
         negativeFlagData,
         lastAgentMessage,
         notificationsSent,
+        hubspotCompleteSent,
         uploadedVideoMeta,
         draftLooksGood,
         leadIdentity: {
@@ -3143,6 +3192,7 @@ function restoreSession() {
     negativeFlagData = data.negativeFlagData || null;
     lastAgentMessage = data.lastAgentMessage || '';
     notificationsSent = data.notificationsSent || {};
+    hubspotCompleteSent = Boolean(data.hubspotCompleteSent);
     uploadedVideoMeta = data.uploadedVideoMeta && typeof data.uploadedVideoMeta === 'object'
       ? data.uploadedVideoMeta
       : null;

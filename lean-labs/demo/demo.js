@@ -1,16 +1,21 @@
 /*
- * eim-demo runtime.
- *   1. Stub /api/notify and /api/upload-video so nothing hits Slack or HubSpot.
- *      /api/agent passes through to the real Reputation Rocket assistant.
- *   2. Guided coach-mark tour tailored to the eImmigration walkthrough.
+ * Demo runtime. Two responsibilities:
+ *   1. A fetch shim that stubs only the side-effecting endpoints. The chat uses
+ *      the REAL agent (/api/agent passes straight through), but the demo never
+ *      sends real Slack notifications (/api/notify) or uploads real videos
+ *      (/api/upload-video).
+ *   2. An interactive guided tour (coach-marks) that walks the user through each
+ *      stage of the Reputation Rocket flow.
  *
- * Loaded BEFORE ../app.js so the fetch override is in place before any request.
+ * Loaded BEFORE ../../app.js so the fetch override is in place before any request.
  */
 (function () {
   'use strict';
 
+  // ============================================================
+  // 1. Fetch shim — stub side effects only; real agent passes through
+  // ============================================================
   const originalFetch = window.fetch.bind(window);
-  const SESSION_KEY = 'rr_session_eim-demo';
 
   function jsonResponse(payload, delayMs) {
     return new Promise((resolve) => {
@@ -28,17 +33,26 @@
   window.fetch = function (input, init) {
     const url = typeof input === 'string' ? input : (input && input.url) || '';
 
+    // /api/agent is intentionally NOT intercepted — the demo talks to the real
+    // Reputation Rocket agent. We only stub the side-effecting endpoints so the
+    // demo never posts to Slack or uploads a real video.
     if (url.indexOf('/api/notify') !== -1) {
-      return jsonResponse({ ok: true, delivered_to: 'eim-demo' }, 200);
+      return jsonResponse({ ok: true, delivered_to: 'demo' }, 200);
     }
     if (url.indexOf('/api/upload-video') !== -1) {
-      return jsonResponse({ ok: true, id: 'eim-demo-video', url: '#' }, 500);
+      return jsonResponse({ ok: true, id: 'demo-video', url: '#' }, 500);
     }
 
     return originalFetch(input, init);
   };
 
-  // Video step is disabled for EIM — tour still uses the same copy as /demo/.
+  // ============================================================
+  // 2. Guided tour (coach-marks)
+  // ============================================================
+
+  // One coach-mark per stage, keyed by the app's screen state. `target` is the
+  // element to spotlight (null = centered intro). Shown the first time each
+  // screen becomes active.
   const STEPS = {
     welcome: {
       target: '#btn-start',
@@ -86,7 +100,7 @@
 
   const INTRO = {
     title: 'Welcome to the Reputation Rocket demo',
-    body: 'You’re about to walk through exactly what your happy customers experience with <strong>eImmigration</strong>. Review sites in this demo are dummy placeholders — nothing is posted for real. We’ll pop in with a quick tip at each step.',
+    body: 'You’re about to walk through exactly what your happy customers experience using a fictional company and dummy review sites. We’ll pop in with a quick tip at each step.',
   };
 
   let root = null;
@@ -124,6 +138,8 @@
   }
 
   function endTour() {
+    // Closes the tour for the current page view only (not persisted), so a
+    // reload shows it again.
     tourActive = false;
     introPending = false;
     hideOverlay();
@@ -151,6 +167,7 @@
 
     popoverEl.className = 'rr-tour-popover';
 
+    // Measure popover, then place below target if room, else above.
     const popH = popoverEl.offsetHeight || 180;
     const popW = popoverEl.offsetWidth || 320;
     const spaceBelow = window.innerHeight - rect.bottom;
@@ -213,6 +230,7 @@
       nextLabel: 'Start the tour',
       onNext: () => {
         introPending = false;
+        // Immediately show the step for whatever screen is active now.
         const active = currentActiveState();
         if (active && STEPS[active]) showStep(active, true);
         else hideOverlay();
@@ -228,6 +246,7 @@
 
     const target = step.target ? document.querySelector(step.target) : null;
     if (!target) {
+      // Target not in DOM yet (e.g. grid still rendering) — retry shortly.
       requestAnimationFrame(() => {
         const t2 = step.target ? document.querySelector(step.target) : null;
         if (!t2) return;
@@ -255,6 +274,9 @@
   }
 
   function onScreenActivated(state) {
+    // The negative-path explainer always shows when the demo routes a customer
+    // there, even if the guided tour was skipped or already finished — it's a
+    // key thing to demonstrate.
     if (state === 'negative') {
       if (introPending) return;
       showStep('negative', false);
@@ -281,11 +303,13 @@
   }
 
   function replayFromStart() {
+    // Reset the whole flow back to the welcome screen. rrReset() reloads the
+    // page; on reload initTour() shows the intro from step 1.
     if (typeof window.rrReset === 'function') {
       window.rrReset();
     } else {
       try {
-        sessionStorage.removeItem(SESSION_KEY);
+        sessionStorage.removeItem('rr_session_demo');
       } catch (_) { /* ignore */ }
       window.location.reload();
     }
@@ -297,7 +321,11 @@
     const replayBtn = document.getElementById('rr-demo-replay-tour');
     if (replayBtn) replayBtn.addEventListener('click', replayFromStart);
 
+    // Always show the tour on page load. Skipping/finishing only closes it for
+    // the current view; a reload brings it back (it's a demo, so re-showing the
+    // walkthrough each visit is the desired behavior).
     tourActive = true;
+    // Defer so app.js has finished its initial render/transition.
     requestAnimationFrame(() => showIntro());
   }
 

@@ -3,20 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Interactive Demo | Reputation Rocket</title>
+<title>eImmigration Demo | Reputation Rocket</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../styles.css">
+<link rel="stylesheet" href="../../styles.css">
 <link rel="stylesheet" href="styles.css">
-<link rel="SHORTCUT ICON" href="../reprocket-icon.svg">
+<link rel="SHORTCUT ICON" href="../../reprocket-icon.svg">
 
 <svg width="0" height="0" style="position:absolute">
   <defs>
     <linearGradient id="starGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop id="star-stop-a" offset="0%" stop-color="#752fef"/>
-      <stop id="star-stop-b" offset="50%" stop-color="#a855f7"/>
-      <stop id="star-stop-c" offset="100%" stop-color="#ec4899"/>
+      <stop id="star-stop-a" offset="0%" stop-color="#00cab0"/>
+      <stop id="star-stop-b" offset="50%" stop-color="#0099ff"/>
+      <stop id="star-stop-c" offset="100%" stop-color="#a643f2"/>
     </linearGradient>
   </defs>
 </svg>
@@ -24,13 +23,14 @@
 <script type="text/javascript" id="hs-script-loader" async defer src="//js.hs-scripts.com/275827.js"></script>
 <!-- End of HubSpot Embed Code -->
 </head>
+
 <body>
 <div id="rr-demo-banner" class="rr-demo-banner">
-  <span class="rr-demo-banner-badge">Demo</span>
-  <span class="rr-demo-banner-text">You're exploring a sample run with a fictional company. Nothing is sent or posted.</span>
+  <span class="rr-demo-banner-badge">EIM Demo</span>
+  <span class="rr-demo-banner-text">Walkthrough only — branded for eImmigration. Nothing is posted to live review sites, Slack, or HubSpot.</span>
   <div class="rr-demo-banner-actions">
     <button type="button" id="rr-demo-replay-tour" class="rr-demo-banner-btn">Replay tour</button>
-    <a href="../" class="rr-demo-banner-btn rr-demo-banner-btn--ghost">Exit demo</a>
+    <a href="../../" class="rr-demo-banner-btn rr-demo-banner-btn--ghost">Exit demo</a>
   </div>
 </div>
 
@@ -38,7 +38,7 @@
   <div class="site-header-inner">
     <div class="site-header-side"></div>
     <div class="nav-brand site-header-brand">
-      <img class="rr-logo-icon" src="../reprocket-icon.svg" alt="" width="38" height="38" decoding="async" aria-hidden="true">
+      <img class="rr-logo-icon" src="../logo.png" alt="" width="100" height="38" decoding="async" aria-hidden="true">
       <span class="nav-title">Leave a review</span>
     </div>
     <div class="site-header-actions">
@@ -199,7 +199,7 @@
         </div>
       </div>
       <div class="draft-card-footer">
-        <button id="btn-regenerate" class="btn btn-tertiary btn-md"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-ccw-icon lucide-refresh-ccw"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>Regenerate this draft</button>
+        <button id="btn-regenerate" class="btn btn-secondary btn-md"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-refresh-ccw-icon lucide-refresh-ccw"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>Regenerate this draft</button>
         <div class="draft-approve-stack">
           <button id="btn-approve" type="button" class="btn btn-primary btn-md">Looks Good<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
         <path d="M4.1665 10H15.8332" stroke="white" stroke-width="1.66667" stroke-linecap="round" stroke-linejoin="round"/>
@@ -264,7 +264,7 @@
       </div>
       <div class="post-why-body">
         <h4 id="post-why-title" class="post-why-title">Why confirm?</h4>
-        <p class="post-why-text">Confirming helps us track your impact and shows <span class="provider-name">Acme Co</span> that their hard work is making a difference.</p>
+        <p class="post-why-text">Confirming helps us track your impact and shows <span class="provider-name">eImmigration</span> that their hard work is making a difference.</p>
       </div>
     </aside>
   </div>
@@ -299,7 +299,7 @@
         <div class="video-intro">Thank you so much for taking the time to share your experience with us. When you're ready, just hit record and speak naturally - no script needed!</div>
         <p class="video-questions-label">Interview Questions</p>
         <div class="video-questions">
-          <div class="video-question"><span class="q-num">1</span><p>Why did you choose Acme Co?</p></div>
+          <div class="video-question"><span class="q-num">1</span><p>Why did you choose eimmigration?</p></div>
           <div class="video-question"><span class="q-num">2</span><p>What were you hoping to achieve?</p></div>
           <div class="video-question"><span class="q-num">3</span><p>How did we deliver on your expectations?</p></div>
         </div>
@@ -361,6 +361,6 @@
 
 <script src="config.js"></script>
 <script src="demo.js"></script>
-<script src="../app.js"></script>
+<script src="../../app.js"></script>
 </body>
 </html>

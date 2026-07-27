@@ -24,4 +24,6 @@ window.CLIENT_CONFIG = {
   hubspotPortalId: '275827',
   hubspotFormId: '102ade8e-7204-41f9-80a0-6a5808c71089',
   hubspotFormRegion: 'na1',
+  hubspotCompleteProperty: 'rr_iscomplete',
+  hubspotCompleteValue: 'Yes',
 };

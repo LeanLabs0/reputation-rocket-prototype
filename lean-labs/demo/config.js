@@ -1,9 +1,9 @@
 /*
- * Demo portal config. Everything here is fictional: the company "Acme Co", the
- * review platforms, and the links (which open the local review-sandbox page).
- * demo.js intercepts all /api/* calls, so no real agent, Slack, or HubSpot
- * requests are ever made. HubSpot form IDs are intentionally omitted so the
- * lead-capture form never appears.
+ * Demo portal config — at /lean-labs/demo/ (legacy /demo redirects here).
+ * Everything here is fictional: the company "Acme Co", the review platforms,
+ * and the links (which open the local review-sandbox page). demo.js intercepts
+ * side-effecting /api/* calls; the chat still uses the real agent. HubSpot form
+ * IDs are intentionally omitted so the lead-capture form never appears.
  */
 window.CLIENT_CONFIG = {
   clientSlug: 'demo',
@@ -29,7 +29,7 @@ window.CLIENT_CONFIG = {
   allowedRedirectHosts: [],
   supportEmail: 'hello@acme.example',
   /*
-   * Visual theming is CSS-driven (defaults in ../styles.css :root; demo tweaks
+   * Visual theming is CSS-driven (defaults in ../../styles.css :root; demo tweaks
    * in ./styles.css). config.js is data only.
    */
 };
