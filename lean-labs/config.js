@@ -3,11 +3,10 @@ window.CLIENT_CONFIG = {
   providerName: 'Lean Labs',
   agentEndpoint: '/api/agent',
   notificationEndpoint: '/api/notify',
-  platforms: ['hubspot', 'g2', 'google'],
+  platforms: ['hubspot', 'g2'],
   reviewLinks: {
     hubspot: 'https://ecosystem.hubspot.com/marketplace/solutions/lean-labs',
     g2: 'https://www.g2.com/products/lean-labs/take_survey',
-    google: 'https://g.page/lean-labs/review',
   },
   welcomeVideoUrl: 'https://www.leanlabs.com/hubfs/LL%20v5/videos/Reputation%20Rocket%20Intro.mp4',
   welcomeVideoPoster: 'https://www.leanlabs.com/hubfs/LL%20v5/videos/7c248b618a126294316f6a.gif',
