@@ -2903,15 +2903,18 @@ function initCompleteScreen() {
   }
   triggerConfetti();
   sendLifecycleNotification('completed');
-  markHubSpotContactComplete();
+  markHubSpotContactComplete('positive');
   maybeRedirectToThankYou();
 }
 
-async function markHubSpotContactComplete() {
+async function markHubSpotContactComplete(outcome) {
   if (hubspotCompleteSent || !CONFIG.HUBSPOT_CONTACT_URL) return;
 
-  const property = String(CLIENT_CONFIG.hubspotCompleteProperty || '').trim();
-  if (!property) return;
+  const completeProperty = String(CLIENT_CONFIG.hubspotCompleteProperty || '').trim();
+  const completeValue = String(CLIENT_CONFIG.hubspotCompleteValue || 'Yes').trim();
+  const outcomeProperty = String(CLIENT_CONFIG.hubspotOutcomeProperty || '').trim();
+
+  if (!completeProperty && !outcomeProperty) return;
 
   const portalId = String(CLIENT_CONFIG.hubspotPortalId || '').trim();
   if (!portalId) return;
@@ -2919,8 +2922,17 @@ async function markHubSpotContactComplete() {
   const email = (getLeadFieldsForApi().customer_email || PARAMS.email || '').trim();
   if (!email || email === 'Unknown') return;
 
-  const value = String(CLIENT_CONFIG.hubspotCompleteValue || 'Yes').trim();
-  if (!value) return;
+  const properties = {};
+  if (completeProperty && completeValue) {
+    properties[completeProperty] = completeValue;
+  }
+  if (outcomeProperty && (outcome === 'positive' || outcome === 'negative')) {
+    const outcomeValue = outcome === 'negative'
+      ? String(CLIENT_CONFIG.hubspotOutcomeNegativeValue || 'negative').trim()
+      : String(CLIENT_CONFIG.hubspotOutcomePositiveValue || 'positive').trim();
+    if (outcomeValue) properties[outcomeProperty] = outcomeValue;
+  }
+  if (!Object.keys(properties).length) return;
 
   try {
     const res = await fetch(CONFIG.HUBSPOT_CONTACT_URL, {
@@ -2930,8 +2942,7 @@ async function markHubSpotContactComplete() {
         client_slug: PARAMS.clientSlug,
         portal_id: portalId,
         email,
-        property,
-        value,
+        properties,
       }),
     });
 
@@ -3029,6 +3040,7 @@ function initNegativeScreen() {
   }
 
   sendLifecycleNotification('negative');
+  markHubSpotContactComplete('negative');
 }
 
 async function sendLifecycleNotification(event) {

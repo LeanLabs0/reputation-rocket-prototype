@@ -26,6 +26,27 @@ function isSafePropertyName(name) {
   return /^[a-z0-9_-]+$/i.test(String(name || '').trim());
 }
 
+function collectProperties(body) {
+  const out = {};
+
+  if (body.properties && typeof body.properties === 'object' && !Array.isArray(body.properties)) {
+    for (const [key, rawValue] of Object.entries(body.properties)) {
+      const name = String(key || '').trim();
+      const value = String(rawValue ?? '').trim();
+      if (!isSafePropertyName(name) || !value) continue;
+      out[name] = value;
+    }
+  }
+
+  const legacyProperty = String(body.property || '').trim();
+  const legacyValue = String(body.value ?? '').trim();
+  if (legacyProperty && legacyValue && isSafePropertyName(legacyProperty)) {
+    out[legacyProperty] = legacyValue;
+  }
+
+  return out;
+}
+
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
@@ -36,20 +57,17 @@ module.exports = async function handler(req, res) {
   const clientSlug = String(body.client_slug || '').trim();
   const portalId = String(body.portal_id || '').trim();
   const email = String(body.email || '').trim().toLowerCase();
-  const property = String(body.property || '').trim();
-  const value = String(body.value ?? 'Yes').trim();
+
+  const properties = collectProperties(body);
+  if (!Object.keys(properties).length) {
+    return res.status(400).json({ error: 'Missing properties to update' });
+  }
 
   if (!clientSlug || !portalId) {
     return res.status(400).json({ error: 'Missing client_slug or portal_id' });
   }
   if (!isValidEmail(email)) {
     return res.status(400).json({ error: 'Invalid email' });
-  }
-  if (!isSafePropertyName(property)) {
-    return res.status(400).json({ error: 'Invalid property name' });
-  }
-  if (!value) {
-    return res.status(400).json({ error: 'Missing value' });
   }
 
   const token = resolveHubSpotToken(clientSlug, portalId);
@@ -67,13 +85,12 @@ module.exports = async function handler(req, res) {
       return res.status(404).json({ error: 'Contact not found', email });
     }
 
-    await patchContactProperty(token, contactId, property, value);
+    await patchContactProperties(token, contactId, properties);
 
     return res.status(200).json({
       ok: true,
       contact_id: contactId,
-      property,
-      value,
+      properties,
     });
   } catch (err) {
     console.error('[hubspot-contact]', err);
@@ -123,11 +140,9 @@ async function findContactIdByEmail(token, email) {
   return payload.results?.[0]?.id || null;
 }
 
-async function patchContactProperty(token, contactId, property, value) {
+async function patchContactProperties(token, contactId, properties) {
   return hubspotFetch(token, `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`, {
     method: 'PATCH',
-    body: JSON.stringify({
-      properties: { [property]: value },
-    }),
+    body: JSON.stringify({ properties }),
   });
 }

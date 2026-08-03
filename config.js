@@ -37,6 +37,9 @@ window.CLIENT_CONFIG = {
   hubspotFormRegion: 'na1',
   hubspotCompleteProperty: 'rr_iscomplete',
   hubspotCompleteValue: 'Yes',
+  hubspotOutcomeProperty: 'rr_outcome',
+  hubspotOutcomePositiveValue: 'positive',
+  hubspotOutcomeNegativeValue: 'negative',
   /**
    * config.js is data only. Visual theming is CSS-driven:
    * defaults live in styles.css (:root); per-client overrides live in
