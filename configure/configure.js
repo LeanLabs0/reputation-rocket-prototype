@@ -18,9 +18,22 @@
   showQueryFlash();
 
   const status = await api('/api/configure/status');
-  if (!status.ok && status.error) {
-    showFlash(status.detail || status.error || 'Could not load configure status', 'error');
+
+  // API crashed / 500 — do NOT pretend env vars are missing.
+  if (!status.ok) {
+    showFlash(
+      status.detail || status.error || 'Configure API failed. Check the Vercel function log for /api/configure/status.',
+      'error',
+    );
+    setupPanel.hidden = false;
+    $('#setup-intro').textContent = 'Server error loading configure (not necessarily a missing password).';
+    $('#setup-missing').innerHTML = `<li class="cfg-error">${escapeHtml(status.detail || status.error || 'FUNCTION_INVOCATION_FAILED')}</li>`;
+    return;
   }
+
+  const needsKv = Boolean(status.onVercel)
+    && (status.missing || []).some((m) => m.startsWith('KV_'));
+  const needsOauth = !status.oauthConfigured;
 
   if (!status.authConfigured) {
     showSetup(status);
@@ -28,12 +41,13 @@
   }
 
   if (!status.authenticated) {
+    if (needsOauth || needsKv) showSetup(status);
     loginPanel.hidden = false;
     $('#login-form').addEventListener('submit', onLogin);
     return;
   }
 
-  if (!status.oauthConfigured) {
+  if (needsOauth || needsKv) {
     showSetup(status);
     logoutBtn.hidden = false;
     logoutBtn.addEventListener('click', onLogout);
@@ -60,29 +74,38 @@
   function showSetup(status) {
     setupPanel.hidden = false;
     const list = $('#setup-missing');
-    const missing = status.missing?.length
-      ? status.missing
-      : [
-          ...(!status.authConfigured ? ['CONFIGURE_PASSWORD'] : []),
-          ...(status.oauth?.missing || []),
-        ];
-    const extras = [];
-    if (status.onVercel || /vercel/i.test(location.hostname)) {
-      extras.push('UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN');
-    }
-    const all = [...new Set([...missing, ...extras])];
-    list.innerHTML = all.length
-      ? all.map((name) => {
+    const onProd = Boolean(status.onVercel) || /reputationrocket\.ai$/i.test(location.hostname);
+    const missing = [...(status.missing || [])];
+    if (!missing.length && !status.authConfigured) missing.push('CONFIGURE_PASSWORD');
+    if (!missing.length && status.oauth?.missing) missing.push(...status.oauth.missing);
+
+    list.innerHTML = missing.length
+      ? missing.map((name) => {
           if (name === 'HUBSPOT_APP_REDIRECT_URI') {
-            return `<li><code>${escapeHtml(name)}</code> = <code>https://reputationrocket.ai/api/configure/oauth-callback</code></li>`;
+            const value = onProd
+              ? 'https://reputationrocket.ai/api/configure/oauth-callback'
+              : 'http://localhost:8888/api/configure/oauth-callback';
+            return `<li><code>${escapeHtml(name)}</code> = <code>${escapeHtml(value)}</code></li>`;
+          }
+          if (name.startsWith('KV_')) {
+            return `<li><code>${escapeHtml(name)}</code> <span class="cfg-muted">(required on Vercel so installs persist)</span></li>`;
           }
           return `<li><code>${escapeHtml(name)}</code></li>`;
         }).join('')
-      : '<li>All required vars look present — try redeploying.</li>';
+      : '<li>All required vars look present — redeploy so this deployment picks them up.</li>';
+
+    const redirectBox = $('#setup-redirect');
+    redirectBox.hidden = false;
+    if (onProd) {
+      $('#setup-redirect-value').textContent = 'https://reputationrocket.ai/api/configure/oauth-callback';
+      $('#setup-intro').textContent = 'Production is missing:';
+    } else {
+      $('#setup-redirect-value').textContent = 'http://localhost:8888/api/configure/oauth-callback';
+      $('#setup-intro').textContent = 'Local .env.local is missing:';
+    }
 
     if (status.oauth?.redirectUri) {
-      $('#setup-intro').textContent =
-        `Redirect currently resolved to ${status.oauth.redirectUri}. Missing or incomplete:`;
+      $('#setup-intro').textContent += ` (app currently resolves redirect as ${status.oauth.redirectUri})`;
     }
   }
 

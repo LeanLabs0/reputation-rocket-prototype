@@ -41,13 +41,13 @@
 
     <section id="setup-panel" class="cfg-card" hidden>
       <h2>Missing env</h2>
-      <p class="cfg-muted" id="setup-intro">Add these in Vercel Project Settings → Environment Variables (Production), then redeploy:</p>
+      <p class="cfg-muted" id="setup-intro">Add these in Vercel → Settings → Environment Variables for <strong>Production</strong>, then redeploy:</p>
       <ul id="setup-missing"></ul>
-      <p class="cfg-muted" style="margin-top:14px">Exact redirect URI for HubSpot app + Vercel:</p>
-      <p class="cfg-code" style="margin-top:6px">https://reputationrocket.ai/api/configure/oauth-callback</p>
-      <p class="cfg-muted" style="margin-top:14px">Also list localhost for local testing:</p>
-      <p class="cfg-code" style="margin-top:6px">http://localhost:8888/api/configure/oauth-callback</p>
-      <p class="cfg-muted" style="margin-top:14px">Trim spaces when pasting values. After changing env, trigger a new deploy.</p>
+      <div id="setup-redirect" hidden>
+        <p class="cfg-muted" style="margin-top:14px">Production OAuth redirect (must match HubSpot app + <code>HUBSPOT_APP_REDIRECT_URI</code>):</p>
+        <p class="cfg-code" style="margin-top:6px" id="setup-redirect-value">https://reputationrocket.ai/api/configure/oauth-callback</p>
+      </div>
+      <p class="cfg-muted" style="margin-top:14px">No spaces after <code>=</code>. After saving env vars, redeploy (env changes do not apply to the old deployment).</p>
     </section>
 
     <section id="app-panel" hidden>

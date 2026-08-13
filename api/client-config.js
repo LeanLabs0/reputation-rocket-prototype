@@ -5,7 +5,7 @@ const { normalizePortalSettings, pickSettingsFromConfig } = require('../lib/port
 
 /**
  * Public runtime config for a portal (no secrets).
- * Store wins over config.js so /configure edits apply without redeploy (when Upstash/local store is available).
+ * Store wins over config.js so /configure edits apply without redeploy (when KV/local store is available).
  */
 module.exports = async function handler(req, res) {
   if (req.method !== 'GET') {
