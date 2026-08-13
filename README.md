@@ -104,35 +104,44 @@ Proxies `/api/*` to Fly with CORS. It does **not** load `api/agent.js` / `api/no
 | `NEGATIVE_ALERT_EMAIL_<CLIENT>` | Optional | Overrides `supportEmail` from the client `config.js` for the inbox (same suffix rule as Slack, e.g. `NEGATIVE_ALERT_EMAIL_LEAN_LABS`) |
 | `HUBSPOT_FILES_ACCESS_TOKEN_<CLIENT>` | Video upload + contact updates (legacy) | Per-client HubSpot private app token. Still works as fallback if OAuth is not connected. |
 | `HUBSPOT_FILES_ACCESS_TOKEN_<PORTAL_ID>` | Optional fallback | Portal-specific token override (e.g. `HUBSPOT_FILES_ACCESS_TOKEN_275827`) |
-| `CONFIGURE_PASSWORD` | Local `/configure` only | Password for the operator admin page (`.env.local`) |
-| `HUBSPOT_APP_CLIENT_ID` | Local `/configure` OAuth | HubSpot public app client ID |
-| `HUBSPOT_APP_CLIENT_SECRET` | Local `/configure` OAuth | HubSpot public app client secret |
-| `HUBSPOT_APP_REDIRECT_URI` | Local `/configure` OAuth | Defaults to `http://localhost:8888/api/configure/oauth-callback` |
+| `CONFIGURE_PASSWORD` | `/configure` | Operator password (trim spaces; no space after `=`) |
+| `HUBSPOT_APP_CLIENT_ID` | `/configure` OAuth | HubSpot app client ID |
+| `HUBSPOT_APP_CLIENT_SECRET` | `/configure` OAuth | HubSpot app client secret |
+| `HUBSPOT_APP_REDIRECT_URI` | `/configure` OAuth | Exact callback URL, e.g. `https://reputationrocket.ai/api/configure/oauth-callback` |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Required on Vercel | Persist OAuth installs (local uses `.data/`) |
+| `HUBSPOT_TOKEN_ENCRYPTION_KEY` | Recommended | Encrypts stored refresh tokens (falls back to `CONFIGURE_PASSWORD`) |
 
 When `event` is `negative`, Slack (or n8n) still runs first; then, if Resend is configured and a recipient exists (`NEGATIVE_ALERT_EMAIL_*` or `support_email` in the POST body from `CLIENT_CONFIG.supportEmail`), a plain-text email is sent with the same fields as the Slack message and subject `[Reputation Rocket] Negative feedback — …`.
 
 ---
 
-## `/configure` — local HubSpot + experience setup
+## `/configure` — HubSpot + experience setup
 
-**Local-only.** Not available on the production URL (Vercel redirects `/configure` → `/`). Run `npm run dev` and open `http://localhost:8888/configure/`.
+Operator console at [`/configure/`](./configure/) (local + production). Use production to install into client HubSpot portals.
 
 **What it automates per portal (Connect HubSpot):**
 
 1. OAuth install with files + contacts + schemas + forms scopes
 2. Creates contact properties `rr_iscomplete` (`Yes`/`No`) and `rr_outcome` (`positive`/`negative`)
 3. Creates (or reuses) the lead form **`[LL] Reputation Rocket - Sign in`** with required `firstname`, `lastname`, `email`, `company`
-4. Writes `portalId` / `formId` + experience settings into that client’s `config.js` (commit for prod)
+4. Stores refresh token (Upstash on Vercel) and writes IDs into `config.js` when running locally
 
-**Still manual:** Slack channel/threads, brand CSS, Factor8. Production runtime uses committed `config.js` + `HUBSPOT_FILES_ACCESS_TOKEN_*` (or reconnect OAuth locally when provisioning).
+**Still manual:** Slack channel/threads, brand CSS, Factor8.
 
 ### One-time HubSpot app setup
 
-1. Create a HubSpot app (private distribution is fine) — project lives in `reprocket-configure/`
-2. Set redirect URL to `http://localhost:8888/api/configure/oauth-callback`
-3. Required scopes: `oauth`, `files`, `crm.objects.contacts.read`, `crm.objects.contacts.write`, `crm.schemas.contacts.write`, `forms`
-4. Put client ID/secret + `CONFIGURE_PASSWORD` in `.env.local` only (not needed on Vercel)
-5. Open `/configure/`, unlock, **Connect HubSpot**, save experience settings, commit `config.js`
+1. App project: `reprocket-configure/` — upload/deploy so redirect URLs are registered
+2. Redirect URLs must include **both**:
+   - `https://reputationrocket.ai/api/configure/oauth-callback`
+   - `http://localhost:8888/api/configure/oauth-callback`
+3. Scopes: `oauth`, `files`, `crm.objects.contacts.read`, `crm.objects.contacts.write`, `crm.schemas.contacts.write`, `forms`
+4. Vercel env (Production), **no spaces after `=`**:
+   - `CONFIGURE_PASSWORD`
+   - `HUBSPOT_APP_CLIENT_ID`
+   - `HUBSPOT_APP_CLIENT_SECRET`
+   - `HUBSPOT_APP_REDIRECT_URI=https://reputationrocket.ai/api/configure/oauth-callback`
+   - `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (required on Vercel)
+5. Redeploy, open `https://reputationrocket.ai/configure/`, unlock, **Connect HubSpot**
 
 **Slack-only V1:** set `FACTOR8_API_KEY` + `SLACK_REPUTATION_WEBHOOK_URL` (and per-client Slack vars as needed). Leave `N8N_*` blank. Email is optional until `RESEND_*` and a support address are set.
 

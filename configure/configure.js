@@ -18,8 +18,12 @@
   showQueryFlash();
 
   const status = await api('/api/configure/status');
+  if (!status.ok && status.error) {
+    showFlash(status.detail || status.error || 'Could not load configure status', 'error');
+  }
+
   if (!status.authConfigured) {
-    setupPanel.hidden = false;
+    showSetup(status);
     return;
   }
 
@@ -30,7 +34,7 @@
   }
 
   if (!status.oauthConfigured) {
-    setupPanel.hidden = false;
+    showSetup(status);
     logoutBtn.hidden = false;
     logoutBtn.addEventListener('click', onLogout);
     return;
@@ -41,10 +45,45 @@
   logoutBtn.hidden = false;
   logoutBtn.addEventListener('click', onLogout);
 
+  if (status.storage?.warning) {
+    const warn = $('#storage-warning');
+    warn.hidden = false;
+    warn.textContent = status.storage.warning;
+  }
+
   const params = new URLSearchParams(window.location.search);
   const openSlug = params.get('client') || params.get('connected');
   if (openSlug && status.clients?.some((c) => c.clientSlug === openSlug)) {
     openDetail(openSlug);
+  }
+
+  function showSetup(status) {
+    setupPanel.hidden = false;
+    const list = $('#setup-missing');
+    const missing = status.missing?.length
+      ? status.missing
+      : [
+          ...(!status.authConfigured ? ['CONFIGURE_PASSWORD'] : []),
+          ...(status.oauth?.missing || []),
+        ];
+    const extras = [];
+    if (status.onVercel || /vercel/i.test(location.hostname)) {
+      extras.push('UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN');
+    }
+    const all = [...new Set([...missing, ...extras])];
+    list.innerHTML = all.length
+      ? all.map((name) => {
+          if (name === 'HUBSPOT_APP_REDIRECT_URI') {
+            return `<li><code>${escapeHtml(name)}</code> = <code>https://reputationrocket.ai/api/configure/oauth-callback</code></li>`;
+          }
+          return `<li><code>${escapeHtml(name)}</code></li>`;
+        }).join('')
+      : '<li>All required vars look present — try redeploying.</li>';
+
+    if (status.oauth?.redirectUri) {
+      $('#setup-intro').textContent =
+        `Redirect currently resolved to ${status.oauth.redirectUri}. Missing or incomplete:`;
+    }
   }
 
   async function onLogin(e) {
@@ -101,7 +140,12 @@
       toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     });
 
-    createNote.textContent = 'After create, open the client to set experience + Connect HubSpot. Commit config.js for production.';
+    if (!appState.canScaffold) {
+      createNote.textContent = 'On Vercel, folder create is disabled — add the client folder in git locally, then Connect HubSpot here.';
+      $('#btn-create').disabled = true;
+    } else {
+      createNote.textContent = 'After create → Connect HubSpot → Save experience. Commit config.js when ready.';
+    }
 
     nameInput.addEventListener('input', () => {
       if (slugInput.dataset.touched === '1') return;
