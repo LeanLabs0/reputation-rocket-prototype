@@ -15,6 +15,10 @@ const configureStatusHandler = require('./api/configure/status');
 const configureOauthStartHandler = require('./api/configure/oauth-start');
 const configureOauthCallbackHandler = require('./api/configure/oauth-callback');
 const configureProvisionHandler = require('./api/configure/provision');
+const configureCreateClientHandler = require('./api/configure/create-client');
+const configureUpdateSettingsHandler = require('./api/configure/update-settings');
+const configureDeleteClientHandler = require('./api/configure/delete-client');
+const clientConfigHandler = require('./api/client-config');
 
 const PORT = Number(process.env.PORT || 8888);
 const ROOT = __dirname;
@@ -73,6 +77,19 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/api/configure/provision') {
       return callApiHandler(configureProvisionHandler, req, res);
+    }
+    if (url.pathname === '/api/configure/create-client') {
+      return callApiHandler(configureCreateClientHandler, req, res);
+    }
+    if (url.pathname === '/api/configure/update-settings') {
+      return callApiHandler(configureUpdateSettingsHandler, req, res);
+    }
+    if (url.pathname === '/api/configure/delete-client') {
+      return callApiHandler(configureDeleteClientHandler, req, res);
+    }
+    if (url.pathname === '/api/client-config') {
+      req.query = Object.fromEntries(url.searchParams.entries());
+      return callApiHandler(clientConfigHandler, req, res);
     }
 
     return serveStatic(url.pathname, res);

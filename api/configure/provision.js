@@ -1,8 +1,9 @@
 const { requireAuth } = require('../../lib/configure-auth');
-const { getKnownClient } = require('../../lib/known-clients');
-const { upsertClient } = require('../../lib/hubspot/store');
+const { resolveClient } = require('../../lib/known-clients');
+const { upsertClient, getClient } = require('../../lib/hubspot/store');
 const { resolveHubSpotAccessToken } = require('../../lib/hubspot/tokens');
 const { provisionPortal } = require('../../lib/hubspot/provision');
+const { patchClientHubSpotConfig } = require('../../lib/scaffold-client');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -12,7 +13,7 @@ module.exports = async function handler(req, res) {
   if (!requireAuth(req, res)) return;
 
   const clientSlug = String(req.body?.clientSlug || '').trim();
-  if (!getKnownClient(clientSlug)) {
+  if (!(await resolveClient(clientSlug))) {
     return res.status(400).json({ error: 'Unknown clientSlug' });
   }
 
@@ -26,10 +27,12 @@ module.exports = async function handler(req, res) {
     }
 
     const provisioned = await provisionPortal(accessToken);
+    const existing = await getClient(clientSlug);
     const saved = await upsertClient(clientSlug, {
       formId: provisioned.form?.id || '',
       formName: provisioned.form?.name || '',
       formRegion: 'na1',
+      portalId: existing?.portalId || '',
       properties: provisioned.properties,
       provisionedAt: new Date().toISOString(),
       hubspotCompleteProperty: 'rr_iscomplete',
@@ -39,7 +42,13 @@ module.exports = async function handler(req, res) {
       hubspotOutcomeNegativeValue: 'negative',
     });
 
-    return res.status(200).json({ ok: true, provisioned, client: saved });
+    const patched = patchClientHubSpotConfig(clientSlug, {
+      portalId: saved.portalId || existing?.portalId || '',
+      formId: provisioned.form?.id || '',
+      formRegion: 'na1',
+    });
+
+    return res.status(200).json({ ok: true, provisioned, client: saved, configPatched: patched });
   } catch (err) {
     console.error('[configure/provision]', err);
     return res.status(502).json({ error: 'Provision failed', message: err.message });

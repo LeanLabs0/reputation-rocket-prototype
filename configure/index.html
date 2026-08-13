@@ -18,7 +18,7 @@
         <img src="../reprocket-icon.svg" width="28" height="28" alt="">
         <div>
           <h1>Reputation Rocket Configure</h1>
-          <p>Install HubSpot per portal. Slack + brand config stay manual.</p>
+          <p>Experience settings + HubSpot install.</p>
         </div>
       </div>
       <button type="button" id="btn-logout" class="cfg-btn cfg-btn-ghost" hidden>Log out</button>
@@ -28,7 +28,6 @@
 
     <section id="login-panel" class="cfg-card" hidden>
       <h2>Operator login</h2>
-      <p class="cfg-muted">Password-protected admin. Set <code>CONFIGURE_PASSWORD</code> in env.</p>
       <form id="login-form" class="cfg-form">
         <label>
           Password
@@ -53,17 +52,48 @@
     </section>
 
     <section id="app-panel" hidden>
-      <div class="cfg-card cfg-meta">
-        <div>
-          <h2>HubSpot app</h2>
-          <p class="cfg-muted">Scopes: files, contacts read/write, schemas write, forms</p>
+      <div id="list-view">
+        <div class="cfg-card cfg-meta">
+          <div>
+            <h2>Clients</h2>
+            <p class="cfg-muted">Pick a portal to edit experience settings or HubSpot install.</p>
+          </div>
+          <div class="cfg-meta-stats">
+            <span id="storage-mode" class="cfg-pill">storage</span>
+            <span class="cfg-pill">Form: [LL] Reputation Rocket - Sign in</span>
+          </div>
         </div>
-        <div class="cfg-meta-stats">
-          <span id="storage-mode" class="cfg-pill">storage</span>
-          <span class="cfg-pill">Form: [LL] Reputation Rocket - Sign in</span>
+
+        <div class="cfg-card" id="create-card">
+          <button type="button" class="cfg-create-toggle" id="btn-toggle-create" aria-expanded="false">
+            <span>+ Add client</span>
+            <span class="cfg-muted">Creates a local folder, then open it to configure</span>
+          </button>
+          <div id="create-body" class="cfg-create-body" hidden>
+            <form id="create-form" class="cfg-form cfg-form-wide">
+              <label>
+                Company name
+                <input type="text" id="create-name" placeholder="Acme Co" required>
+              </label>
+              <label>
+                Slug (folder / URL)
+                <input type="text" id="create-slug" placeholder="acme-co" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" required>
+              </label>
+              <label>
+                Support email (optional)
+                <input type="email" id="create-email" placeholder="support@acme.com">
+              </label>
+              <button type="submit" class="cfg-btn cfg-btn-primary" id="btn-create">Create folder</button>
+            </form>
+            <p id="create-error" class="cfg-error" hidden></p>
+            <p id="create-note" class="cfg-muted" style="margin-top:10px"></p>
+          </div>
         </div>
+
+        <div id="clients" class="cfg-clients"></div>
       </div>
-      <div id="clients" class="cfg-clients"></div>
+
+      <div id="detail-view" hidden></div>
     </section>
   </main>
   <script src="configure.js"></script>

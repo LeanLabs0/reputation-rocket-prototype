@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { requireAuth } = require('../../lib/configure-auth');
 const { buildInstallUrl, isOAuthConfigured } = require('../../lib/hubspot/oauth');
-const { getKnownClient } = require('../../lib/known-clients');
+const { resolveClient } = require('../../lib/known-clients');
 const { upsertClient } = require('../../lib/hubspot/store');
 
 module.exports = async function handler(req, res) {
@@ -19,7 +19,7 @@ module.exports = async function handler(req, res) {
   }
 
   const clientSlug = String(req.body?.clientSlug || '').trim();
-  if (!getKnownClient(clientSlug)) {
+  if (!(await resolveClient(clientSlug))) {
     return res.status(400).json({ error: 'Unknown clientSlug' });
   }
 

@@ -1,7 +1,7 @@
 {
   "scripts": {
     "dev": "node local-dev-server.js",
-    "check": "node --check app.js && node --check api/agent.js && node --check api/notify.js && node --check api/upload-video.js && node --check api/hubspot-contact.js && node --check api/configure/login.js && node --check api/configure/status.js && node --check api/configure/oauth-start.js && node --check api/configure/oauth-callback.js && node --check api/configure/provision.js && node --check local-dev-server.js"
+    "check": "node --check app.js && node --check api/agent.js && node --check api/notify.js && node --check api/upload-video.js && node --check api/hubspot-contact.js && node --check api/client-config.js && node --check api/configure/login.js && node --check api/configure/status.js && node --check api/configure/oauth-start.js && node --check api/configure/oauth-callback.js && node --check api/configure/provision.js && node --check api/configure/create-client.js && node --check api/configure/update-settings.js && node --check api/configure/delete-client.js && node --check lib/scaffold-client.js && node --check lib/portal-settings.js && node --check lib/client-config-file.js && node --check local-dev-server.js"
   },
   "engines": {
     "node": ">=18"

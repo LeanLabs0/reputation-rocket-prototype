@@ -22,13 +22,14 @@ function setRegenerateButtonLabel(btn, label) {
   btn.innerHTML = `${REGENERATE_DRAFT_ICON_SVG}<span class="btn-regenerate-label">${label}</span>`;
 }
 
-// ── URL Params ──────────────────────────────────────────────
-const PARAMS = (() => {
+// ── URL Params (+ optional /configure store overlay) ─────────
+function buildParamsFromConfig(config) {
   const p = new URLSearchParams(window.location.search);
   const name = p.get('name') || '';
+  const cfg = config || {};
 
   const providerName = (
-    (CLIENT_CONFIG.providerName || CLIENT_CONFIG.brandName || CLIENT_CONFIG.company || '').trim() ||
+    (cfg.providerName || cfg.brandName || cfg.company || '').trim() ||
     'our team'
   );
 
@@ -37,35 +38,33 @@ const PARAMS = (() => {
 
   const customerCompany =
     customerCompanyFromUrl ||
-    (CLIENT_CONFIG.defaultCustomerCompany || CLIENT_CONFIG.customerCompany || '').trim() ||
+    (cfg.defaultCustomerCompany || cfg.customerCompany || '').trim() ||
     providerName;
 
   const platformsFromUrl = (p.get('platforms') || '').split(',').map(s => s.trim()).filter(Boolean);
   const platforms = platformsFromUrl.length
     ? platformsFromUrl
-    : Array.isArray(CLIENT_CONFIG.platforms) ? CLIENT_CONFIG.platforms : [];
+    : Array.isArray(cfg.platforms) ? cfg.platforms : [];
 
-  const reviewLinks = { ...(CLIENT_CONFIG.reviewLinks || {}) };
+  const reviewLinks = { ...(cfg.reviewLinks || {}) };
   platforms.forEach(plat => {
     const link = p.get(`review_${plat}`);
     if (link) reviewLinks[plat] = link;
   });
 
-  // Interview questions shown on the video screen + record modal. Clients set a
-  // plain array of strings in config.js; numbering/markup is added by the script.
   const defaultInterviewQuestions = [
     `Why did you choose ${providerName}?`,
     'What were you hoping to achieve?',
     'How did we deliver on your expectations?',
   ];
   const interviewQuestions = (
-    Array.isArray(CLIENT_CONFIG.interviewQuestions) && CLIENT_CONFIG.interviewQuestions.length
-      ? CLIENT_CONFIG.interviewQuestions
+    Array.isArray(cfg.interviewQuestions) && cfg.interviewQuestions.length
+      ? cfg.interviewQuestions
       : defaultInterviewQuestions
   ).map((q) => String(q == null ? '' : q).trim()).filter(Boolean);
 
   return {
-    clientSlug: CLIENT_CONFIG.clientSlug || window.location.pathname.split('/').filter(Boolean)[0] || 'default',
+    clientSlug: cfg.clientSlug || window.location.pathname.split('/').filter(Boolean)[0] || 'default',
     name,
     firstName: name.split(' ')[0] || 'there',
     providerName,
@@ -75,24 +74,53 @@ const PARAMS = (() => {
     email: p.get('email') || '',
     platforms,
     reviewLinks,
-    videoUrl: p.get('video_url') || CLIENT_CONFIG.videoUrl || '',
-    welcomeVideoUrl: p.has('no-video') ? '' : (p.get('welcome_video_url') || CLIENT_CONFIG.welcomeVideoUrl || ''),
-    welcomeVideoPoster: p.get('welcome_video_poster') || CLIENT_CONFIG.welcomeVideoPoster || '',
+    videoUrl: p.get('video_url') || cfg.videoUrl || '',
+    welcomeVideoUrl: p.has('no-video') ? '' : (p.get('welcome_video_url') || cfg.welcomeVideoUrl || ''),
+    welcomeVideoPoster: p.get('welcome_video_poster') || cfg.welcomeVideoPoster || '',
     interviewQuestions,
-    thankYouUrl: (p.get('thank_you_url') || CLIENT_CONFIG.thankYouUrl || '').trim(),
+    thankYouUrl: (p.get('thank_you_url') || cfg.thankYouUrl || '').trim(),
     thankYouRedirectDelayMs: (() => {
       const fromUrl = p.get('thank_you_redirect_delay_ms');
       if (fromUrl != null && fromUrl !== '') {
         const n = Number(fromUrl);
         if (Number.isFinite(n) && n >= 0) return n;
       }
-      const fromConfig = Number(CLIENT_CONFIG.thankYouRedirectDelayMs);
+      const fromConfig = Number(cfg.thankYouRedirectDelayMs);
       return Number.isFinite(fromConfig) && fromConfig >= 0 ? fromConfig : 5000;
     })(),
-    allowedRedirectHosts: CLIENT_CONFIG.allowedRedirectHosts || [],
-    supportEmail: (CLIENT_CONFIG.supportEmail || '').trim(),
+    allowedRedirectHosts: cfg.allowedRedirectHosts || [],
+    supportEmail: (cfg.supportEmail || '').trim(),
   };
-})();
+}
+
+let PARAMS = buildParamsFromConfig(CLIENT_CONFIG);
+
+async function hydratePortalSettingsFromStore() {
+  try {
+    const slug = PARAMS.clientSlug;
+    if (!slug) return;
+    const res = await fetch(`/api/client-config?clientSlug=${encodeURIComponent(slug)}`, {
+      credentials: 'same-origin',
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data?.settings) return;
+
+    Object.assign(CLIENT_CONFIG, data.settings);
+    if (data.hubspot?.portalId && !CLIENT_CONFIG.hubspotPortalId) {
+      CLIENT_CONFIG.hubspotPortalId = data.hubspot.portalId;
+    }
+    if (data.hubspot?.formId && !CLIENT_CONFIG.hubspotFormId) {
+      CLIENT_CONFIG.hubspotFormId = data.hubspot.formId;
+    }
+    if (data.hubspot?.formRegion && !CLIENT_CONFIG.hubspotFormRegion) {
+      CLIENT_CONFIG.hubspotFormRegion = data.hubspot.formRegion;
+    }
+    PARAMS = buildParamsFromConfig(CLIENT_CONFIG);
+  } catch (_) {
+    /* keep local config.js values */
+  }
+}
 
 // ── State ───────────────────────────────────────────────────
 let currentState = 'welcome';
@@ -193,7 +221,9 @@ const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
 
 // ── Boot ────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  await hydratePortalSettingsFromStore();
+
   applyCurrentYearTokens();
   applyVideoStepVisibility();
 

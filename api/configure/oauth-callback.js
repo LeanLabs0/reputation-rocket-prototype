@@ -1,6 +1,7 @@
 const { exchangeCodeForTokens, getTokenInfo } = require('../../lib/hubspot/oauth');
 const { getClient, upsertClient } = require('../../lib/hubspot/store');
 const { provisionPortal } = require('../../lib/hubspot/provision');
+const { patchClientHubSpotConfig } = require('../../lib/scaffold-client');
 
 function getQuery(req) {
   if (req.query && typeof req.query === 'object') return req.query;
@@ -60,6 +61,12 @@ module.exports = async function handler(req, res) {
       scopes: info.scopes || [],
     });
 
+    // Portal ID is enough for embeds; OAuth refresh token replaces private-app PATs.
+    patchClientHubSpotConfig(clientSlug, {
+      portalId,
+      formRegion: 'na1',
+    });
+
     try {
       const provisioned = await provisionPortal(tokens.access_token);
       await upsertClient(clientSlug, {
@@ -74,15 +81,28 @@ module.exports = async function handler(req, res) {
         hubspotOutcomePositiveValue: 'positive',
         hubspotOutcomeNegativeValue: 'negative',
       });
+      patchClientHubSpotConfig(clientSlug, {
+        portalId,
+        formId: provisioned.form?.id || '',
+        formRegion: 'na1',
+      });
     } catch (provisionErr) {
       console.error('[oauth-callback] provision failed:', provisionErr);
+      if (provisionErr.partial?.properties) {
+        try {
+          await upsertClient(clientSlug, { properties: provisionErr.partial.properties });
+        } catch (_) { /* best-effort */ }
+      }
       return redirect(
         res,
-        `/configure/?connected=${encodeURIComponent(clientSlug)}&warn=${encodeURIComponent(provisionErr.message)}`,
+        `/configure/?client=${encodeURIComponent(clientSlug)}&connected=${encodeURIComponent(clientSlug)}&warn=${encodeURIComponent(provisionErr.message)}`,
       );
     }
 
-    return redirect(res, `/configure/?connected=${encodeURIComponent(clientSlug)}`);
+    return redirect(
+      res,
+      `/configure/?client=${encodeURIComponent(clientSlug)}&connected=${encodeURIComponent(clientSlug)}`,
+    );
   } catch (err) {
     console.error('[oauth-callback]', err);
     return fail(err.message || 'OAuth callback failed');
