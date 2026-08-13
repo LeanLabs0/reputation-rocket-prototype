@@ -108,7 +108,7 @@ Proxies `/api/*` to Fly with CORS. It does **not** load `api/agent.js` / `api/no
 | `HUBSPOT_APP_CLIENT_ID` | `/configure` OAuth | HubSpot app client ID |
 | `HUBSPOT_APP_CLIENT_SECRET` | `/configure` OAuth | HubSpot app client secret |
 | `HUBSPOT_APP_REDIRECT_URI` | `/configure` OAuth | Exact callback URL, e.g. `https://reputationrocket.ai/api/configure/oauth-callback` |
-| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Required on Vercel | Persist OAuth installs (local uses `.data/`) |
+| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Required on Vercel | Persist OAuth installs (from Vercel Redis/Upstash integration; local uses `.data/`) |
 | `HUBSPOT_TOKEN_ENCRYPTION_KEY` | Recommended | Encrypts stored refresh tokens (falls back to `CONFIGURE_PASSWORD`) |
 
 When `event` is `negative`, Slack (or n8n) still runs first; then, if Resend is configured and a recipient exists (`NEGATIVE_ALERT_EMAIL_*` or `support_email` in the POST body from `CLIENT_CONFIG.supportEmail`), a plain-text email is sent with the same fields as the Slack message and subject `[Reputation Rocket] Negative feedback — …`.
@@ -124,7 +124,7 @@ Operator console at [`/configure/`](./configure/) (local + production). Use prod
 1. OAuth install with files + contacts + schemas + forms scopes
 2. Creates contact properties `rr_iscomplete` (`Yes`/`No`) and `rr_outcome` (`positive`/`negative`)
 3. Creates (or reuses) the lead form **`[LL] Reputation Rocket - Sign in`** with required `firstname`, `lastname`, `email`, `company`
-4. Stores refresh token (Upstash on Vercel) and writes IDs into `config.js` when running locally
+4. Stores refresh token (KV on Vercel) and writes IDs into `config.js` when running locally
 
 **Still manual:** Slack channel/threads, brand CSS, Factor8.
 
@@ -140,7 +140,7 @@ Operator console at [`/configure/`](./configure/) (local + production). Use prod
    - `HUBSPOT_APP_CLIENT_ID`
    - `HUBSPOT_APP_CLIENT_SECRET`
    - `HUBSPOT_APP_REDIRECT_URI=https://reputationrocket.ai/api/configure/oauth-callback`
-   - `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (required on Vercel)
+   - `KV_REST_API_URL` + `KV_REST_API_TOKEN` (required on Vercel; from the Redis/Upstash integration)
 5. Redeploy, open `https://reputationrocket.ai/configure/`, unlock, **Connect HubSpot**
 
 **Slack-only V1:** set `FACTOR8_API_KEY` + `SLACK_REPUTATION_WEBHOOK_URL` (and per-client Slack vars as needed). Leave `N8N_*` blank. Email is optional until `RESEND_*` and a support address are set.
