@@ -101,12 +101,7 @@
       toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     });
 
-    if (!appState.canScaffold) {
-      createNote.textContent = 'Folder scaffolding only works locally (npm run dev). On Vercel, add the client folder in git first.';
-      $('#btn-create').disabled = true;
-    } else {
-      createNote.textContent = 'After create, open the client to set experience + Connect HubSpot.';
-    }
+    createNote.textContent = 'After create, open the client to set experience + Connect HubSpot. Commit config.js for production.';
 
     nameInput.addEventListener('input', () => {
       if (slugInput.dataset.touched === '1') return;
@@ -276,7 +271,7 @@
           </section>
 
           <div class="cfg-save-bar">
-            <p class="cfg-muted" id="save-hint">Saves to the configure store${appState.canScaffold ? ' and writes config.js' : ''}.</p>
+            <p class="cfg-muted" id="save-hint">Saves locally and writes config.js — commit that file for production.</p>
             <button type="submit" class="cfg-btn cfg-btn-primary" id="btn-save-experience">Save experience</button>
           </div>
           <p id="experience-error" class="cfg-error" hidden></p>

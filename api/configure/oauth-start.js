@@ -3,8 +3,10 @@ const { requireAuth } = require('../../lib/configure-auth');
 const { buildInstallUrl, isOAuthConfigured } = require('../../lib/hubspot/oauth');
 const { resolveClient } = require('../../lib/known-clients');
 const { upsertClient } = require('../../lib/hubspot/store');
+const { requireConfigureLocal } = require('../../lib/configure-local');
 
 module.exports = async function handler(req, res) {
+  if (!requireConfigureLocal(req, res)) return;
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method not allowed' });

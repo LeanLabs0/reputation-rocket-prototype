@@ -2,8 +2,13 @@
   "redirects": [
     {
       "source": "/configure",
-      "destination": "/configure/",
-      "permanent": true
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/configure/:path*",
+      "destination": "/",
+      "permanent": false
     },
     {
       "source": "/demo",

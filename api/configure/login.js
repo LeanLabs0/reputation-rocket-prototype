@@ -4,8 +4,10 @@ const {
   createSessionToken,
   sessionCookieHeader,
 } = require('../../lib/configure-auth');
+const { requireConfigureLocal } = require('../../lib/configure-local');
 
 module.exports = async function handler(req, res) {
+  if (!requireConfigureLocal(req, res)) return;
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method not allowed' });
@@ -14,7 +16,7 @@ module.exports = async function handler(req, res) {
   if (!isAuthConfigured()) {
     return res.status(500).json({
       error: 'Configure password not set',
-      detail: 'Set CONFIGURE_PASSWORD in Vercel / .env.local',
+      detail: 'Set CONFIGURE_PASSWORD in .env.local',
     });
   }
 

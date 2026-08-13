@@ -2,6 +2,7 @@ const { exchangeCodeForTokens, getTokenInfo } = require('../../lib/hubspot/oauth
 const { getClient, upsertClient } = require('../../lib/hubspot/store');
 const { provisionPortal } = require('../../lib/hubspot/provision');
 const { patchClientHubSpotConfig } = require('../../lib/scaffold-client');
+const { requireConfigureLocal } = require('../../lib/configure-local');
 
 function getQuery(req) {
   if (req.query && typeof req.query === 'object') return req.query;
@@ -27,6 +28,7 @@ function redirect(res, location) {
 }
 
 module.exports = async function handler(req, res) {
+  if (!requireConfigureLocal(req, res)) return;
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ error: 'Method not allowed' });
