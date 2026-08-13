@@ -1,30 +1,44 @@
 const { isAuthConfigured, isAuthenticated } = require('../../lib/configure-auth');
-const { isOAuthConfigured, appConfig, HUBSPOT_SCOPES } = require('../../lib/hubspot/oauth');
+const { oauthEnvStatus, HUBSPOT_SCOPES } = require('../../lib/hubspot/oauth');
 const { listAllClients, getKnownClient } = require('../../lib/known-clients');
 const { envPat } = require('../../lib/hubspot/tokens');
 const { FORM_NAME } = require('../../lib/hubspot/provision');
 const { folderExists } = require('../../lib/scaffold-client');
 const { readClientConfigFile } = require('../../lib/client-config-file');
-const { requireConfigureLocal } = require('../../lib/configure-local');
 const {
   AVAILABLE_PLATFORMS,
   normalizePortalSettings,
   pickSettingsFromConfig,
 } = require('../../lib/portal-settings');
 
+function hasUpstash() {
+  return Boolean(
+    String(process.env.UPSTASH_REDIS_REST_URL || '').trim() &&
+    String(process.env.UPSTASH_REDIS_REST_TOKEN || '').trim(),
+  );
+}
+
 module.exports = async function handler(req, res) {
-  if (!requireConfigureLocal(req, res)) return;
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ error: 'Method not allowed' });
   }
+
+  const oauth = oauthEnvStatus();
+  const onVercel = Boolean(process.env.VERCEL);
+  const upstash = hasUpstash();
 
   const authed = isAuthenticated(req);
   if (!authed) {
     return res.status(200).json({
       authenticated: false,
       authConfigured: isAuthConfigured(),
-      oauthConfigured: isOAuthConfigured(),
+      oauthConfigured: oauth.configured,
+      oauth,
+      missing: [
+        ...(!isAuthConfigured() ? ['CONFIGURE_PASSWORD'] : []),
+        ...oauth.missing,
+      ],
     });
   }
 
@@ -64,23 +78,25 @@ module.exports = async function handler(req, res) {
     };
   });
 
-  const { clientId, redirectUri } = appConfig();
   return res.status(200).json({
     authenticated: true,
     authConfigured: true,
-    oauthConfigured: isOAuthConfigured(),
+    oauthConfigured: oauth.configured,
     oauth: {
-      clientIdConfigured: Boolean(clientId),
-      redirectUri,
+      ...oauth,
       scopes: HUBSPOT_SCOPES,
       formName: FORM_NAME,
     },
     storage: {
-      mode: 'local-file',
+      mode: upstash ? 'upstash' : 'local-file',
+      persistent: upstash || !onVercel,
+      warning: onVercel && !upstash
+        ? 'Upstash is required on Vercel so OAuth tokens survive deploys. Set UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN.'
+        : '',
     },
     availablePlatforms: AVAILABLE_PLATFORMS,
     clients,
-    canScaffold: true,
-    localOnly: true,
+    canScaffold: !onVercel,
+    onVercel,
   });
 };

@@ -18,7 +18,7 @@
         <img src="../reprocket-icon.svg" width="28" height="28" alt="">
         <div>
           <h1>Reputation Rocket Configure</h1>
-          <p>Local-only · experience settings + HubSpot install</p>
+          <p>Experience settings + HubSpot install for client portals</p>
         </div>
       </div>
       <button type="button" id="btn-logout" class="cfg-btn cfg-btn-ghost" hidden>Log out</button>
@@ -28,6 +28,7 @@
 
     <section id="login-panel" class="cfg-card" hidden>
       <h2>Operator login</h2>
+      <p class="cfg-muted">Password from <code>CONFIGURE_PASSWORD</code> (no spaces around <code>=</code> in env).</p>
       <form id="login-form" class="cfg-form">
         <label>
           Password
@@ -39,15 +40,14 @@
     </section>
 
     <section id="setup-panel" class="cfg-card" hidden>
-      <h2>Local setup</h2>
-      <p class="cfg-muted">Configure only runs via <code>npm run dev</code> on localhost. Add these to <code>.env.local</code>:</p>
-      <ul>
-        <li><code>CONFIGURE_PASSWORD</code></li>
-        <li><code>HUBSPOT_APP_CLIENT_ID</code></li>
-        <li><code>HUBSPOT_APP_CLIENT_SECRET</code></li>
-        <li><code>HUBSPOT_APP_REDIRECT_URI</code> → <code>http://localhost:8888/api/configure/oauth-callback</code> (optional; this is the default)</li>
-      </ul>
-      <p class="cfg-muted" style="margin-top:12px">After Connect HubSpot, commit the updated client <code>config.js</code> (portal/form IDs + experience settings) for production.</p>
+      <h2>Missing env</h2>
+      <p class="cfg-muted" id="setup-intro">Add these in Vercel Project Settings → Environment Variables (Production), then redeploy:</p>
+      <ul id="setup-missing"></ul>
+      <p class="cfg-muted" style="margin-top:14px">Exact redirect URI for HubSpot app + Vercel:</p>
+      <p class="cfg-code" style="margin-top:6px">https://reputationrocket.ai/api/configure/oauth-callback</p>
+      <p class="cfg-muted" style="margin-top:14px">Also list localhost for local testing:</p>
+      <p class="cfg-code" style="margin-top:6px">http://localhost:8888/api/configure/oauth-callback</p>
+      <p class="cfg-muted" style="margin-top:14px">Trim spaces when pasting values. After changing env, trigger a new deploy.</p>
     </section>
 
     <section id="app-panel" hidden>
@@ -62,6 +62,7 @@
             <span class="cfg-pill">Form: [LL] Reputation Rocket - Sign in</span>
           </div>
         </div>
+        <div id="storage-warning" class="cfg-flash warn" hidden></div>
 
         <div class="cfg-card" id="create-card">
           <button type="button" class="cfg-create-toggle" id="btn-toggle-create" aria-expanded="false">

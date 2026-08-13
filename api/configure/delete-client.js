@@ -3,7 +3,6 @@ const { getKnownClient, resolveClient } = require('../../lib/known-clients');
 const { deleteClient, getClient } = require('../../lib/hubspot/store');
 const { resolveHubSpotAccessToken } = require('../../lib/hubspot/tokens');
 const { deprovisionPortal, FORM_NAME } = require('../../lib/hubspot/provision');
-const { requireConfigureLocal } = require('../../lib/configure-local');
 const {
   sanitizeSlug,
   isSafeSlug,
@@ -13,7 +12,6 @@ const {
 } = require('../../lib/scaffold-client');
 
 module.exports = async function handler(req, res) {
-  if (!requireConfigureLocal(req, res)) return;
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method not allowed' });
