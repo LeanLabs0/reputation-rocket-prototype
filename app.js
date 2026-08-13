@@ -107,13 +107,14 @@ async function hydratePortalSettingsFromStore() {
     if (!data?.settings) return;
 
     Object.assign(CLIENT_CONFIG, data.settings);
-    if (data.hubspot?.portalId && !CLIENT_CONFIG.hubspotPortalId) {
+    // Store wins for HubSpot IDs (OAuth on Vercel cannot rewrite config.js).
+    if (data.hubspot?.portalId) {
       CLIENT_CONFIG.hubspotPortalId = data.hubspot.portalId;
     }
-    if (data.hubspot?.formId && !CLIENT_CONFIG.hubspotFormId) {
+    if (data.hubspot?.formId) {
       CLIENT_CONFIG.hubspotFormId = data.hubspot.formId;
     }
-    if (data.hubspot?.formRegion && !CLIENT_CONFIG.hubspotFormRegion) {
+    if (data.hubspot?.formRegion) {
       CLIENT_CONFIG.hubspotFormRegion = data.hubspot.formRegion;
     }
     PARAMS = buildParamsFromConfig(CLIENT_CONFIG);

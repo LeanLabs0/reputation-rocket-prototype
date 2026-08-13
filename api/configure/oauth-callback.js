@@ -62,6 +62,7 @@ module.exports = async function handler(req, res) {
     });
 
     // Portal ID is enough for embeds; OAuth refresh token replaces private-app PATs.
+    // config.js writes are local-only (no-op on Vercel); store/KV is source of truth in prod.
     patchClientHubSpotConfig(clientSlug, {
       portalId,
       formRegion: 'na1',
