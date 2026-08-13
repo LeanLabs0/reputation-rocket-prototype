@@ -18,7 +18,7 @@
         <img src="../reprocket-icon.svg" width="28" height="28" alt="">
         <div>
           <h1>Reputation Rocket Configure</h1>
-          <p>Experience settings + HubSpot install.</p>
+          <p>Local-only · experience settings + HubSpot install</p>
         </div>
       </div>
       <button type="button" id="btn-logout" class="cfg-btn cfg-btn-ghost" hidden>Log out</button>
@@ -39,16 +39,15 @@
     </section>
 
     <section id="setup-panel" class="cfg-card" hidden>
-      <h2>Missing env</h2>
-      <p class="cfg-muted">Add these before using Configure:</p>
+      <h2>Local setup</h2>
+      <p class="cfg-muted">Configure only runs via <code>npm run dev</code> on localhost. Add these to <code>.env.local</code>:</p>
       <ul>
         <li><code>CONFIGURE_PASSWORD</code></li>
         <li><code>HUBSPOT_APP_CLIENT_ID</code></li>
         <li><code>HUBSPOT_APP_CLIENT_SECRET</code></li>
-        <li><code>HUBSPOT_APP_REDIRECT_URI</code> → <code>https://YOUR_DOMAIN/api/configure/oauth-callback</code></li>
-        <li>Optional prod store: <code>UPSTASH_REDIS_REST_URL</code> + <code>UPSTASH_REDIS_REST_TOKEN</code></li>
-        <li>Optional: <code>HUBSPOT_TOKEN_ENCRYPTION_KEY</code></li>
+        <li><code>HUBSPOT_APP_REDIRECT_URI</code> → <code>http://localhost:8888/api/configure/oauth-callback</code> (optional; this is the default)</li>
       </ul>
+      <p class="cfg-muted" style="margin-top:12px">After Connect HubSpot, commit the updated client <code>config.js</code> (portal/form IDs + experience settings) for production.</p>
     </section>
 
     <section id="app-panel" hidden>

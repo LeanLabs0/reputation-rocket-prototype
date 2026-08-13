@@ -5,6 +5,7 @@ const { envPat } = require('../../lib/hubspot/tokens');
 const { FORM_NAME } = require('../../lib/hubspot/provision');
 const { folderExists } = require('../../lib/scaffold-client');
 const { readClientConfigFile } = require('../../lib/client-config-file');
+const { requireConfigureLocal } = require('../../lib/configure-local');
 const {
   AVAILABLE_PLATFORMS,
   normalizePortalSettings,
@@ -12,6 +13,7 @@ const {
 } = require('../../lib/portal-settings');
 
 module.exports = async function handler(req, res) {
+  if (!requireConfigureLocal(req, res)) return;
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET');
     return res.status(405).json({ error: 'Method not allowed' });
@@ -74,10 +76,11 @@ module.exports = async function handler(req, res) {
       formName: FORM_NAME,
     },
     storage: {
-      mode: process.env.UPSTASH_REDIS_REST_URL ? 'upstash' : 'local-file',
+      mode: 'local-file',
     },
     availablePlatforms: AVAILABLE_PLATFORMS,
     clients,
-    canScaffold: !process.env.VERCEL, // filesystem writes only work locally
+    canScaffold: true,
+    localOnly: true,
   });
 };
