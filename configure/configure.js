@@ -107,6 +107,9 @@
     if (status.oauth?.redirectUri) {
       $('#setup-intro').textContent += ` (app currently resolves redirect as ${status.oauth.redirectUri})`;
     }
+    if (status.oauth?.redirectWarning) {
+      $('#setup-intro').textContent += ` — ${status.oauth.redirectWarning}`;
+    }
   }
 
   async function onLogin(e) {

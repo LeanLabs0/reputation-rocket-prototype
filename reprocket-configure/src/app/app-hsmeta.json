@@ -4,7 +4,7 @@
   "config": {
     "name": "Reputation Rocket Configure",
     "description": "Installs Reputation Rocket HubSpot setup: files, contacts, lead form, completion properties.",
-    "distribution": "private",
+    "distribution": "marketplace",
     "auth": {
       "type": "oauth",
       "redirectUrls": [

@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 const { requireAuth } = require('../../lib/configure-auth');
-const { buildInstallUrl, isOAuthConfigured } = require('../../lib/hubspot/oauth');
+const { appConfig, buildInstallUrl, isOAuthConfigured } = require('../../lib/hubspot/oauth');
 const { resolveClient } = require('../../lib/known-clients');
 const { upsertClient } = require('../../lib/hubspot/store');
 
@@ -28,5 +28,10 @@ module.exports = async function handler(req, res) {
   await upsertClient(clientSlug, { oauthState: state, oauthStartedAt: new Date().toISOString() });
 
   const installUrl = buildInstallUrl({ clientSlug, state });
-  return res.status(200).json({ ok: true, installUrl, state });
+  return res.status(200).json({
+    ok: true,
+    installUrl,
+    state,
+    redirectUri: appConfig().redirectUri,
+  });
 };
