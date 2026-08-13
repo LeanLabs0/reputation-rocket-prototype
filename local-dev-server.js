@@ -9,6 +9,16 @@ const agentHandler = require('./api/agent');
 const notifyHandler = require('./api/notify');
 const uploadVideoHandler = require('./api/upload-video');
 const hubspotContactHandler = require('./api/hubspot-contact');
+const configureLoginHandler = require('./api/configure/login');
+const configureLogoutHandler = require('./api/configure/logout');
+const configureStatusHandler = require('./api/configure/status');
+const configureOauthStartHandler = require('./api/configure/oauth-start');
+const configureOauthCallbackHandler = require('./api/configure/oauth-callback');
+const configureProvisionHandler = require('./api/configure/provision');
+const configureCreateClientHandler = require('./api/configure/create-client');
+const configureUpdateSettingsHandler = require('./api/configure/update-settings');
+const configureDeleteClientHandler = require('./api/configure/delete-client');
+const clientConfigHandler = require('./api/client-config');
 
 const PORT = Number(process.env.PORT || 8888);
 const ROOT = __dirname;
@@ -50,6 +60,38 @@ const server = http.createServer(async (req, res) => {
       return callApiHandler(hubspotContactHandler, req, res);
     }
 
+    if (url.pathname === '/api/configure/login') {
+      return callApiHandler(configureLoginHandler, req, res);
+    }
+    if (url.pathname === '/api/configure/logout') {
+      return callApiHandler(configureLogoutHandler, req, res);
+    }
+    if (url.pathname === '/api/configure/status') {
+      return callApiHandler(configureStatusHandler, req, res);
+    }
+    if (url.pathname === '/api/configure/oauth-start') {
+      return callApiHandler(configureOauthStartHandler, req, res);
+    }
+    if (url.pathname === '/api/configure/oauth-callback') {
+      return callApiHandler(configureOauthCallbackHandler, req, res);
+    }
+    if (url.pathname === '/api/configure/provision') {
+      return callApiHandler(configureProvisionHandler, req, res);
+    }
+    if (url.pathname === '/api/configure/create-client') {
+      return callApiHandler(configureCreateClientHandler, req, res);
+    }
+    if (url.pathname === '/api/configure/update-settings') {
+      return callApiHandler(configureUpdateSettingsHandler, req, res);
+    }
+    if (url.pathname === '/api/configure/delete-client') {
+      return callApiHandler(configureDeleteClientHandler, req, res);
+    }
+    if (url.pathname === '/api/client-config') {
+      req.query = Object.fromEntries(url.searchParams.entries());
+      return callApiHandler(clientConfigHandler, req, res);
+    }
+
     return serveStatic(url.pathname, res);
   } catch (error) {
     console.error(error);
@@ -84,6 +126,10 @@ async function callApiHandler(handler, req, nodeRes) {
     send(payload) {
       nodeRes.writeHead(this.statusCode, this.headers);
       nodeRes.end(payload);
+    },
+    end(payload) {
+      nodeRes.writeHead(this.statusCode, this.headers);
+      nodeRes.end(payload || '');
     },
   };
 

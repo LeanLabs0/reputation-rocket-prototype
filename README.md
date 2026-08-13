@@ -102,10 +102,40 @@ Proxies `/api/*` to Fly with CORS. It does **not** load `api/agent.js` / `api/no
 | `RESEND_API_KEY` | Optional | [Resend](https://resend.com) API key — enables negative-feedback email |
 | `RESEND_FROM` | With Resend | Verified sender, e.g. `Reputation Rocket <alerts@yourdomain.com>` |
 | `NEGATIVE_ALERT_EMAIL_<CLIENT>` | Optional | Overrides `supportEmail` from the client `config.js` for the inbox (same suffix rule as Slack, e.g. `NEGATIVE_ALERT_EMAIL_LEAN_LABS`) |
-| `HUBSPOT_FILES_ACCESS_TOKEN_<CLIENT>` | Video upload + contact updates | Per-client HubSpot private app token (slug suffix like Slack, e.g. `HUBSPOT_FILES_ACCESS_TOKEN_LEAN_LABS`). Scopes: files (upload) plus `crm.objects.contacts.read` and `crm.objects.contacts.write` for `rr_iscomplete` on completion. |
+| `HUBSPOT_FILES_ACCESS_TOKEN_<CLIENT>` | Video upload + contact updates (legacy) | Per-client HubSpot private app token. Still works as fallback if OAuth is not connected. |
 | `HUBSPOT_FILES_ACCESS_TOKEN_<PORTAL_ID>` | Optional fallback | Portal-specific token override (e.g. `HUBSPOT_FILES_ACCESS_TOKEN_275827`) |
+| `CONFIGURE_PASSWORD` | For `/configure` | Password for the operator admin page |
+| `HUBSPOT_APP_CLIENT_ID` | For `/configure` OAuth | HubSpot public app client ID |
+| `HUBSPOT_APP_CLIENT_SECRET` | For `/configure` OAuth | HubSpot public app client secret |
+| `HUBSPOT_APP_REDIRECT_URI` | For `/configure` OAuth | Must match app settings, e.g. `https://reputationrocket.ai/api/configure/oauth-callback` |
+| `HUBSPOT_TOKEN_ENCRYPTION_KEY` | Recommended | Encrypts stored refresh tokens (falls back to `CONFIGURE_PASSWORD`) |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Prod recommended | Persist HubSpot installs across serverless instances (local uses `.data/`) |
 
 When `event` is `negative`, Slack (or n8n) still runs first; then, if Resend is configured and a recipient exists (`NEGATIVE_ALERT_EMAIL_*` or `support_email` in the POST body from `CLIENT_CONFIG.supportEmail`), a plain-text email is sent with the same fields as the Slack message and subject `[Reputation Rocket] Negative feedback — …`.
+
+---
+
+## `/configure` — HubSpot auto-setup
+
+Password-protected operator console at [`/configure/`](./configure/).
+
+**What it automates per portal (Connect HubSpot):**
+
+1. OAuth install with files + contacts + schemas + forms scopes
+2. Creates contact properties `rr_iscomplete` (`Yes`/`No`) and `rr_outcome` (`positive`/`negative`)
+3. Creates (or reuses) the lead form **`[LL] Reputation Rocket - Sign in`** with required `firstname`, `lastname`, `email`, `company`
+4. Stores encrypted refresh token + `portalId` / `formId` for runtime APIs
+
+**Still manual:** Slack channel/threads, review links, brand CSS, Factor8.
+
+### One-time HubSpot app setup
+
+1. Create a HubSpot app (private distribution / unlisted install URL is fine)
+2. Set redirect URL to `https://YOUR_DOMAIN/api/configure/oauth-callback` (local: `http://localhost:8888/api/configure/oauth-callback`)
+3. Required scopes: `oauth`, `files`, `crm.objects.contacts.read`, `crm.objects.contacts.write`, `crm.schemas.contacts.write`, `forms`
+4. Put client ID/secret + redirect URI + `CONFIGURE_PASSWORD` in Vercel / `.env.local`
+5. For production, add Upstash Redis REST credentials so installs persist
+6. Open `/configure/`, unlock, click **Connect HubSpot** for a client, then paste the printed `hubspotPortalId` / `hubspotFormId` into that client's `config.js` if they changed
 
 **Slack-only V1:** set `FACTOR8_API_KEY` + `SLACK_REPUTATION_WEBHOOK_URL` (and per-client Slack vars as needed). Leave `N8N_*` blank. Email is optional until `RESEND_*` and a support address are set.
 

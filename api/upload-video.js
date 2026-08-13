@@ -1,5 +1,6 @@
 const fs = require('fs/promises');
 const { formidable } = require('formidable');
+const { resolveHubSpotAccessToken } = require('../lib/hubspot/tokens');
 
 const HUBSPOT_FILES_API_URL = 'https://api.hubapi.com/files/v3/files';
 const HUBSPOT_HARD_MAX_BYTES = 1024 * 1024 * 1024;
@@ -29,11 +30,11 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    const token = resolveHubSpotToken(clientSlug, portalId);
+    const token = await resolveHubSpotAccessToken(clientSlug, portalId);
     if (!token) {
       return res.status(500).json({
         error: 'Missing HubSpot token',
-        detail: `Set HUBSPOT_FILES_ACCESS_TOKEN_${toEnvSuffix(clientSlug)} (preferred) or HUBSPOT_FILES_ACCESS_TOKEN_${toEnvSuffix(portalId)}.`,
+        detail: `Connect HubSpot at /configure for ${clientSlug}, or set HUBSPOT_FILES_ACCESS_TOKEN_${toEnvSuffix(clientSlug)}.`,
       });
     }
 
@@ -174,16 +175,6 @@ function firstValue(value) {
   if (value == null) return '';
   if (Array.isArray(value)) return String(value[0] || '').trim();
   return String(value).trim();
-}
-
-function resolveHubSpotToken(clientSlug, portalId) {
-  const slugSuffix = toEnvSuffix(clientSlug);
-  const portalSuffix = toEnvSuffix(portalId);
-  return (
-    process.env[`HUBSPOT_FILES_ACCESS_TOKEN_${slugSuffix}`] ||
-    process.env[`HUBSPOT_FILES_ACCESS_TOKEN_${portalSuffix}`] ||
-    ''
-  );
 }
 
 function toEnvSuffix(value) {

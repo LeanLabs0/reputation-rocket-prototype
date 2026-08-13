@@ -1,0 +1,34 @@
+{
+  "uid": "reprocket_configure_app",
+  "type": "app",
+  "config": {
+    "name": "Reputation Rocket Configure",
+    "description": "Installs Reputation Rocket HubSpot setup: files, contacts, lead form, completion properties.",
+    "distribution": "private",
+    "auth": {
+      "type": "oauth",
+      "redirectUrls": [
+        "http://localhost:8888/api/configure/oauth-callback",
+        "https://reputationrocket.ai/api/configure/oauth-callback"
+      ],
+      "requiredScopes": [
+        "oauth",
+        "files",
+        "crm.objects.contacts.read",
+        "crm.objects.contacts.write",
+        "crm.schemas.contacts.write",
+        "forms"
+      ],
+      "optionalScopes": [],
+      "conditionallyRequiredScopes": []
+    },
+    "permittedUrls": {
+      "fetch": ["https://api.hubapi.com"],
+      "iframe": [],
+      "img": []
+    },
+    "support": {
+      "supportEmail": "edward@lean-labs.com"
+    }
+  }
+}
