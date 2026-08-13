@@ -1,5 +1,6 @@
 .env.local
 .env.*.local
+.data/
 node_modules/
 __pycache__/
 *.pyc
@@ -10,3 +11,4 @@ node_modules/
 *.log
 VERCEL_N8N_SETUP.md
 delete-slack-messages.js
+.cursor

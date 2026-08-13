@@ -1,6 +1,11 @@
 {
   "redirects": [
     {
+      "source": "/configure",
+      "destination": "/configure/",
+      "permanent": true
+    },
+    {
       "source": "/demo",
       "destination": "/lean-labs/demo/",
       "permanent": true

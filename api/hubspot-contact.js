@@ -1,22 +1,6 @@
+const { resolveHubSpotAccessToken, toEnvSuffix } = require('../lib/hubspot/tokens');
+
 const CONTACTS_SEARCH_URL = 'https://api.hubapi.com/crm/v3/objects/contacts/search';
-
-function toEnvSuffix(value) {
-  return String(value || '')
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-}
-
-function resolveHubSpotToken(clientSlug, portalId) {
-  const slugSuffix = toEnvSuffix(clientSlug);
-  const portalSuffix = toEnvSuffix(portalId);
-  return (
-    process.env[`HUBSPOT_FILES_ACCESS_TOKEN_${slugSuffix}`] ||
-    process.env[`HUBSPOT_FILES_ACCESS_TOKEN_${portalSuffix}`] ||
-    ''
-  ).trim();
-}
 
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -70,12 +54,12 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid email' });
   }
 
-  const token = resolveHubSpotToken(clientSlug, portalId);
+  const token = await resolveHubSpotAccessToken(clientSlug, portalId);
   if (!token) {
     const suffix = toEnvSuffix(clientSlug);
     return res.status(500).json({
       error: 'HubSpot token not configured',
-      detail: `Set HUBSPOT_FILES_ACCESS_TOKEN_${suffix} (same private app as video upload; add crm.objects.contacts.read + crm.objects.contacts.write scopes).`,
+      detail: `Connect HubSpot at /configure for ${clientSlug}, or set HUBSPOT_FILES_ACCESS_TOKEN_${suffix}.`,
     });
   }
 

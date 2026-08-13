@@ -1,0 +1,251 @@
+:root {
+  --bg: #0f1115;
+  --card: #171a21;
+  --border: #2a2f3a;
+  --text: #f4f5f7;
+  --muted: #9aa3b2;
+  --accent: #a855f7;
+  --accent-2: #22c55e;
+  --danger: #f87171;
+  --warn: #fbbf24;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  background:
+    radial-gradient(900px 420px at 10% -10%, rgba(168, 85, 247, 0.22), transparent 60%),
+    radial-gradient(700px 360px at 90% 0%, rgba(34, 197, 94, 0.12), transparent 55%),
+    var(--bg);
+  color: var(--text);
+}
+
+.cfg {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 32px 20px 64px;
+}
+
+.cfg-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.cfg-brand {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.cfg-brand h1 {
+  margin: 0 0 4px;
+  font-size: 1.35rem;
+}
+
+.cfg-brand p,
+.cfg-muted {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.925rem;
+  line-height: 1.45;
+}
+
+.cfg-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.cfg-card h2 {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+}
+
+.cfg-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  max-width: 360px;
+}
+
+.cfg-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.cfg-form input {
+  border: 1px solid var(--border);
+  background: #0f1218;
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.cfg-btn {
+  border: 1px solid var(--border);
+  background: #222733;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 9px 14px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.cfg-btn:hover { filter: brightness(1.08); }
+.cfg-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.cfg-btn-primary {
+  background: linear-gradient(135deg, #a855f7, #7c3aed);
+  border-color: transparent;
+}
+
+.cfg-btn-ghost {
+  background: transparent;
+}
+
+.cfg-btn-success {
+  background: rgba(34, 197, 94, 0.16);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #86efac;
+}
+
+.cfg-error {
+  color: var(--danger);
+  margin-top: 10px;
+  font-size: 0.875rem;
+}
+
+.cfg-flash {
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  font-size: 0.9rem;
+}
+
+.cfg-flash.error {
+  background: rgba(248, 113, 113, 0.12);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  color: #fecaca;
+}
+
+.cfg-flash.warn {
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: #fde68a;
+}
+
+.cfg-flash.ok {
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  color: #bbf7d0;
+}
+
+.cfg-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.cfg-meta-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cfg-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.cfg-clients {
+  display: grid;
+  gap: 14px;
+}
+
+.cfg-client {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px;
+}
+
+.cfg-client-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.cfg-client h3 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+}
+
+.cfg-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cfg-checklist {
+  list-style: none;
+  padding: 0;
+  margin: 14px 0 0;
+  display: grid;
+  gap: 8px;
+}
+
+.cfg-checklist li {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.cfg-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 6px;
+  flex: none;
+  background: #4b5563;
+}
+
+.cfg-dot.ok { background: var(--accent-2); }
+.cfg-dot.warn { background: var(--warn); }
+.cfg-dot.bad { background: var(--danger); }
+
+.cfg-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  color: #d1d5db;
+  word-break: break-all;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  color: #e9d5ff;
+}

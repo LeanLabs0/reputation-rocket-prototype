@@ -1,4 +1,5 @@
 /api/*  https://factor8-agent-sdk.fly.dev/api/:splat  200
+/configure  /configure/  308
 /eimmigration  /eimmigration/  308
 /eimmigration/demo  /eimmigration/demo/  308
 /eim-demo  /eimmigration/demo/  308

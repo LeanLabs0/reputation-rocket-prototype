@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Configure | Reputation Rocket</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="configure.css">
+<link rel="SHORTCUT ICON" href="../reprocket-icon.svg">
+<meta name="robots" content="noindex,nofollow">
+</head>
+<body>
+  <main class="cfg">
+    <header class="cfg-header">
+      <div class="cfg-brand">
+        <img src="../reprocket-icon.svg" width="28" height="28" alt="">
+        <div>
+          <h1>Reputation Rocket Configure</h1>
+          <p>Install HubSpot per portal. Slack + brand config stay manual.</p>
+        </div>
+      </div>
+      <button type="button" id="btn-logout" class="cfg-btn cfg-btn-ghost" hidden>Log out</button>
+    </header>
+
+    <div id="flash" class="cfg-flash" hidden></div>
+
+    <section id="login-panel" class="cfg-card" hidden>
+      <h2>Operator login</h2>
+      <p class="cfg-muted">Password-protected admin. Set <code>CONFIGURE_PASSWORD</code> in env.</p>
+      <form id="login-form" class="cfg-form">
+        <label>
+          Password
+          <input type="password" id="login-password" autocomplete="current-password" required>
+        </label>
+        <button type="submit" class="cfg-btn cfg-btn-primary">Unlock</button>
+      </form>
+      <p id="login-error" class="cfg-error" hidden></p>
+    </section>
+
+    <section id="setup-panel" class="cfg-card" hidden>
+      <h2>Missing env</h2>
+      <p class="cfg-muted">Add these before using Configure:</p>
+      <ul>
+        <li><code>CONFIGURE_PASSWORD</code></li>
+        <li><code>HUBSPOT_APP_CLIENT_ID</code></li>
+        <li><code>HUBSPOT_APP_CLIENT_SECRET</code></li>
+        <li><code>HUBSPOT_APP_REDIRECT_URI</code> → <code>https://YOUR_DOMAIN/api/configure/oauth-callback</code></li>
+        <li>Optional prod store: <code>UPSTASH_REDIS_REST_URL</code> + <code>UPSTASH_REDIS_REST_TOKEN</code></li>
+        <li>Optional: <code>HUBSPOT_TOKEN_ENCRYPTION_KEY</code></li>
+      </ul>
+    </section>
+
+    <section id="app-panel" hidden>
+      <div class="cfg-card cfg-meta">
+        <div>
+          <h2>HubSpot app</h2>
+          <p class="cfg-muted">Scopes: files, contacts read/write, schemas write, forms</p>
+        </div>
+        <div class="cfg-meta-stats">
+          <span id="storage-mode" class="cfg-pill">storage</span>
+          <span class="cfg-pill">Form: [LL] Reputation Rocket - Sign in</span>
+        </div>
+      </div>
+      <div id="clients" class="cfg-clients"></div>
+    </section>
+  </main>
+  <script src="configure.js"></script>
+</body>
+</html>
