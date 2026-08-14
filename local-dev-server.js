@@ -20,8 +20,9 @@ const configureUpdateSettingsHandler = require('./api/configure/update-settings'
 const configureDeleteClientHandler = require('./api/configure/delete-client');
 const clientConfigHandler = require('./api/client-config');
 
+const { ROOT, resolvePublicFile, isClientSlug } = require('./lib/page-paths');
+
 const PORT = Number(process.env.PORT || 8888);
-const ROOT = __dirname;
 
 const MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
@@ -170,29 +171,47 @@ function maybeRedirectTrailingSlash(url, res) {
   if (pathname === '/' || pathname.endsWith('/')) return false;
   if (path.extname(pathname)) return false;
 
-  const indexFile = path.normalize(path.join(ROOT, pathname, 'index.html'));
+  const mappedIndex = resolvePublicFile(`${pathname}/`);
+  const legacyIndex = path.normalize(path.join(ROOT, pathname, 'index.html'));
+  const indexFile = (mappedIndex && fs.existsSync(mappedIndex) && fs.statSync(mappedIndex).isFile())
+    ? mappedIndex
+    : legacyIndex;
+
   if (!indexFile.startsWith(ROOT)) return false;
   if (!fs.existsSync(indexFile) || !fs.statSync(indexFile).isFile()) return false;
 
-  const loc = pathname + '/' + url.search;
-  res.writeHead(308, { Location: loc, 'Cache-Control': 'no-cache' });
-  res.end();
-  return true;
+  // Also trailing-slash for known public client/configure paths even before file probe quirks.
+  const first = pathname.split('/').filter(Boolean)[0];
+  if (pathname === '/configure' || isClientSlug(first) || fs.existsSync(indexFile)) {
+    const loc = `${pathname}/${url.search}`;
+    res.writeHead(308, { Location: loc, 'Cache-Control': 'no-cache' });
+    res.end();
+    return true;
+  }
+  return false;
+}
+
+function resolveStaticFile(pathname) {
+  let clean = decodeURIComponent(pathname);
+  if (clean.endsWith('/')) clean += 'index.html';
+
+  const mapped = resolvePublicFile(clean === '/index.html' ? '/' : clean);
+  if (mapped && fs.existsSync(mapped) && fs.statSync(mapped).isFile()) {
+    return mapped;
+  }
+
+  // Fall back to repo-root files (app.js, styles.css, assets, etc.)
+  let directPath = clean;
+  if (directPath === '/') directPath = '/index.html';
+  const filePath = path.normalize(path.join(ROOT, directPath));
+  if (!filePath.startsWith(ROOT)) return null;
+  if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) return filePath;
+  return null;
 }
 
 function serveStatic(rawPathname, res) {
-  let pathname = decodeURIComponent(rawPathname);
-  if (pathname === '/') pathname = '/index.html';
-  if (pathname.endsWith('/')) pathname += 'index.html';
-
-  const filePath = path.normalize(path.join(ROOT, pathname));
-  if (!filePath.startsWith(ROOT)) {
-    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
-    res.end('Forbidden');
-    return;
-  }
-
-  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+  const filePath = resolveStaticFile(rawPathname);
+  if (!filePath) {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Not found');
     return;

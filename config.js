@@ -9,9 +9,10 @@ window.CLIENT_CONFIG = {
     g2: 'https://www.g2.com/products/lean-labs/take_survey',
     google: 'https://g.page/lean-labs/review',
   },
-  welcomeVideoUrl: '',
-  /** Optional poster image shown before the welcome video plays (URL). */
-  welcomeVideoPoster: '',
+  /** Absolute https URL or site path, e.g. /assets/video/Reputation Rocket Intro.mp4 */
+  welcomeVideoUrl: '/assets/video/Reputation Rocket Intro.mp4',
+  /** Absolute https URL or site path for the poster shown before play. */
+  welcomeVideoPoster: '/assets/image/7c248b618a126294316f6a.gif',
   /**
    * Interview questions for the video screen + record modal. Plain text only —
    * numbering and HTML markup are added automatically by the script. Add, edit,

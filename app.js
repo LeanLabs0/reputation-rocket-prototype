@@ -23,6 +23,27 @@ function setRegenerateButtonLabel(btn, label) {
 }
 
 // ── URL Params (+ optional /configure store overlay) ─────────
+/** Accept https URLs or local site paths; encode spaces in asset paths. */
+function normalizeMediaUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^(https?:)?\/\//i.test(raw) || /^data:/i.test(raw) || /^blob:/i.test(raw)) {
+    return raw;
+  }
+  const path = raw.startsWith('/') ? raw : `/${raw.replace(/^\.\//, '')}`;
+  return path
+    .split('/')
+    .map((seg, i) => {
+      if (i === 0) return seg;
+      try {
+        return encodeURIComponent(decodeURIComponent(seg));
+      } catch (_) {
+        return encodeURIComponent(seg);
+      }
+    })
+    .join('/');
+}
+
 function buildParamsFromConfig(config) {
   const p = new URLSearchParams(window.location.search);
   const name = p.get('name') || '';
@@ -75,8 +96,10 @@ function buildParamsFromConfig(config) {
     platforms,
     reviewLinks,
     videoUrl: p.get('video_url') || cfg.videoUrl || '',
-    welcomeVideoUrl: p.has('no-video') ? '' : (p.get('welcome_video_url') || cfg.welcomeVideoUrl || ''),
-    welcomeVideoPoster: p.get('welcome_video_poster') || cfg.welcomeVideoPoster || '',
+    welcomeVideoUrl: p.has('no-video')
+      ? ''
+      : normalizeMediaUrl(p.get('welcome_video_url') || cfg.welcomeVideoUrl || ''),
+    welcomeVideoPoster: normalizeMediaUrl(p.get('welcome_video_poster') || cfg.welcomeVideoPoster || ''),
     interviewQuestions,
     thankYouUrl: (p.get('thank_you_url') || cfg.thankYouUrl || '').trim(),
     thankYouRedirectDelayMs: (() => {

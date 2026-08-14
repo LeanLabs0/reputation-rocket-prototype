@@ -1,4 +1,6 @@
 /api/*  https://factor8-agent-sdk.fly.dev/api/:splat  200
+
+# Trailing-slash aliases (public URLs unchanged)
 /configure  /configure/  308
 /eimmigration  /eimmigration/  308
 /eimmigration/demo  /eimmigration/demo/  308
@@ -10,3 +12,15 @@
 /demo  /lean-labs/demo/  308
 /demo/*  /lean-labs/demo/:splat  308
 /propertyradar  /propertyradar/  308
+
+# Serve pages/* behind the original public paths (200 = rewrite)
+/  /pages/home/  200
+/home.css  /pages/home/home.css  200
+/configure/  /pages/configure/  200
+/configure/*  /pages/configure/:splat  200
+/eimmigration/  /pages/clients/eimmigration/  200
+/eimmigration/*  /pages/clients/eimmigration/:splat  200
+/lean-labs/  /pages/clients/lean-labs/  200
+/lean-labs/*  /pages/clients/lean-labs/:splat  200
+/propertyradar/  /pages/clients/propertyradar/  200
+/propertyradar/*  /pages/clients/propertyradar/:splat  200

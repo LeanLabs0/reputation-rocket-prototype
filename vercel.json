@@ -66,6 +66,64 @@
       "permanent": true
     }
   ],
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/pages/home/"
+    },
+    {
+      "source": "/home.css",
+      "destination": "/pages/home/home.css"
+    },
+    {
+      "source": "/configure",
+      "destination": "/pages/configure/"
+    },
+    {
+      "source": "/configure/",
+      "destination": "/pages/configure/"
+    },
+    {
+      "source": "/configure/:path*",
+      "destination": "/pages/configure/:path*"
+    },
+    {
+      "source": "/eimmigration",
+      "destination": "/pages/clients/eimmigration/"
+    },
+    {
+      "source": "/eimmigration/",
+      "destination": "/pages/clients/eimmigration/"
+    },
+    {
+      "source": "/eimmigration/:path*",
+      "destination": "/pages/clients/eimmigration/:path*"
+    },
+    {
+      "source": "/lean-labs",
+      "destination": "/pages/clients/lean-labs/"
+    },
+    {
+      "source": "/lean-labs/",
+      "destination": "/pages/clients/lean-labs/"
+    },
+    {
+      "source": "/lean-labs/:path*",
+      "destination": "/pages/clients/lean-labs/:path*"
+    },
+    {
+      "source": "/propertyradar",
+      "destination": "/pages/clients/propertyradar/"
+    },
+    {
+      "source": "/propertyradar/",
+      "destination": "/pages/clients/propertyradar/"
+    },
+    {
+      "source": "/propertyradar/:path*",
+      "destination": "/pages/clients/propertyradar/:path*"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",

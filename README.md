@@ -11,7 +11,13 @@ For **Vercel, env vars, client folders, local Node dev, and optional n8n**, see 
 
 ```text
 reputation-rocket-prototype/
-  index.html           # Directory: pick a client (dark landing, links to /{slug}/)
+  pages/
+    home/              # Marketing homepage (live URL still /)
+    configure/         # Operator console (live URL still /configure/)
+    clients/           # Per-client portals (live URLs still /{slug}/)
+      lean-labs/
+      eimmigration/
+      propertyradar/   # Scaffold template for new clients
   config.js            # Reference / toolbox only; each client folder has its own config.js
   app.js               # State machine, theming, chat, post flow
   styles.css           # Shared UI + Lean Labs / Figma-aligned tokens
@@ -19,12 +25,11 @@ reputation-rocket-prototype/
     agent.js           # POST /api/agent → Factor8 (uses FACTOR8_API_KEY)
     notify.js          # POST /api/notify → Slack and/or n8n webhook
     upload-video.js    # POST /api/upload-video → HubSpot Files API
-  lean-labs/           # Template “client folder”: index.html, config.js, styles.css
   local-dev-server.js  # npm run dev: static + same /api/* behavior locally
   serve.py             # Optional: Python static server + /api/* proxy to Fly (no local secrets)
 ```
 
-Copy `lean-labs/` for each new tenant (see **New client page** below).
+Public URLs are unchanged (`/`, `/configure/`, `/lean-labs/`, …) via rewrites in `vercel.json`. New client folders go under `pages/clients/` (see **New client page** below, or `/configure` → Add client).
 
 ---
 
@@ -79,13 +84,12 @@ Proxies `/api/*` to Fly with CORS. It does **not** load `api/agent.js` / `api/no
 
 ## New client page
 
-1. Copy `lean-labs/` → `your-client-slug/`.
-2. Edit `your-client-slug/config.js` (**data only — no visual theme**): `clientSlug`, `providerName` (vendor being reviewed), `reviewLinks`, `platforms`, `welcomeVideoUrl`, `videoUrl`, `videoCaptureEnabled`, `thankYouUrl`, `allowedRedirectHosts`, optional `supportEmail` (negative alerts), optional `platformLogos` (per-slug transparent PNG/SVG URLs for draft tabs — overrides Clearbit/Google fallbacks).
-3. Brand the client in `your-client-slug/styles.css` (**all theming is CSS**): override the `--ll-*` tokens in `:root` (colors, page bg, buttons, badges, stepper), `@import` the brand font and set `--font-family`, and set the `#star-stop-a|b|c { stop-color }` values. Defaults (Lean Labs) live in the root `styles.css :root`; your file loads after it and wins. See `eimmigration/styles.css` for a complete example.
-4. Add `/your-client-slug` → `/your-client-slug/` (308) in `vercel.json` and `_redirects` so links without a trailing slash still load assets correctly (query string is preserved).
+1. Prefer `/configure` → **Add client** (scaffolds `pages/clients/<slug>/` from `propertyradar` and wires rewrites), or copy `pages/clients/propertyradar/` → `pages/clients/your-client-slug/`.
+2. Edit `pages/clients/your-client-slug/config.js` (**data only — no visual theme**): `clientSlug`, `providerName`, `reviewLinks`, `platforms`, `welcomeVideoUrl`, `videoUrl`, `videoCaptureEnabled`, `thankYouUrl`, `allowedRedirectHosts`, optional `supportEmail`, optional `platformLogos`.
+3. Brand in `pages/clients/your-client-slug/styles.css` (**all theming is CSS**): override `--ll-*` tokens, `@import` the brand font, set `#star-stop-*`. See `pages/clients/eimmigration/styles.css`.
+4. Ensure `vercel.json` / `_redirects` map public `/{slug}/` → `pages/clients/{slug}/` (Add client does this). Trailing-slash redirects stay on the public URL.
 5. Deploy on Vercel; set environment variables in the project (see below).
-6. Add a card for the company on the root `index.html` directory (href `your-client-slug/`) so visitors on the apex domain can find the review flow.
-7. Share either `https://<your-domain>/<client-slug>?…` or `https://<your-domain>/<client-slug>/?…` (both end up on the trailing-slash URL).
+6. Share `https://<your-domain>/<client-slug>/?…` (public path is still `/{slug}/`, not `/pages/clients/...`).
 
 ---
 
@@ -117,7 +121,7 @@ When `event` is `negative`, Slack (or n8n) still runs first; then, if Resend is 
 
 ## `/configure` — HubSpot + experience setup
 
-Operator console at [`/configure/`](./configure/) (local + production). Use production to install into client HubSpot portals.
+Operator console at [`/configure/`](./pages/configure/) (local + production). Live URL remains `/configure/`.
 
 **What it automates per portal (Connect HubSpot):**
 
@@ -151,7 +155,7 @@ Payload shape, n8n branching, and example Slack copy: [VERCEL_N8N_SETUP.md](./VE
 
 ## Theming
 
-Theming is **CSS-driven — there is no JS theme layer**. The root `styles.css :root` holds the default (Lean Labs) `--ll-*` tokens (fonts, colors, page background, stepper, chat area, buttons, badges, etc.). Each client folder's `styles.css` loads after it and overrides those tokens, `@import`s the brand font (and sets `--font-family`), and sets the inline star-gradient `#star-stop-*` colors. `config.js` carries no visual settings. See `eimmigration/styles.css` for a full example.
+Theming is **CSS-driven — there is no JS theme layer**. The root `styles.css :root` holds the default (Lean Labs) `--ll-*` tokens (fonts, colors, page background, stepper, chat area, buttons, badges, etc.). Each client folder's `styles.css` loads after it and overrides those tokens, `@import`s the brand font (and sets `--font-family`), and sets the inline star-gradient `#star-stop-*` colors. `config.js` carries no visual settings. See `pages/clients/eimmigration/styles.css` for a full example.
 
 ---
 
@@ -176,10 +180,10 @@ Still supported alongside `config.js` defaults (see `app.js` / HANDOFF for full 
 
 | Path | Role |
 |------|------|
-| `index.html`, `lean-labs/index.html` | Screens: welcome, chat, draft, post, video, complete, negative |
+| `pages/home/index.html`, `pages/clients/*/index.html` | Home + portal screens: welcome, chat, draft, post, video, complete, negative |
 | `app.js` | State machine, Factor8 calls, review popups, overlays, session (no theming) |
 | `styles.css` | Shared layout + default `--ll-*` theme tokens; per-client `styles.css` overrides them |
-| `config.js`, `lean-labs/config.js` | `CLIENT_CONFIG` data (endpoints, links, IDs) — no visual theme |
+| `config.js`, `pages/clients/*/config.js` | `CLIENT_CONFIG` data (endpoints, links, IDs) — no visual theme |
 | `api/agent.js`, `api/notify.js`, `api/upload-video.js` | Vercel / local-dev serverless handlers |
 | `local-dev-server.js` | `npm run dev` |
 | `.env.local.example` | Template for local secrets (not committed) |
