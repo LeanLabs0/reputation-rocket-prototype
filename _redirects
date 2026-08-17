@@ -1,29 +1,30 @@
 /api/*  https://factor8-agent-sdk.fly.dev/api/:splat  200
 
-# Trailing-slash aliases (public URLs unchanged)
+# Trailing slash (relative assets need /{slug}/ not /{slug})
 /configure  /configure/  308
+/demo  /lean-labs/demo/  308
+/demo/  /lean-labs/demo/  308
 /eimmigration  /eimmigration/  308
 /eimmigration/demo  /eimmigration/demo/  308
-/eim-demo  /eimmigration/demo/  308
-/eim-demo/*  /eimmigration/demo/:splat  308
-/katapult  /katapult/  308
 /lean-labs  /lean-labs/  308
 /lean-labs/demo  /lean-labs/demo/  308
-/demo  /lean-labs/demo/  308
-/demo/*  /lean-labs/demo/:splat  308
 /propertyradar  /propertyradar/  308
 /propertyradar/demo  /propertyradar/demo/  308
-/pr-demo  /propertyradar/demo/  308
-/pr-demo/*  /propertyradar/demo/:splat  308
 
-# Serve pages/* behind the original public paths (200 = rewrite)
+# Files live under pages/; public URLs stay /{slug}/
 /  /pages/home/  200
 /home.css  /pages/home/home.css  200
 /configure/  /pages/configure/  200
 /configure/*  /pages/configure/:splat  200
+/eimmigration/demo  /pages/clients/eimmigration/demo/index.html  200
+/eimmigration/demo/  /pages/clients/eimmigration/demo/index.html  200
 /eimmigration/  /pages/clients/eimmigration/  200
 /eimmigration/*  /pages/clients/eimmigration/:splat  200
+/lean-labs/demo  /pages/clients/lean-labs/demo/index.html  200
+/lean-labs/demo/  /pages/clients/lean-labs/demo/index.html  200
 /lean-labs/  /pages/clients/lean-labs/  200
 /lean-labs/*  /pages/clients/lean-labs/:splat  200
+/propertyradar/demo  /pages/clients/propertyradar/demo/index.html  200
+/propertyradar/demo/  /pages/clients/propertyradar/demo/index.html  200
 /propertyradar/  /pages/clients/propertyradar/  200
 /propertyradar/*  /pages/clients/propertyradar/:splat  200

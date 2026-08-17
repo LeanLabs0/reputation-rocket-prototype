@@ -168,6 +168,13 @@ function callApiHandlerRaw(handler, req, nodeRes) {
  */
 function maybeRedirectTrailingSlash(url, res) {
   const pathname = decodeURIComponent(url.pathname);
+
+  if (pathname === '/demo' || pathname === '/demo/') {
+    res.writeHead(308, { Location: `/lean-labs/demo/${url.search}`, 'Cache-Control': 'no-cache' });
+    res.end();
+    return true;
+  }
+
   if (pathname === '/' || pathname.endsWith('/')) return false;
   if (path.extname(pathname)) return false;
 

@@ -1,5 +1,5 @@
 /*
- * PropertyRadar walkthrough demo — at /propertyradar/demo/ (alias /pr-demo).
+ * PropertyRadar walkthrough demo — at /propertyradar/demo/.
  *
  * Uses PropertyRadar branding and platforms, but does NOT connect to the live
  * portal, HubSpot lead form, Slack, or real review sites. Review links open

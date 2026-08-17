@@ -1,9 +1,18 @@
 # Reputation Rocket — Prototype
 
-A multi-step review flow that drafts platform-specific copy, runs an AI chat survey, and walks customers through posting to HubSpot, G2, Google, and similar sites. **The browser never sees the Factor8 API key** in the V1 setup: the app calls Vercel serverless routes that proxy the agent and send lifecycle notifications.
+Reputation Rocket is a review flow with more than one step.
+The flow writes review text for each platform.
+The flow also does an AI chat survey.
+Then the flow shows the customer how to post the review.
+The customer can post the review to HubSpot, G2, Google, and other sites.
 
+In the V1 setup, the browser does not get the Factor8 API key.
+The app sends requests to Vercel serverless routes.
+These routes send the agent request and the lifecycle notifications.
 
-For **Vercel, env vars, client folders, local Node dev, and optional n8n**, see [VERCEL_N8N_SETUP.md](./VERCEL_N8N_SETUP.md) (full walkthrough). This README summarizes the same layout and day-to-day commands.
+For Vercel, environment variables, client folders, local Node development, and n8n, refer to [VERCEL_N8N_SETUP.md](./VERCEL_N8N_SETUP.md).
+That file has the full procedure.
+This README gives a short description of the same layout and the daily commands.
 
 ---
 
@@ -29,192 +38,222 @@ reputation-rocket-prototype/
   serve.py             # Optional: Python static server + /api/* proxy to Fly (no local secrets)
 ```
 
-Public URLs are unchanged (`/`, `/configure/`, `/lean-labs/`, …) via rewrites in `vercel.json`. New client folders go under `pages/clients/` (see **New client page** below, or `/configure` → Add client).
+The public URLs do not change (`/`, `/configure/`, `/lean-labs/`, and others).
+`vercel.json` rewrites these URLs to the files.
+Put new client folders in `pages/clients/`.
+Refer to **New client page** below.
+You can also use `/configure` and then Add client.
 
 ---
 
-## Quick start (recommended): Node + `.env.local`
+## Quick start: Node and `.env.local`
 
-Matches production behavior (agent + notify handlers).
+Use this procedure for local work.
+This procedure is the same as the production system for the agent and notify handlers.
 
 ```bash
 copy .env.local.example .env.local   # Windows; use cp on macOS/Linux
 ```
 
-Edit `.env.local` at minimum:
+Set these values in `.env.local` as a minimum:
 
 ```text
 FACTOR8_API_KEY=...
 FACTOR8_API_URL=https://factor8-agent-sdk.fly.dev/api/v1/brand-slug/test/query
 ```
 
-For **Slack-only notifications** (typical V1), set a webhook and you can leave n8n vars empty:
+For Slack notifications only (usual V1), set a webhook.
+Do not set the n8n variables:
 
 ```text
 SLACK_REPUTATION_WEBHOOK_URL=https://hooks.slack.com/services/...
 ```
 
-Optional **per-client Slack** channel: `SLACK_REPUTATION_WEBHOOK_<SLUG_UPPER_WITH_UNDERSCORES>` (e.g. `SLACK_REPUTATION_WEBHOOK_LEAN_LABS` for `clientSlug: 'lean-labs'` — see `api/notify.js`).
+You can set a Slack channel for one client.
+Use `SLACK_REPUTATION_WEBHOOK_<SLUG_UPPER_WITH_UNDERSCORES>`.
+Example: `SLACK_REPUTATION_WEBHOOK_LEAN_LABS` for `clientSlug: 'lean-labs'`.
+Refer to `api/notify.js`.
 
 ```bash
 npm run dev
 # → http://localhost:8888  (company picker; open a client folder e.g. /lean-labs/)
 ```
 
-Example (Lean Labs folder):
+Example for the Lean Labs folder:
 
 ```text
 http://localhost:8888/lean-labs/?companyName=Lean+Labs&name=Edward+Test&email=edward@leanlabs.com
 ```
 
-**Option — Vercel CLI:** `vercel dev` (often port 3000) runs the same functions closer to prod; see VERCEL_N8N_SETUP.md.
+You can also use the Vercel CLI.
+The command `vercel dev` (usually port 3000) runs the same functions nearer to production.
+Refer to VERCEL_N8N_SETUP.md.
 
 ---
 
-## Optional: Python static server
+## Python static server (if necessary)
 
 ```bash
 python serve.py
 # → http://localhost:8888
 ```
 
-Proxies `/api/*` to Fly with CORS. It does **not** load `api/agent.js` / `api/notify.js` or `.env.local`. Use this only for quick static checks; use `npm run dev` for full stack local testing.
+This server sends `/api/*` to Fly with CORS.
+This server does not load `api/agent.js`, `api/notify.js`, or `.env.local`.
+Use this server only for a quick static check.
+Use `npm run dev` for a full local test.
 
 ---
 
 ## New client page
 
-1. Prefer `/configure` → **Add client** (scaffolds `pages/clients/<slug>/` from `propertyradar` and wires rewrites), or copy `pages/clients/propertyradar/` → `pages/clients/your-client-slug/`.
-2. Edit `pages/clients/your-client-slug/config.js` (**data only — no visual theme**): `clientSlug`, `providerName`, `reviewLinks`, `platforms`, `welcomeVideoUrl`, `videoUrl`, `videoCaptureEnabled`, `thankYouUrl`, `allowedRedirectHosts`, optional `supportEmail`, optional `notifyEmails` (Resend recipients), Slack routing (`slackChannel`, `slackThreadPositive`, `slackThreadNegative`), optional `platformLogos`.
-3. Brand in `pages/clients/your-client-slug/styles.css` (**all theming is CSS**): override `--ll-*` tokens, `@import` the brand font, set `#star-stop-*`. See `pages/clients/eimmigration/styles.css`.
-4. Ensure `vercel.json` / `_redirects` map public `/{slug}/` → `pages/clients/{slug}/` (Add client does this). Trailing-slash redirects stay on the public URL.
-5. Deploy on Vercel; set environment variables in the project (see below).
-6. Share `https://<your-domain>/<client-slug>/?…` (public path is still `/{slug}/`, not `/pages/clients/...`).
+1. Use `/configure` and then **Add client**.
+   This command makes `pages/clients/<slug>/` from `propertyradar`.
+   This command also sets the rewrites.
+   You can also copy `pages/clients/propertyradar/` to `pages/clients/your-client-slug/`.
+2. Edit `pages/clients/your-client-slug/config.js`.
+   This file holds data only.
+   This file does not hold the visual theme.
+   Set `clientSlug`, `providerName`, `reviewLinks`, `platforms`, `welcomeVideoUrl`, `videoUrl`, `videoCaptureEnabled`, `thankYouUrl`, and `allowedRedirectHosts`.
+   You can also set `supportEmail`.
+   You can also set `notifyEmails` (Resend recipients).
+   You can also set Slack routing: `slackChannel`, `slackThreadPositive`, and `slackThreadNegative`.
+   You can also set `platformLogos`.
+3. Set the brand in `pages/clients/your-client-slug/styles.css`.
+   All theming is CSS.
+   Change the `--ll-*` tokens.
+   Use `@import` for the brand font.
+   Set `#star-stop-*`.
+   Refer to `pages/clients/eimmigration/styles.css`.
+4. Make sure that `vercel.json` and `_redirects` map `/{slug}/` to `pages/clients/{slug}/`.
+   Add client does this step.
+   Trailing-slash redirects stay on the public URL.
+5. Deploy the project on Vercel.
+   Set the environment variables in the project.
+   Refer to the table below.
+6. Give this URL: `https://<your-domain>/<client-slug>/?…`.
+   The public path is `/{slug}/`.
+   The public path is not `/pages/clients/...`.
 
 ---
 
 ## Vercel environment variables
 
-| Variable | Required | Purpose |
-|----------|----------|---------|
-| `FACTOR8_API_KEY` | Yes (prod) | Server-side agent auth |
-| `FACTOR8_API_URL` | Optional | Override default Fly query URL |
-| `SLACK_REPUTATION_WEBHOOK_URL` | If not using n8n | Default Slack channel for `completed` / `negative` events |
-| `SLACK_REPUTATION_WEBHOOK_<CLIENT>` | Optional | Per-client Slack (slug → env suffix) |
-| `N8N_REPUTATION_WEBHOOK_URL` | Optional | If set, `notify` prefers n8n over Slack |
-| `N8N_REPUTATION_SHARED_SECRET` | Optional | Sent as `X-Reputation-Rocket-Secret` when posting to n8n |
-| `RESEND_API_KEY` | Optional | [Resend](https://resend.com) API key — enables notify email when `notifyEmails` is set on that client’s `config.js`. From address is hardcoded in `api/notify.js`. |
-| `HUBSPOT_FILES_ACCESS_TOKEN_<CLIENT>` | Video upload + contact updates (legacy) | Per-client HubSpot private app token. Still works as fallback if OAuth is not connected. |
-| `HUBSPOT_FILES_ACCESS_TOKEN_<PORTAL_ID>` | Optional fallback | Portal-specific token override (e.g. `HUBSPOT_FILES_ACCESS_TOKEN_275827`) |
-| `CONFIGURE_PASSWORD` | `/configure` | Operator password (trim spaces; no space after `=`) |
-| `HUBSPOT_APP_CLIENT_ID` | `/configure` OAuth | HubSpot app client ID |
-| `HUBSPOT_APP_CLIENT_SECRET` | `/configure` OAuth | HubSpot app client secret |
-| `HUBSPOT_APP_REDIRECT_URI` | `/configure` OAuth | Exact callback URL, e.g. `https://reputationrocket.ai/api/configure/oauth-callback` |
-| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Required on Vercel | Persist OAuth installs (from Vercel Redis/Upstash integration; local uses `.data/`) |
-| `HUBSPOT_TOKEN_ENCRYPTION_KEY` | Recommended | Encrypts stored refresh tokens (falls back to `CONFIGURE_PASSWORD`) |
+| Variable | Required |
+|----------|----------|
+| `FACTOR8_API_KEY` | Yes (prod) |
+| `FACTOR8_API_URL` | If necessary |
+| `SLACK_REPUTATION_WEBHOOK_URL` | If you do not use n8n |
+| `SLACK_REPUTATION_WEBHOOK_<CLIENT>` | If necessary |
+| `N8N_REPUTATION_WEBHOOK_URL` | If necessary |
+| `N8N_REPUTATION_SHARED_SECRET` | If necessary |
+| `RESEND_API_KEY` | If necessary |
+| `HUBSPOT_FILES_ACCESS_TOKEN_<CLIENT>` | Video upload and contact updates (legacy) |
+| `HUBSPOT_FILES_ACCESS_TOKEN_<PORTAL_ID>` | If necessary |
+| `CONFIGURE_PASSWORD` | `/configure` |
+| `HUBSPOT_APP_CLIENT_ID` | `/configure` OAuth |
+| `HUBSPOT_APP_CLIENT_SECRET` | `/configure` OAuth |
+| `HUBSPOT_APP_REDIRECT_URI` | `/configure` OAuth |
+| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Required on Vercel |
+| `HUBSPOT_TOKEN_ENCRYPTION_KEY` | Recommended |
 
-Slack channel and thread IDs are set per client in `config.js` (`slackChannel`, `slackThreadPositive`, `slackThreadNegative`). Only the bot token stays in env.
+Set the Slack channel ID and the thread IDs for each client in `config.js`.
+Use `slackChannel`, `slackThreadPositive`, and `slackThreadNegative`.
+Keep only the bot token in the environment.
 
-When a client has `notifyEmails` in `config.js` and `RESEND_API_KEY` is set, `/api/notify` emails that list on both `completed` and `negative` (same fields as the Slack message). Slack still sends if that client also has Slack threads configured.
+If a client has `notifyEmails` in `config.js` and you set `RESEND_API_KEY`, `/api/notify` sends email to that list.
+The email is sent for `completed` and for `negative`.
+The email has the same fields as the Slack message.
+Slack also sends a message if that client has Slack threads.
 
 ---
 
-## `/configure` — HubSpot + experience setup
+## `/configure` — HubSpot and experience setup
 
-Operator console at [`/configure/`](./pages/configure/) (local + production). Live URL remains `/configure/`.
+The operator console is at [`/configure/`](./pages/configure/).
+You can use this console on the local system and in production.
+The live URL stays `/configure/`.
 
-**What it automates per portal (Connect HubSpot):**
+**These steps occur for each portal when you Connect HubSpot:**
 
-1. OAuth install with files + contacts + schemas + forms scopes
-2. Creates contact properties `rr_iscomplete` (`Yes`/`No`) and `rr_outcome` (`positive`/`negative`)
-3. Creates (or reuses) the lead form **`[LL] Reputation Rocket - Sign in`** with required `firstname`, `lastname`, `email`, `company`
-4. Stores refresh token (KV on Vercel) and writes IDs into `config.js` when running locally
+1. The system does an OAuth install with files, contacts, schemas, and forms scopes.
+2. The system makes the contact properties `rr_iscomplete` (`Yes`/`No`) and `rr_outcome` (`positive`/`negative`).
+3. The system makes (or uses again) the lead form **`[LL] Reputation Rocket - Sign in`**.
+   The form needs `firstname`, `lastname`, `email`, and `company`.
+4. The system stores the refresh token (KV on Vercel).
+   When you run locally, the system writes the IDs into `config.js`.
 
-**Still manual:** Slack channel/threads, brand CSS, Factor8.
-
-### One-time HubSpot app setup
-
-1. App project: `reprocket-configure/` — upload/deploy so redirect URLs are registered
-2. Redirect URLs must include **both**:
-   - `https://reputationrocket.ai/api/configure/oauth-callback`
-   - `http://localhost:8888/api/configure/oauth-callback`
-3. Scopes: `oauth`, `files`, `crm.objects.contacts.read`, `crm.objects.contacts.write`, `crm.schemas.contacts.write`, `forms`
-4. Vercel env (Production), **no spaces after `=`**:
-   - `CONFIGURE_PASSWORD`
-   - `HUBSPOT_APP_CLIENT_ID`
-   - `HUBSPOT_APP_CLIENT_SECRET`
-   - `HUBSPOT_APP_REDIRECT_URI=https://reputationrocket.ai/api/configure/oauth-callback`
-   - `KV_REST_API_URL` + `KV_REST_API_TOKEN` (required on Vercel; from the Redis/Upstash integration)
-5. Redeploy, open `https://reputationrocket.ai/configure/`, unlock, **Connect HubSpot**
-
-**Slack-only V1:** set `FACTOR8_API_KEY` + `SLACK_BOT_TOKEN`, and put channel/thread IDs on each client `config.js`. Leave `N8N_*` blank. Email is optional until `RESEND_API_KEY` and a support address are set.
-
-Payload shape, n8n branching, and example Slack copy: [VERCEL_N8N_SETUP.md](./VERCEL_N8N_SETUP.md).
+**You must still do these steps manually:** Slack channel and threads, brand CSS, and Factor8.
 
 ---
 
 ## Theming
 
-Theming is **CSS-driven — there is no JS theme layer**. The root `styles.css :root` holds the default (Lean Labs) `--ll-*` tokens (fonts, colors, page background, stepper, chat area, buttons, badges, etc.). Each client folder's `styles.css` loads after it and overrides those tokens, `@import`s the brand font (and sets `--font-family`), and sets the inline star-gradient `#star-stop-*` colors. `config.js` carries no visual settings. See `pages/clients/eimmigration/styles.css` for a full example.
+Theming uses CSS.
+There is no JS theme layer.
+The root `styles.css :root` holds the default (Lean Labs) `--ll-*` tokens.
+These tokens set fonts, colors, page background, stepper, chat area, buttons, and badges.
+Each client folder has a `styles.css` file.
+That file loads after the root file and changes those tokens.
+That file also uses `@import` for the brand font and sets `--font-family`.
+That file also sets the star-gradient colors `#star-stop-*`.
+`config.js` does not hold visual settings.
+Refer to `pages/clients/eimmigration/styles.css` for a full example.
 
 ---
 
-## URL query params (personalized links)
+## URL query parameters (personalized links)
 
-Still supported alongside `config.js` defaults (see `app.js` / HANDOFF for full list):
+The system also uses these parameters with the `config.js` defaults.
+For the full list, refer to `app.js` and HANDOFF.
 
-| Param | Typical use |
-|-------|-------------|
+| Parameter | Usual use |
+|-----------|-----------|
 | `companyName` / `company_name` / `company` | Display name for the client |
-| `name` | Respondent name |
-| `email` | Respondent email (tracked) |
+| `name` | Name of the person who answers |
+| `email` | Email of the person who answers (tracked) |
 | `platforms` | CSV: `hubspot,g2,google` |
-| `review_<platform>` | Per-platform review URL |
-| `video_url` | Enables video testimonial step |
-| `welcome_video_url` | Welcome screen video |
-| `thank_you_url` | Redirect after completion |
+| `review_<platform>` | Review URL for one platform |
+| `video_url` | Starts the video testimonial step |
+| `welcome_video_url` | Video on the welcome screen |
+| `thank_you_url` | Redirect after the flow is complete |
 
 ---
 
-## Files (cheat sheet)
+## Files (quick list)
 
-| Path | Role |
-|------|------|
-| `pages/home/index.html`, `pages/clients/*/index.html` | Home + portal screens: welcome, chat, draft, post, video, complete, negative |
+| Path | Function |
+|------|----------|
+| `pages/home/index.html`, `pages/clients/*/index.html` | Home and portal screens: welcome, chat, draft, post, video, complete, negative |
 | `app.js` | State machine, Factor8 calls, review popups, overlays, session (no theming) |
-| `styles.css` | Shared layout + default `--ll-*` theme tokens; per-client `styles.css` overrides them |
-| `config.js`, `pages/clients/*/config.js` | `CLIENT_CONFIG` data (endpoints, links, IDs) — no visual theme |
-| `api/agent.js`, `api/notify.js`, `api/upload-video.js` | Vercel / local-dev serverless handlers |
+| `styles.css` | Shared layout and default `--ll-*` theme tokens. Each client `styles.css` changes them. |
+| `config.js`, `pages/clients/*/config.js` | `CLIENT_CONFIG` data (endpoints, links, IDs). No visual theme. |
+| `api/agent.js`, `api/notify.js`, `api/upload-video.js` | Vercel and local-dev serverless handlers |
 | `local-dev-server.js` | `npm run dev` |
 | `.env.local.example` | Template for local secrets (not committed) |
-| `VERCEL_N8N_SETUP.md` | Deploy, env, n8n workflow, limitations |
-| `HANDOFF.md` | Backend contract + V2 direction |
-| `_redirects` | Netlify-style redirects if used there |
+| `VERCEL_N8N_SETUP.md` | Deploy, environment, n8n workflow, limitations |
+| `HANDOFF.md` | Backend contract and V2 direction |
+| `_redirects` | Netlify-style redirects if you use Netlify |
 
 ---
 
 ## Backend (Factor8 agent)
 
-Agent prompt and API live in [LeanLabs0/factor8-agent-sdk](https://github.com/LeanLabs0/factor8-agent-sdk). Surveys and reputation state are defined server-side — don’t change prompts or trackers without an end-to-end test (HANDOFF.md).
+The agent prompt and the API are in [LeanLabs0/factor8-agent-sdk](https://github.com/LeanLabs0/factor8-agent-sdk).
+Surveys and reputation state are set on the server.
+Do not change prompts or trackers if you do not do a full test.
+Refer to HANDOFF.md.
 
 ---
 
-## Reset session (browser)
+## Reset the session (browser)
 
-DevTools console:
+Use the DevTools console:
 
 ```js
 rrReset();
 ```
 
-Clears session storage and reloads.
+This command clears session storage and loads the page again.
 
 ---
-
-## V1 caveats
-
-- Progress is stored in **sessionStorage** keyed per `clientSlug` (`rr_session_<slug>`). Switching between `/lean-labs`, `/eimmigration`, etc. no longer shares one saved flow.
-- Launch links still trust `name` / `email` query params until signed tokens exist.
-- “Posted” is user-confirmed, not verified with each review site.
-- Physical client folders scale to a point; a config service is the longer-term approach (see HANDOFF / VERCEL doc).
-- `notifyEmails` in `config.js` is public in the browser. Recipients are still read server-side from the file, not from the POST body.

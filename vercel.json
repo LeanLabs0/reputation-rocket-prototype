@@ -16,26 +16,6 @@
       "permanent": true
     },
     {
-      "source": "/demo/:path*",
-      "destination": "/lean-labs/demo/:path*",
-      "permanent": true
-    },
-    {
-      "source": "/eim-demo",
-      "destination": "/eimmigration/demo/",
-      "permanent": true
-    },
-    {
-      "source": "/eim-demo/",
-      "destination": "/eimmigration/demo/",
-      "permanent": true
-    },
-    {
-      "source": "/eim-demo/:path*",
-      "destination": "/eimmigration/demo/:path*",
-      "permanent": true
-    },
-    {
       "source": "/eimmigration",
       "destination": "/eimmigration/",
       "permanent": true
@@ -43,11 +23,6 @@
     {
       "source": "/eimmigration/demo",
       "destination": "/eimmigration/demo/",
-      "permanent": true
-    },
-    {
-      "source": "/katapult",
-      "destination": "/katapult/",
       "permanent": true
     },
     {
@@ -68,21 +43,6 @@
     {
       "source": "/propertyradar/demo",
       "destination": "/propertyradar/demo/",
-      "permanent": true
-    },
-    {
-      "source": "/pr-demo",
-      "destination": "/propertyradar/demo/",
-      "permanent": true
-    },
-    {
-      "source": "/pr-demo/",
-      "destination": "/propertyradar/demo/",
-      "permanent": true
-    },
-    {
-      "source": "/pr-demo/:path*",
-      "destination": "/propertyradar/demo/:path*",
       "permanent": true
     }
   ],
@@ -108,6 +68,14 @@
       "destination": "/pages/configure/:path*"
     },
     {
+      "source": "/eimmigration/demo",
+      "destination": "/pages/clients/eimmigration/demo/index.html"
+    },
+    {
+      "source": "/eimmigration/demo/",
+      "destination": "/pages/clients/eimmigration/demo/index.html"
+    },
+    {
       "source": "/eimmigration",
       "destination": "/pages/clients/eimmigration/"
     },
@@ -120,6 +88,14 @@
       "destination": "/pages/clients/eimmigration/:path*"
     },
     {
+      "source": "/lean-labs/demo",
+      "destination": "/pages/clients/lean-labs/demo/index.html"
+    },
+    {
+      "source": "/lean-labs/demo/",
+      "destination": "/pages/clients/lean-labs/demo/index.html"
+    },
+    {
       "source": "/lean-labs",
       "destination": "/pages/clients/lean-labs/"
     },
@@ -130,6 +106,14 @@
     {
       "source": "/lean-labs/:path*",
       "destination": "/pages/clients/lean-labs/:path*"
+    },
+    {
+      "source": "/propertyradar/demo",
+      "destination": "/pages/clients/propertyradar/demo/index.html"
+    },
+    {
+      "source": "/propertyradar/demo/",
+      "destination": "/pages/clients/propertyradar/demo/index.html"
     },
     {
       "source": "/propertyradar",

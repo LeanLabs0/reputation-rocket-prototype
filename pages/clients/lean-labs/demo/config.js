@@ -1,5 +1,6 @@
 /*
- * Demo portal config — at /lean-labs/demo/ (legacy /demo redirects here).
+ * Demo portal config — at /lean-labs/demo/.
+ * /demo redirects here.
  * Everything here is fictional: the company "Acme Co", the review platforms,
  * and the links (which open the local review-sandbox page). demo.js intercepts
  * side-effecting /api/* calls; the chat still uses the real agent. HubSpot form
