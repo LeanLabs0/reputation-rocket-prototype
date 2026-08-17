@@ -2,10 +2,9 @@ const { readClientConfigFile } = require('../lib/client-config-file');
 
 const N8N_WEBHOOK_URL = process.env.N8N_REPUTATION_WEBHOOK_URL;
 const N8N_SHARED_SECRET = process.env.N8N_REPUTATION_SHARED_SECRET;
-// Email sending (Resend) is disabled until wired in the handler. Only the API
-// key is an env var; the From address is fixed here.
-// const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const RESEND_API_KEY = (process.env.RESEND_API_KEY || '').trim();
 const RESEND_FROM = 'Reputation Rocket <alert@updates.reputationrocket.ai>';
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * Slack Bot API (chat.postMessage) threading config — per client.
@@ -46,18 +45,21 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Invalid notification event' });
   }
 
+  const fileConfig = readClientConfigFile(payload.client_slug) || {};
   const botConfig = getSlackBotConfig(payload.client_slug, payload.event);
+  const notifyEmails = parseNotifyEmails(fileConfig.notifyEmails);
+  const canEmail = Boolean(RESEND_API_KEY && notifyEmails.length);
 
-  if (!N8N_WEBHOOK_URL && !botConfig) {
+  if (!N8N_WEBHOOK_URL && !botConfig && !canEmail) {
     const suffix = toEnvSuffix(payload.client_slug);
     return res.status(500).json({
-      error: 'No Slack delivery method configured for this client',
-      detail: 'Set a bot token in env and slackChannel / slackThreadPositive / slackThreadNegative on this client’s config.js (or N8N_REPUTATION_WEBHOOK_URL).',
+      error: 'No notification delivery method configured for this client',
+      detail: 'Set Slack (bot token + config.js threads), notifyEmails on config.js with RESEND_API_KEY, or N8N_REPUTATION_WEBHOOK_URL.',
       expected: [
         'N8N_REPUTATION_WEBHOOK_URL',
         `SLACK_BOT_TOKEN_${suffix} (or SLACK_BOT_TOKEN)`,
-        'config.js slackChannel',
-        'config.js slackThreadPositive / slackThreadNegative',
+        'config.js slackChannel / slackThreadPositive / slackThreadNegative',
+        'config.js notifyEmails + RESEND_API_KEY',
       ],
     });
   }
@@ -77,10 +79,10 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    let deliveredTo = '';
+    const deliveredTo = [];
+    const errors = [];
 
     if (N8N_WEBHOOK_URL) {
-      // n8n webhook — highest priority, handles its own routing
       const upstream = await fetch(N8N_WEBHOOK_URL, {
         method: 'POST',
         headers,
@@ -89,16 +91,11 @@ module.exports = async function handler(req, res) {
 
       if (!upstream.ok) {
         const text = await upstream.text();
-        return res.status(502).json({
-          error: 'n8n notification webhook failed',
-          status: upstream.status,
-          body: text,
-        });
+        errors.push({ channel: 'n8n', status: upstream.status, body: text });
+      } else {
+        deliveredTo.push('n8n');
       }
-
-      deliveredTo = 'n8n';
     } else if (botConfig) {
-      // Slack Bot API — threads the reply into the configured positive or negative thread
       const message = buildSlackMessage(notificationPayload);
       const slackRes = await fetch('https://slack.com/api/chat.postMessage', {
         method: 'POST',
@@ -115,26 +112,40 @@ module.exports = async function handler(req, res) {
 
       const slackData = await slackRes.json();
       if (!slackRes.ok || !slackData.ok) {
-        return res.status(502).json({
-          error: 'Slack Bot API (chat.postMessage) failed',
+        errors.push({
+          channel: 'slack-thread',
           status: slackRes.status,
           slack_error: slackData.error || 'unknown',
         });
+      } else {
+        deliveredTo.push('slack-thread');
       }
-
-      deliveredTo = 'slack-thread';
     }
 
-    // Email alerts via Resend are disabled until Resend is configured.
-    // Slack (above) is the active notification channel. To re-enable email,
-    // uncomment the block below + sendNegativeSupportEmail() + the env consts.
     let support_email_sent = false;
-    // if (payload.event === 'negative') {
-    //   const emailResult = await sendNegativeSupportEmail(notificationPayload);
-    //   support_email_sent = Boolean(emailResult.sent);
-    // }
+    if (canEmail) {
+      const emailResult = await sendNotifyEmail(notificationPayload, notifyEmails);
+      support_email_sent = Boolean(emailResult.sent);
+      if (emailResult.sent) {
+        deliveredTo.push('email');
+      } else {
+        errors.push({ channel: 'email', reason: emailResult.reason || 'unknown' });
+      }
+    }
 
-    return res.status(200).json({ ok: true, delivered_to: deliveredTo, support_email_sent });
+    if (!deliveredTo.length) {
+      return res.status(502).json({
+        error: 'Notification delivery failed',
+        errors,
+      });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      delivered_to: deliveredTo.join(','),
+      support_email_sent,
+      errors: errors.length ? errors : undefined,
+    });
   } catch (error) {
     return res.status(502).json({
       error: 'Notification request failed',
@@ -371,6 +382,41 @@ function formatSurveyResponses(responses) {
     .join('\n');
 }
 
+function parseNotifyEmails(value) {
+  const list = Array.isArray(value)
+    ? value
+    : (typeof value === 'string' ? value.split(',') : []);
+  return [...new Set(
+    list
+      .map((item) => String(item || '').trim())
+      .filter((email) => EMAIL_RE.test(email)),
+  )];
+}
+
+function formatTranscriptText(transcript) {
+  if (!Array.isArray(transcript) || transcript.length === 0) {
+    return 'No interview transcript was provided.';
+  }
+
+  const pairs = [];
+  let pendingQuestion = null;
+  for (const turn of transcript) {
+    if (!turn || !turn.content) continue;
+    const content = String(turn.content).trim();
+    if (!content) continue;
+    if (turn.role === 'user') {
+      if (pendingQuestion) {
+        pairs.push({ question: pendingQuestion, answer: content });
+        pendingQuestion = null;
+      }
+    } else {
+      pendingQuestion = content;
+    }
+  }
+  if (!pairs.length) return 'No interview transcript was provided.';
+  return pairs.map((p, i) => `${i + 1}. ${p.question}: ${p.answer}`).join('\n');
+}
+
 function buildNegativeEmailSubjectAndText(payload) {
   const flag = payload.negative_flag || {};
   const receivedAt = formatReceivedAt(payload.received_at || payload.ts);
@@ -411,7 +457,42 @@ function buildNegativeEmailSubjectAndText(payload) {
     'Next steps:',
     '• Customer has been notified that our team is reviewing their feedback',
     `• Client (${payload.client || 'Unknown'}) should be contacted to discuss customer concerns`,
-    '• Update your team thread with resolution actions taken',
+    '',
+    `Session: ${payload.session_id || '—'}`,
+  ].join('\n');
+
+  return { subject, text };
+}
+
+function buildCompletedEmailSubjectAndText(payload) {
+  const receivedAt = formatReceivedAt(payload.received_at || payload.ts);
+  const posted = Array.isArray(payload.posted) && payload.posted.length
+    ? payload.posted.join(', ')
+    : 'None marked posted';
+  const video = payload.video_testimonial && typeof payload.video_testimonial === 'object'
+    ? payload.video_testimonial
+    : null;
+  const videoLine = video && video.url
+    ? video.url
+    : (video && video.id ? `HubSpot file ID: ${video.id}` : 'Not submitted');
+
+  const subject = `[Reputation Rocket] Completed — ${payload.client || 'Unknown'} — ${receivedAt}`;
+
+  const text = [
+    `Reputation Rocket completed — ${payload.client || 'Unknown client'}`,
+    '',
+    `Portal: ${payload.provider || '—'}`,
+    `Customer company: ${payload.client || 'Unknown'}`,
+    `Customer: ${payload.customer_name || 'Unknown'}`,
+    `Email: ${payload.customer_email || 'Unknown'}`,
+    `Date received: ${receivedAt}`,
+    `Marked posted: ${posted}`,
+    `Rating: ${payload.rating || 'Unknown'}`,
+    '',
+    `Video testimonial: ${videoLine}`,
+    '',
+    'Survey responses / summary:',
+    formatTranscriptText(payload.transcript),
     '',
     `Session: ${payload.session_id || '—'}`,
   ].join('\n');
@@ -420,32 +501,20 @@ function buildNegativeEmailSubjectAndText(payload) {
 }
 
 /**
- * Optional: Resend.com. Set RESEND_API_KEY in env. From address is RESEND_FROM above.
- * Recipient: NEGATIVE_ALERT_EMAIL_<CLIENT_SLUG> env (recommended) or support_email from payload.
- *
- * DISABLED: uncomment this function, RESEND_API_KEY at the top, and the
- * sendNegativeSupportEmail() call in the handler.
+ * Resend.com. Recipients come from config.js notifyEmails (server-read, not the browser).
  */
-/*
-async function sendNegativeSupportEmail(payload) {
+async function sendNotifyEmail(payload, to) {
   try {
     if (!RESEND_API_KEY || !RESEND_FROM) {
       return { sent: false, reason: 'resend_not_configured' };
     }
-
-    const suffix = toEnvSuffix(payload.client_slug);
-    const envTo = process.env[`NEGATIVE_ALERT_EMAIL_${suffix}`];
-    const rawTo = envTo || payload.support_email;
-    if (!rawTo || typeof rawTo !== 'string') {
+    if (!Array.isArray(to) || !to.length) {
       return { sent: false, reason: 'no_recipient' };
     }
 
-    const to = rawTo.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
-      return { sent: false, reason: 'invalid_recipient' };
-    }
-
-    const { subject, text } = buildNegativeEmailSubjectAndText(payload);
+    const { subject, text } = payload.event === 'negative'
+      ? buildNegativeEmailSubjectAndText(payload)
+      : buildCompletedEmailSubjectAndText(payload);
 
     const upstream = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -455,7 +524,7 @@ async function sendNegativeSupportEmail(payload) {
       },
       body: JSON.stringify({
         from: RESEND_FROM.trim(),
-        to: [to],
+        to,
         subject,
         text,
       }),
@@ -473,4 +542,3 @@ async function sendNegativeSupportEmail(payload) {
     return { sent: false, reason: 'resend_exception', message: error.message };
   }
 }
-*/

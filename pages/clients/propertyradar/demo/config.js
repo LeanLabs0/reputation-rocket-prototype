@@ -30,5 +30,5 @@ window.CLIENT_CONFIG = {
   thankYouUrl: '',
   thankYouRedirectDelayMs: 5000,
   allowedRedirectHosts: [],
-  supportEmail: 'demo@propertyradar.example',
+  supportEmail: 'demo@propertyradar.example'
 };

@@ -85,7 +85,7 @@ Proxies `/api/*` to Fly with CORS. It does **not** load `api/agent.js` / `api/no
 ## New client page
 
 1. Prefer `/configure` → **Add client** (scaffolds `pages/clients/<slug>/` from `propertyradar` and wires rewrites), or copy `pages/clients/propertyradar/` → `pages/clients/your-client-slug/`.
-2. Edit `pages/clients/your-client-slug/config.js` (**data only — no visual theme**): `clientSlug`, `providerName`, `reviewLinks`, `platforms`, `welcomeVideoUrl`, `videoUrl`, `videoCaptureEnabled`, `thankYouUrl`, `allowedRedirectHosts`, optional `supportEmail`, Slack routing (`slackChannel`, `slackThreadPositive`, `slackThreadNegative`), optional `platformLogos`.
+2. Edit `pages/clients/your-client-slug/config.js` (**data only — no visual theme**): `clientSlug`, `providerName`, `reviewLinks`, `platforms`, `welcomeVideoUrl`, `videoUrl`, `videoCaptureEnabled`, `thankYouUrl`, `allowedRedirectHosts`, optional `supportEmail`, optional `notifyEmails` (Resend recipients), Slack routing (`slackChannel`, `slackThreadPositive`, `slackThreadNegative`), optional `platformLogos`.
 3. Brand in `pages/clients/your-client-slug/styles.css` (**all theming is CSS**): override `--ll-*` tokens, `@import` the brand font, set `#star-stop-*`. See `pages/clients/eimmigration/styles.css`.
 4. Ensure `vercel.json` / `_redirects` map public `/{slug}/` → `pages/clients/{slug}/` (Add client does this). Trailing-slash redirects stay on the public URL.
 5. Deploy on Vercel; set environment variables in the project (see below).
@@ -103,8 +103,7 @@ Proxies `/api/*` to Fly with CORS. It does **not** load `api/agent.js` / `api/no
 | `SLACK_REPUTATION_WEBHOOK_<CLIENT>` | Optional | Per-client Slack (slug → env suffix) |
 | `N8N_REPUTATION_WEBHOOK_URL` | Optional | If set, `notify` prefers n8n over Slack |
 | `N8N_REPUTATION_SHARED_SECRET` | Optional | Sent as `X-Reputation-Rocket-Secret` when posting to n8n |
-| `RESEND_API_KEY` | Optional | [Resend](https://resend.com) API key — enables negative-feedback email. From address is hardcoded in `api/notify.js` (`RESEND_FROM`). |
-| `NEGATIVE_ALERT_EMAIL_<CLIENT>` | Optional | Overrides `supportEmail` from the client `config.js` for the inbox (same suffix rule as Slack, e.g. `NEGATIVE_ALERT_EMAIL_LEAN_LABS`) |
+| `RESEND_API_KEY` | Optional | [Resend](https://resend.com) API key — enables notify email when `notifyEmails` is set on that client’s `config.js`. From address is hardcoded in `api/notify.js`. |
 | `HUBSPOT_FILES_ACCESS_TOKEN_<CLIENT>` | Video upload + contact updates (legacy) | Per-client HubSpot private app token. Still works as fallback if OAuth is not connected. |
 | `HUBSPOT_FILES_ACCESS_TOKEN_<PORTAL_ID>` | Optional fallback | Portal-specific token override (e.g. `HUBSPOT_FILES_ACCESS_TOKEN_275827`) |
 | `CONFIGURE_PASSWORD` | `/configure` | Operator password (trim spaces; no space after `=`) |
@@ -116,7 +115,7 @@ Proxies `/api/*` to Fly with CORS. It does **not** load `api/agent.js` / `api/no
 
 Slack channel and thread IDs are set per client in `config.js` (`slackChannel`, `slackThreadPositive`, `slackThreadNegative`). Only the bot token stays in env.
 
-When `event` is `negative`, Slack (or n8n) still runs first; then, if `RESEND_API_KEY` is set and a recipient exists (`NEGATIVE_ALERT_EMAIL_*` or `support_email` in the POST body from `CLIENT_CONFIG.supportEmail`), a plain-text email is sent with the same fields as the Slack message and subject `[Reputation Rocket] Negative feedback — …`.
+When a client has `notifyEmails` in `config.js` and `RESEND_API_KEY` is set, `/api/notify` emails that list on both `completed` and `negative` (same fields as the Slack message). Slack still sends if that client also has Slack threads configured.
 
 ---
 
@@ -218,4 +217,4 @@ Clears session storage and reloads.
 - Launch links still trust `name` / `email` query params until signed tokens exist.
 - “Posted” is user-confirmed, not verified with each review site.
 - Physical client folders scale to a point; a config service is the longer-term approach (see HANDOFF / VERCEL doc).
-- `supportEmail` in `config.js` is public in the browser; use `NEGATIVE_ALERT_EMAIL_<SLUG>` on the server to pin the inbox in production.
+- `notifyEmails` in `config.js` is public in the browser. Recipients are still read server-side from the file, not from the POST body.
