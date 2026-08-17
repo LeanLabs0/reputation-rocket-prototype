@@ -28,3 +28,7 @@
 /propertyradar/demo/  /pages/clients/propertyradar/demo/index.html  200
 /propertyradar/  /pages/clients/propertyradar/  200
 /propertyradar/*  /pages/clients/propertyradar/:splat  200
+/greentec  /greentec/  308
+/greentec  /pages/clients/greentec/  200
+/greentec/  /pages/clients/greentec/  200
+/greentec/*  /pages/clients/greentec/:splat  200

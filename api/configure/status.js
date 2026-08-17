@@ -8,8 +8,7 @@ const { readClientConfigFile } = require('../../lib/client-config-file');
 const { hasKvStore } = require('../../lib/hubspot/store');
 const {
   AVAILABLE_PLATFORMS,
-  normalizePortalSettings,
-  pickSettingsFromConfig,
+  mergePortalSettings,
 } = require('../../lib/portal-settings');
 
 module.exports = async function handler(req, res) {
@@ -62,11 +61,14 @@ module.exports = async function handler(req, res) {
         fileConfig = null;
       }
       const providerName = publicRec?.providerName || known.providerName;
-      const fromStore = publicRec?.portalSettings
-        ? normalizePortalSettings(publicRec.portalSettings, { providerName })
-        : null;
-      const fromFile = pickSettingsFromConfig(fileConfig, providerName);
-      const portalSettings = fromStore || fromFile || normalizePortalSettings({}, { providerName });
+      const portalSettings = mergePortalSettings(
+        publicRec?.portalSettings,
+        fileConfig,
+        providerName,
+      );
+      const settingsSource = publicRec?.portalSettings
+        ? 'store'
+        : (fileConfig ? 'config.js' : 'defaults');
 
       return {
         clientSlug: known.clientSlug,
@@ -86,7 +88,7 @@ module.exports = async function handler(req, res) {
         slackNotes: publicRec?.slackNotes || '',
         updatedAt: publicRec?.updatedAt || null,
         portalSettings,
-        settingsSource: fromStore ? 'store' : (fromFile ? 'config.js' : 'defaults'),
+        settingsSource,
         isBuiltIn: Boolean(getKnownClient(known.clientSlug)),
       };
     });

@@ -44,6 +44,11 @@
       "source": "/propertyradar/demo",
       "destination": "/propertyradar/demo/",
       "permanent": true
+    },
+    {
+      "source": "/greentec",
+      "destination": "/greentec/",
+      "permanent": true
     }
   ],
   "rewrites": [
@@ -86,6 +91,26 @@
     {
       "source": "/eimmigration/:path*",
       "destination": "/pages/clients/eimmigration/:path*"
+    },
+    {
+      "source": "/greentec/demo",
+      "destination": "/pages/clients/greentec/demo/index.html"
+    },
+    {
+      "source": "/greentec/demo/",
+      "destination": "/pages/clients/greentec/demo/index.html"
+    },
+    {
+      "source": "/greentec",
+      "destination": "/pages/clients/greentec/"
+    },
+    {
+      "source": "/greentec/",
+      "destination": "/pages/clients/greentec/"
+    },
+    {
+      "source": "/greentec/:path*",
+      "destination": "/pages/clients/greentec/:path*"
     },
     {
       "source": "/lean-labs/demo",

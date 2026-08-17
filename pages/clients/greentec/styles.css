@@ -1,0 +1,460 @@
+/* Greentec brand — from Figma Greentec-Projects style guide
+ * Colors: Primary #00B15A, Secondary #FF8530, Tertiary #00ACCB
+ * Typography: Erbaum (display, when available) + Poppins/Aptos UI
+ * Buttons: 8px radius, primary green / secondary orange
+ */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+:root {
+  --gt-primary: #00b15a;
+  --gt-primary-hover: #0db14b;
+  --gt-primary-pressed: #3e904f;
+  --gt-secondary: #ff8530;
+  --gt-secondary-hover: #e06813;
+  --gt-secondary-active: #be5002;
+  --gt-tertiary: #00accb;
+  --gt-heading: #1e3047;
+  --gt-body: #0e0a0c;
+  --gt-navy: #001539;
+  --gt-muted: #8da2b4;
+  --gt-border: #d6e0e9;
+  --gt-border-light: #e5e7ea;
+  --gt-surface: #f5f7f9;
+  --gt-surface-2: #fafbfc;
+  --gt-white: #ffffff;
+  --gt-primary-tint: rgba(0, 177, 90, 0.12);
+  --gt-secondary-tint: rgba(255, 133, 48, 0.12);
+  --gt-tertiary-tint: rgba(0, 172, 203, 0.12);
+  --gt-gradient-1: linear-gradient(125deg, #0db14b 0%, #002a77 100%);
+  --gt-gradient-2: linear-gradient(125deg, #393097 0%, #ff5a71 100%);
+  --gt-btn-shadow: 0 3px 5px rgba(13, 177, 75, 0.2);
+
+  /* Prefer Poppins for UI (style guide samples). Erbaum is display-only in Figma. */
+  --font-family: 'Poppins', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-heading: 'Poppins', 'Segoe UI', system-ui, -apple-system, sans-serif;
+
+  --ll-heading: var(--gt-heading);
+  --ll-body: var(--gt-body);
+  --ll-muted: var(--gt-muted);
+  --ll-purple: var(--gt-primary);
+  --ll-purple-dark: var(--gt-primary-pressed);
+  --ll-accent: var(--gt-secondary);
+  --ll-success: var(--gt-primary);
+
+  --ll-page-bg: var(--gt-surface-2);
+  --ll-nav-bg: transparent;
+
+  --ll-stepper-bg: linear-gradient(180deg, #ffffff 0%, #f5f7f9 100%);
+  --ll-stepper-shadow: 0 12px 32px rgba(30, 48, 71, 0.08);
+  --ll-stepper-radius: 16px;
+
+  --ll-brand-gradient: radial-gradient(
+    120% 120% at 80% 20%,
+    rgba(0, 177, 90, 0.1) 0%,
+    rgba(0, 172, 203, 0.06) 45%,
+    rgba(250, 251, 252, 0.95) 100%
+  );
+  --ll-brand-border: var(--gt-border);
+  --ll-gradient: var(--gt-gradient-1);
+
+  --ll-btn-primary-bg: var(--gt-primary);
+  --ll-btn-primary-text: #ffffff;
+  --ll-btn-primary-border: transparent;
+  --ll-btn-primary-shadow: var(--gt-btn-shadow);
+  --ll-btn-welcome-shadow: var(--gt-btn-shadow);
+  --ll-btn-primary-disabled-opacity: 0.45;
+
+  --radius-md: 8px;
+  --radius-chat-card: 16px;
+
+  --ll-purple-tint: var(--gt-primary-tint);
+  --ll-purple-tint-light: #e9f8fb;
+  --ll-purple-border: #c0d0de;
+
+  --ll-chat-messages-bg: #ffffff;
+  --ll-chat-message-avatar-bg: var(--gt-surface);
+
+  --ll-pending-badge-bg: var(--gt-surface);
+  --ll-pending-badge-text: var(--gt-muted);
+  --ll-active-badge-bg: var(--gt-primary-tint);
+  --ll-active-badge-text: var(--gt-primary-pressed);
+  --ll-done-badge-bg: rgba(0, 177, 90, 0.16);
+  --ll-done-badge-text: var(--gt-primary-pressed);
+
+  --ll-off-white: var(--gt-surface);
+  --ll-dark-alt: #ffffff;
+  --ll-light-purple: #e9f8fb;
+  --ll-border: var(--gt-border);
+  --ll-border-light: var(--gt-border-light);
+  --ll-white: #ffffff;
+  --ll-dark: #ffffff;
+  --hubspot-input-bg: #ffffff;
+  --hubspot-input-border: var(--gt-heading);
+}
+
+#star-stop-a { stop-color: #00accb; }
+#star-stop-b { stop-color: #00b15a; }
+#star-stop-c { stop-color: #002a77; }
+
+body {
+  background-color: var(--ll-page-bg);
+  background-image: var(--ll-brand-gradient);
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: 100% 100%;
+  color: var(--gt-body);
+  font-family: var(--font-family);
+}
+
+.hubspot-lead-modal__form {
+  min-height: 120px;
+  --hubspot-input-bg: #ffffff;
+  --hubspot-input-border: var(--gt-heading);
+  --hubspot-input-radius: 8px;
+  --hubspot-input-placeholder: var(--gt-muted);
+}
+
+.chat-container,
+.draft-card,
+.video-card,
+.platform-card,
+.platform-card--rich,
+.post-progress-rich,
+.review-complete-modal,
+.hubspot-lead-modal__dialog,
+.video-capture-modal__dialog {
+  background: #ffffff;
+  border-color: var(--ll-border);
+  box-shadow: 0 4px 20px rgba(30, 48, 71, 0.08);
+}
+
+.nav-start-over {
+  color: var(--gt-heading);
+}
+
+/* ── Chat ─────────────────────────────────────────────────── */
+.chat-header,
+.chat-input-bar,
+.chat-draft-prompt {
+  background: #ffffff;
+}
+.chat-header {
+  border-bottom-color: var(--ll-border);
+}
+.chat-input-bar {
+  border-top-color: var(--ll-border);
+}
+.chat-messages {
+  background: #ffffff;
+}
+
+.chat-bubble.agent {
+  background: var(--gt-surface);
+  border-color: var(--ll-border);
+  color: var(--gt-body);
+}
+.chat-bubble.user {
+  background: var(--gt-primary);
+  border-color: var(--gt-primary);
+  color: #ffffff;
+}
+.chat-bubble.user a {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.chat-message-avatar {
+  border-color: var(--ll-border);
+}
+
+.chat-input-bar input,
+#draft-textarea,
+.draft-textarea,
+.video-capture-modal__select {
+  background: #ffffff;
+  border-color: var(--ll-border);
+  color: var(--gt-body);
+}
+.chat-input-bar input::placeholder,
+.draft-textarea::placeholder {
+  color: var(--gt-muted);
+}
+.chat-input-bar input:focus,
+#draft-textarea:focus,
+.draft-textarea:focus,
+.video-capture-modal__select:focus {
+  border-color: var(--gt-primary);
+  box-shadow: 0 0 0 3px rgba(0, 177, 90, 0.18);
+}
+
+.chat-send-btn {
+  background: var(--gt-primary);
+  color: #ffffff;
+}
+.chat-send-btn:hover {
+  background: var(--gt-primary-hover);
+}
+
+.chat-draft-prompt__card {
+  background: #ffffff;
+  border-color: var(--ll-border);
+}
+.chat-draft-prompt__header {
+  border-bottom-color: var(--ll-border);
+}
+.chat-draft-prompt__headline,
+.chat-draft-prompt__mini-name {
+  color: var(--gt-heading);
+}
+.chat-draft-prompt__subhead {
+  color: var(--gt-body);
+}
+.chat-draft-prompt__mini {
+  background: #ffffff;
+  border-color: var(--ll-border);
+  box-shadow: 0 4px 20px rgba(30, 48, 71, 0.08);
+}
+
+/* ── Buttons (Figma: Primary #00B15A, Secondary #FF8530, 8px) ── */
+.btn-primary {
+  gap: 10px;
+  border-radius: 8px;
+  font-weight: 700;
+  background: var(--gt-primary);
+  color: #ffffff;
+  box-shadow: var(--gt-btn-shadow);
+}
+.btn-primary:not(.btn-sm):not(.btn-lg) {
+  padding: 0 25px;
+  font-size: 16px;
+  line-height: 21px;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--gt-primary-hover);
+}
+.btn-primary:active:not(:disabled) {
+  background: var(--gt-primary-pressed);
+}
+.welcome-cta .btn-primary {
+  background: var(--gt-primary);
+  color: #ffffff;
+}
+.btn-secondary,
+.btn-tertiary {
+  background: #ffffff;
+  color: var(--gt-heading);
+  border-color: var(--gt-heading);
+  border-radius: 8px;
+  font-weight: 600;
+}
+.btn-secondary:hover,
+.btn-tertiary:hover {
+  background: var(--gt-surface);
+  border-color: var(--gt-secondary);
+  color: var(--gt-secondary-hover);
+}
+.btn-copy {
+  background: #ffffff;
+  color: var(--gt-heading);
+  border-color: var(--ll-border);
+}
+.btn-copy:hover {
+  background: var(--gt-primary-tint);
+  border-color: var(--gt-primary);
+}
+
+.welcome-content,
+.screen-header h1 {
+  max-width: 992px;
+}
+
+.welcome-callout {
+  background: #ffffff;
+}
+
+.welcome-callout strong {
+  color: var(--gt-heading);
+}
+
+.rr-logo-icon {
+  height: 42px;
+  width: auto;
+  max-width: 200px;
+  object-fit: contain;
+}
+
+/* ── Progress stepper ─────────────────────────────────────── */
+.progress-bar {
+  border-color: var(--ll-border);
+}
+.progress-dot {
+  background: #ffffff;
+  border-color: var(--ll-border);
+  color: var(--gt-muted);
+}
+.progress-badge {
+  border-radius: 3px;
+}
+.progress-step.active .progress-dot {
+  background: var(--gt-primary);
+  border-color: var(--gt-primary);
+  color: #ffffff;
+  box-shadow: 0 0 0 4px rgba(0, 177, 90, 0.18);
+}
+.progress-step.done .progress-dot {
+  background: var(--gt-primary);
+  border-color: var(--gt-primary);
+  color: #ffffff;
+}
+.progress-step.done .progress-dot::before {
+  --progress-icon: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='m5 12 4 4 10-10' fill='none' stroke='%23ffffff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+.progress-step.done .progress-connector {
+  background: var(--gt-primary);
+}
+.progress-step.active .progress-connector {
+  background: linear-gradient(
+    to right,
+    var(--gt-primary) 0%,
+    var(--gt-primary) 50%,
+    var(--ll-border-light) 50%,
+    var(--ll-border-light) 100%
+  );
+}
+.progress-step.done .progress-badge {
+  border-color: rgba(0, 177, 90, 0.42);
+}
+
+/* ── Draft screen ─────────────────────────────────────────── */
+.draft-tab {
+  background: #ffffff;
+  border-color: var(--ll-border);
+  color: var(--gt-body);
+  box-shadow: 0 4px 20px rgba(30, 48, 71, 0.06);
+}
+.draft-tab:hover {
+  border-color: var(--gt-primary);
+  color: var(--gt-primary-pressed);
+}
+.draft-tab.active {
+  background: var(--gt-primary-tint);
+  border-color: var(--gt-primary);
+  color: var(--gt-primary-pressed);
+}
+.draft-tab-icon--empty {
+  background: var(--gt-surface);
+  border-color: var(--ll-border);
+}
+.edit-hint {
+  background: var(--gt-surface);
+  color: var(--gt-body);
+  border-color: var(--ll-border);
+}
+.edit-hint:hover {
+  background: var(--gt-primary-tint);
+  border-color: var(--gt-primary);
+}
+
+/* ── Post screen ──────────────────────────────────────────── */
+.platform-status.ready {
+  background: var(--gt-primary);
+  border-color: var(--gt-primary);
+  color: #ffffff;
+}
+.platform-status.ready:hover {
+  filter: brightness(1.05);
+}
+.platform-status.done {
+  background: var(--gt-primary);
+  border-color: var(--gt-primary);
+  color: #ffffff;
+}
+.btn-confirm {
+  color: #ffffff;
+}
+
+.field-row {
+  background: var(--gt-surface);
+  border-color: var(--ll-border);
+}
+
+.video-intro,
+.platform-icon,
+.video-card-header .video-title .icon-circle {
+  background: var(--gt-surface);
+}
+
+.video-preview {
+  background: var(--gt-surface);
+}
+
+.video-preview .cam-icon {
+  color: var(--gt-heading);
+  border: 2px solid var(--gt-heading);
+}
+
+.video-preview .cam-icon svg {
+  stroke: currentColor;
+}
+
+/* Links (Figma: orange default → darker hover/active) */
+a,
+.link-inline,
+.chat-bubble a,
+.card-details summary {
+  color: var(--gt-secondary);
+}
+a:hover,
+.link-inline:hover,
+.chat-bubble a:hover,
+.card-details summary:hover,
+.rr-legal-footer a:hover {
+  color: var(--gt-secondary-hover);
+  text-decoration-color: var(--gt-secondary-hover);
+}
+a:active,
+.link-inline:active,
+.chat-bubble a:active {
+  color: var(--gt-secondary-active);
+}
+
+.btn-tertiary {
+  color: var(--gt-heading);
+  border-color: color-mix(in srgb, var(--gt-heading) 30%, var(--ll-border));
+}
+.btn-tertiary:hover {
+  color: var(--gt-secondary-hover);
+  border-color: var(--gt-secondary);
+  background: var(--gt-secondary-tint);
+}
+
+.text-accent {
+  background: var(--gt-gradient-1);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.welcome-callout-icon {
+  background: var(--gt-primary-tint);
+  color: var(--gt-primary-pressed);
+}
+.draft-tip .draft-tip-icon {
+  color: var(--gt-primary-pressed);
+}
+.draft-tip {
+  border-color: color-mix(in srgb, var(--gt-primary) 22%, var(--ll-border));
+  background: var(--gt-primary-tint);
+}
+.draft-tip .text-primary {
+  color: var(--gt-primary-pressed);
+}
+
+.screen-header h1,
+.screen-header h2,
+.screen-header h3,
+.nav-title {
+  color: var(--gt-heading);
+  font-family: var(--font-heading);
+  font-weight: 600;
+}

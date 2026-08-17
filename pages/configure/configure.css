@@ -508,7 +508,82 @@ body {
   gap: 12px;
 }
 
-.cfg-span-2 { grid-column: 1 / -1; }
+.cfg-chip-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  cursor: text;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.cfg-chip-field:focus-within {
+  border-color: rgba(37, 193, 150, 0.55);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.cfg-chip-field.is-invalid {
+  border-color: rgba(240, 113, 113, 0.7);
+}
+
+.cfg-chip-field input,
+.cfg-experience .cfg-chip-field input {
+  flex: 1 1 140px;
+  min-width: 140px;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 6px 4px !important;
+  color: var(--text);
+}
+
+.cfg-email-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 4px 4px 4px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  border: 1px solid rgba(37, 193, 150, 0.35);
+  color: #7ddec4;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.cfg-email-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cfg-email-chip-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.cfg-email-chip-x:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+}
 
 @media (max-width: 720px) {
   .cfg-grid-2 { grid-template-columns: 1fr; }

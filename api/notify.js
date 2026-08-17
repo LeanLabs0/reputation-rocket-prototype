@@ -1,10 +1,11 @@
 const { readClientConfigFile } = require('../lib/client-config-file');
+const { getClient } = require('../lib/hubspot/store');
+const { mergePortalSettings } = require('../lib/portal-settings');
 
 const N8N_WEBHOOK_URL = process.env.N8N_REPUTATION_WEBHOOK_URL;
 const N8N_SHARED_SECRET = process.env.N8N_REPUTATION_SHARED_SECRET;
 const RESEND_API_KEY = (process.env.RESEND_API_KEY || '').trim();
 const RESEND_FROM = 'Reputation Rocket <alert@updates.reputationrocket.ai>';
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * Slack Bot API (chat.postMessage) threading config — per client.
@@ -20,13 +21,14 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * thread_ts: right-click a Slack message → Copy link → URL ends in p1718725200123456
  *   → insert a dot before the last 6 digits → 1718725200.123456
  */
-function getSlackBotConfig(clientSlug, event) {
+function getSlackBotConfig(clientSlug, event, settings) {
   const suffix = toEnvSuffix(clientSlug);
   const token = (process.env[`SLACK_BOT_TOKEN_${suffix}`] || process.env.SLACK_BOT_TOKEN || '').trim();
-  const fileConfig = readClientConfigFile(clientSlug) || {};
-  const channel = String(fileConfig.slackChannel || '').trim();
+  const channel = String((settings && settings.slackChannel) || '').trim();
   const threadTs = String(
-    event === 'negative' ? fileConfig.slackThreadNegative : fileConfig.slackThreadPositive,
+    event === 'negative'
+      ? (settings && settings.slackThreadNegative)
+      : (settings && settings.slackThreadPositive),
   ).trim();
   if (!token || !channel || !threadTs) return null;
   return { token, channel, threadTs };
@@ -46,8 +48,14 @@ module.exports = async function handler(req, res) {
   }
 
   const fileConfig = readClientConfigFile(payload.client_slug) || {};
-  const botConfig = getSlackBotConfig(payload.client_slug, payload.event);
-  const notifyEmails = parseNotifyEmails(fileConfig.notifyEmails);
+  const stored = await getClient(payload.client_slug);
+  const settings = mergePortalSettings(
+    stored?.portalSettings,
+    fileConfig,
+    fileConfig.providerName || payload.client || payload.client_slug,
+  );
+  const botConfig = getSlackBotConfig(payload.client_slug, payload.event, settings);
+  const notifyEmails = Array.isArray(settings.notifyEmails) ? settings.notifyEmails : [];
   const canEmail = Boolean(RESEND_API_KEY && notifyEmails.length);
 
   if (!N8N_WEBHOOK_URL && !botConfig && !canEmail) {
@@ -380,17 +388,6 @@ function formatSurveyResponses(responses) {
     .slice(0, 6)
     .map((item, index) => `${index + 1}. ${item.question || 'Question'}: ${item.answer || 'No answer provided'}`)
     .join('\n');
-}
-
-function parseNotifyEmails(value) {
-  const list = Array.isArray(value)
-    ? value
-    : (typeof value === 'string' ? value.split(',') : []);
-  return [...new Set(
-    list
-      .map((item) => String(item || '').trim())
-      .filter((email) => EMAIL_RE.test(email)),
-  )];
 }
 
 function formatTranscriptText(transcript) {

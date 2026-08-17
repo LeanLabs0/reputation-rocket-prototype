@@ -340,6 +340,30 @@
             </div>
           </section>
 
+          <section class="cfg-section">
+            <div class="cfg-section-head">
+              <h3>Notifications</h3>
+              <p class="cfg-muted">Email uses Resend. Slack uses the bot token in env plus these IDs.</p>
+            </div>
+            <div class="cfg-grid-2">
+              <label class="cfg-span-2">Notify emails <span class="cfg-hint">(press Enter or comma to add)</span>
+                <div class="cfg-chip-field" id="notify-email-field" tabindex="-1">
+                  <input type="text" id="notify-email-input" inputmode="email" autocomplete="off" placeholder="name@example.com">
+                </div>
+              </label>
+              <label>Slack channel ID
+                <input type="text" name="slackChannel" value="${escapeAttr(settings.slackChannel || '')}" placeholder="C0…">
+              </label>
+              <label>Slack thread (positive)
+                <input type="text" name="slackThreadPositive" value="${escapeAttr(settings.slackThreadPositive || '')}" placeholder="1718725200.123456">
+              </label>
+              <label class="cfg-span-2">Slack thread (negative)
+                <input type="text" name="slackThreadNegative" value="${escapeAttr(settings.slackThreadNegative || '')}" placeholder="1718725200.123456">
+              </label>
+            </div>
+            <p class="cfg-muted" style="margin-top:10px">Thread TS: copy the Slack message link. The URL ends in p1718725200123456 — put a dot before the last 6 digits.</p>
+          </section>
+
           <div class="cfg-save-bar">
             <p class="cfg-muted" id="save-hint">Saves locally and writes config.js — commit that file for production.</p>
             <button type="submit" class="cfg-btn cfg-btn-primary" id="btn-save-experience">Save experience</button>
@@ -367,7 +391,7 @@
             <li><span class="cfg-dot ${provisioned ? 'ok' : 'warn'}"></span><span>Form “[LL] Reputation Rocket - Sign in” ${client.formId ? `· ${escapeHtml(client.formId)}` : ''}</span></li>
             <li><span class="cfg-dot ${client.portalId ? 'ok' : 'bad'}"></span><span>Portal ID: <span class="cfg-code">${escapeHtml(client.portalId || '—')}</span></span></li>
           </ul>
-          <p class="cfg-muted" style="margin-top:14px">Still in code: brand CSS, Slack channel + thread TS.</p>
+          <p class="cfg-muted" style="margin-top:14px">Still in code: brand CSS.</p>
         </div>
       </div>
     `;
@@ -402,6 +426,71 @@
       });
     }
     renderReviewLinks();
+
+    let notifyEmails = Array.isArray(settings.notifyEmails) ? [...settings.notifyEmails] : [];
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const chipField = $('#notify-email-field', wrap);
+    const chipInput = $('#notify-email-input', wrap);
+
+    function renderNotifyChips() {
+      $$('.cfg-email-chip', chipField).forEach((el) => el.remove());
+      notifyEmails.forEach((email, i) => {
+        const chip = document.createElement('span');
+        chip.className = 'cfg-email-chip';
+        chip.innerHTML = `<span>${escapeHtml(email)}</span><button type="button" class="cfg-email-chip-x" data-remove-email="${i}" aria-label="Remove ${escapeAttr(email)}">×</button>`;
+        chipField.insertBefore(chip, chipInput);
+      });
+      $$('[data-remove-email]', chipField).forEach((btn) => {
+        btn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          notifyEmails.splice(Number(btn.dataset.removeEmail), 1);
+          renderNotifyChips();
+          chipInput.focus();
+        });
+      });
+    }
+
+    function addNotifyEmail(raw) {
+      const email = String(raw || '').trim().replace(/,$/, '');
+      if (!email) return true;
+      if (!EMAIL_RE.test(email)) {
+        chipField.classList.add('is-invalid');
+        chipInput.setCustomValidity('Enter a valid email');
+        chipInput.reportValidity();
+        return false;
+      }
+      chipField.classList.remove('is-invalid');
+      chipInput.setCustomValidity('');
+      if (!notifyEmails.includes(email)) notifyEmails.push(email);
+      chipInput.value = '';
+      renderNotifyChips();
+      return true;
+    }
+
+    renderNotifyChips();
+    chipField.addEventListener('click', () => chipInput.focus());
+    chipInput.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ',') {
+        ev.preventDefault();
+        addNotifyEmail(chipInput.value);
+      } else if (ev.key === 'Backspace' && !chipInput.value && notifyEmails.length) {
+        notifyEmails.pop();
+        renderNotifyChips();
+      }
+    });
+    chipInput.addEventListener('blur', () => {
+      addNotifyEmail(chipInput.value);
+    });
+    chipInput.addEventListener('paste', (ev) => {
+      const text = ev.clipboardData?.getData('text') || '';
+      if (!/[,\n;]/.test(text)) return;
+      ev.preventDefault();
+      text.split(/[\s,;]+/).forEach((part) => addNotifyEmail(part));
+    });
+    chipInput.addEventListener('input', () => {
+      chipField.classList.remove('is-invalid');
+      chipInput.setCustomValidity('');
+    });
 
     // Questions
     const qList = $('#questions-list', wrap);
@@ -537,6 +626,11 @@
       });
 
       const delaySec = Number(form.thankYouRedirectDelaySec.value);
+      if (!addNotifyEmail(chipInput.value)) {
+        errEl.textContent = 'Fix the notify email before saving.';
+        errEl.hidden = false;
+        return;
+      }
       const payload = {
         platforms: [...selected],
         reviewLinks,
@@ -551,6 +645,10 @@
           .map((h) => h.trim())
           .filter(Boolean),
         supportEmail: form.supportEmail.value.trim(),
+        notifyEmails: [...notifyEmails],
+        slackChannel: form.slackChannel.value.trim(),
+        slackThreadPositive: form.slackThreadPositive.value.trim(),
+        slackThreadNegative: form.slackThreadNegative.value.trim(),
       };
 
       btn.disabled = true;

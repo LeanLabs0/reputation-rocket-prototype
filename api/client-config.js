@@ -1,7 +1,7 @@
 const { resolveClient } = require('../lib/known-clients');
 const { getClient } = require('../lib/hubspot/store');
 const { readClientConfigFile } = require('../lib/client-config-file');
-const { normalizePortalSettings, pickSettingsFromConfig } = require('../lib/portal-settings');
+const { mergePortalSettings } = require('../lib/portal-settings');
 
 /**
  * Public runtime config for a portal (no secrets).
@@ -27,19 +27,14 @@ module.exports = async function handler(req, res) {
   const fileConfig = readClientConfigFile(clientSlug);
   const providerName = stored?.providerName || known.providerName || clientSlug;
 
-  const fromFile = pickSettingsFromConfig(fileConfig, providerName);
-  const fromStore = stored?.portalSettings
-    ? normalizePortalSettings(stored.portalSettings, { providerName })
-    : null;
-
-  const settings = fromStore || fromFile || normalizePortalSettings({}, { providerName });
+  const settings = mergePortalSettings(stored?.portalSettings, fileConfig, providerName);
 
   res.setHeader('Cache-Control', 'no-store');
   return res.status(200).json({
     ok: true,
     clientSlug,
     providerName,
-    source: fromStore ? 'store' : (fromFile ? 'config.js' : 'defaults'),
+    source: stored?.portalSettings ? 'store' : (fileConfig ? 'config.js' : 'defaults'),
     settings,
     hubspot: {
       portalId: stored?.portalId || fileConfig?.hubspotPortalId || known.defaultPortalId || '',
