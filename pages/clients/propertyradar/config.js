@@ -21,6 +21,7 @@ window.CLIENT_CONFIG = {
   thankYouRedirectDelayMs: 120000,
   allowedRedirectHosts: ["propertyradar.com","www.propertyradar.com"],
   supportEmail: "support@propertyradar.com",
+  notifyEmails: ["joe@propertyradar.com", "mark@propertyradar.com", "sean@propertyradar.com", "michael.johnson@propertyradar.com"],
   slackChannel: "C09QHV11FDZ",
   slackThreadPositive: "1786719766.885969",
   slackThreadNegative: "1786719821.984199",

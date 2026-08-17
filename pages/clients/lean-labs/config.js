@@ -20,7 +20,7 @@ window.CLIENT_CONFIG = {
   thankYouRedirectDelayMs: 50000,
   allowedRedirectHosts: ['leanlabs.com', 'www.leanlabs.com'],
   supportEmail: 'help@leanlabs.com',
-  notifyEmails: ["edward@lean-labs.com", "edwardaddo77@gmail.com"],
+  notifyEmails: ["edward@lean-labs.com", "tonya@lean-labs.com"],
   slackChannel: 'C04B30QRZ5E',
   slackThreadPositive: '1781805338.854329',
   slackThreadNegative: '1781805654.124419',
