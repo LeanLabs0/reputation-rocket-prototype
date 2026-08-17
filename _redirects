@@ -12,6 +12,9 @@
 /demo  /lean-labs/demo/  308
 /demo/*  /lean-labs/demo/:splat  308
 /propertyradar  /propertyradar/  308
+/propertyradar/demo  /propertyradar/demo/  308
+/pr-demo  /propertyradar/demo/  308
+/pr-demo/*  /propertyradar/demo/:splat  308
 
 # Serve pages/* behind the original public paths (200 = rewrite)
 /  /pages/home/  200

@@ -85,7 +85,7 @@ Proxies `/api/*` to Fly with CORS. It does **not** load `api/agent.js` / `api/no
 ## New client page
 
 1. Prefer `/configure` → **Add client** (scaffolds `pages/clients/<slug>/` from `propertyradar` and wires rewrites), or copy `pages/clients/propertyradar/` → `pages/clients/your-client-slug/`.
-2. Edit `pages/clients/your-client-slug/config.js` (**data only — no visual theme**): `clientSlug`, `providerName`, `reviewLinks`, `platforms`, `welcomeVideoUrl`, `videoUrl`, `videoCaptureEnabled`, `thankYouUrl`, `allowedRedirectHosts`, optional `supportEmail`, optional `platformLogos`.
+2. Edit `pages/clients/your-client-slug/config.js` (**data only — no visual theme**): `clientSlug`, `providerName`, `reviewLinks`, `platforms`, `welcomeVideoUrl`, `videoUrl`, `videoCaptureEnabled`, `thankYouUrl`, `allowedRedirectHosts`, optional `supportEmail`, Slack routing (`slackChannel`, `slackThreadPositive`, `slackThreadNegative`), optional `platformLogos`.
 3. Brand in `pages/clients/your-client-slug/styles.css` (**all theming is CSS**): override `--ll-*` tokens, `@import` the brand font, set `#star-stop-*`. See `pages/clients/eimmigration/styles.css`.
 4. Ensure `vercel.json` / `_redirects` map public `/{slug}/` → `pages/clients/{slug}/` (Add client does this). Trailing-slash redirects stay on the public URL.
 5. Deploy on Vercel; set environment variables in the project (see below).
@@ -103,8 +103,7 @@ Proxies `/api/*` to Fly with CORS. It does **not** load `api/agent.js` / `api/no
 | `SLACK_REPUTATION_WEBHOOK_<CLIENT>` | Optional | Per-client Slack (slug → env suffix) |
 | `N8N_REPUTATION_WEBHOOK_URL` | Optional | If set, `notify` prefers n8n over Slack |
 | `N8N_REPUTATION_SHARED_SECRET` | Optional | Sent as `X-Reputation-Rocket-Secret` when posting to n8n |
-| `RESEND_API_KEY` | Optional | [Resend](https://resend.com) API key — enables negative-feedback email |
-| `RESEND_FROM` | With Resend | Verified sender, e.g. `Reputation Rocket <alerts@yourdomain.com>` |
+| `RESEND_API_KEY` | Optional | [Resend](https://resend.com) API key — enables negative-feedback email. From address is hardcoded in `api/notify.js` (`RESEND_FROM`). |
 | `NEGATIVE_ALERT_EMAIL_<CLIENT>` | Optional | Overrides `supportEmail` from the client `config.js` for the inbox (same suffix rule as Slack, e.g. `NEGATIVE_ALERT_EMAIL_LEAN_LABS`) |
 | `HUBSPOT_FILES_ACCESS_TOKEN_<CLIENT>` | Video upload + contact updates (legacy) | Per-client HubSpot private app token. Still works as fallback if OAuth is not connected. |
 | `HUBSPOT_FILES_ACCESS_TOKEN_<PORTAL_ID>` | Optional fallback | Portal-specific token override (e.g. `HUBSPOT_FILES_ACCESS_TOKEN_275827`) |
@@ -115,7 +114,9 @@ Proxies `/api/*` to Fly with CORS. It does **not** load `api/agent.js` / `api/no
 | `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Required on Vercel | Persist OAuth installs (from Vercel Redis/Upstash integration; local uses `.data/`) |
 | `HUBSPOT_TOKEN_ENCRYPTION_KEY` | Recommended | Encrypts stored refresh tokens (falls back to `CONFIGURE_PASSWORD`) |
 
-When `event` is `negative`, Slack (or n8n) still runs first; then, if Resend is configured and a recipient exists (`NEGATIVE_ALERT_EMAIL_*` or `support_email` in the POST body from `CLIENT_CONFIG.supportEmail`), a plain-text email is sent with the same fields as the Slack message and subject `[Reputation Rocket] Negative feedback — …`.
+Slack channel and thread IDs are set per client in `config.js` (`slackChannel`, `slackThreadPositive`, `slackThreadNegative`). Only the bot token stays in env.
+
+When `event` is `negative`, Slack (or n8n) still runs first; then, if `RESEND_API_KEY` is set and a recipient exists (`NEGATIVE_ALERT_EMAIL_*` or `support_email` in the POST body from `CLIENT_CONFIG.supportEmail`), a plain-text email is sent with the same fields as the Slack message and subject `[Reputation Rocket] Negative feedback — …`.
 
 ---
 
@@ -147,7 +148,7 @@ Operator console at [`/configure/`](./pages/configure/) (local + production). Li
    - `KV_REST_API_URL` + `KV_REST_API_TOKEN` (required on Vercel; from the Redis/Upstash integration)
 5. Redeploy, open `https://reputationrocket.ai/configure/`, unlock, **Connect HubSpot**
 
-**Slack-only V1:** set `FACTOR8_API_KEY` + `SLACK_REPUTATION_WEBHOOK_URL` (and per-client Slack vars as needed). Leave `N8N_*` blank. Email is optional until `RESEND_*` and a support address are set.
+**Slack-only V1:** set `FACTOR8_API_KEY` + `SLACK_BOT_TOKEN`, and put channel/thread IDs on each client `config.js`. Leave `N8N_*` blank. Email is optional until `RESEND_API_KEY` and a support address are set.
 
 Payload shape, n8n branching, and example Slack copy: [VERCEL_N8N_SETUP.md](./VERCEL_N8N_SETUP.md).
 

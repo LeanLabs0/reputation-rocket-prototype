@@ -64,6 +64,26 @@
       "source": "/propertyradar",
       "destination": "/propertyradar/",
       "permanent": true
+    },
+    {
+      "source": "/propertyradar/demo",
+      "destination": "/propertyradar/demo/",
+      "permanent": true
+    },
+    {
+      "source": "/pr-demo",
+      "destination": "/propertyradar/demo/",
+      "permanent": true
+    },
+    {
+      "source": "/pr-demo/",
+      "destination": "/propertyradar/demo/",
+      "permanent": true
+    },
+    {
+      "source": "/pr-demo/:path*",
+      "destination": "/propertyradar/demo/:path*",
+      "permanent": true
     }
   ],
   "rewrites": [

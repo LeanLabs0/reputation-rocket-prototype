@@ -1,31 +1,34 @@
+const { readClientConfigFile } = require('../lib/client-config-file');
+
 const N8N_WEBHOOK_URL = process.env.N8N_REPUTATION_WEBHOOK_URL;
 const N8N_SHARED_SECRET = process.env.N8N_REPUTATION_SHARED_SECRET;
-// Email sending (Resend) is disabled until Resend is set up. Slack remains the
-// active channel. Re-enable by uncommenting these + the sendNegativeSupportEmail
-// call below and the function itself.
+// Email sending (Resend) is disabled until wired in the handler. Only the API
+// key is an env var; the From address is fixed here.
 // const RESEND_API_KEY = process.env.RESEND_API_KEY;
-// const RESEND_FROM = process.env.RESEND_FROM || process.env.RESEND_FROM_EMAIL;
+const RESEND_FROM = 'Reputation Rocket <alert@updates.reputationrocket.ai>';
 
 /**
  * Slack Bot API (chat.postMessage) threading config — per client.
  *
- * To enable threaded replies for a client set these env vars:
+ * Secrets stay in env:
  *   SLACK_BOT_TOKEN_<SLUG>   — xoxb-... bot token (falls back to SLACK_BOT_TOKEN)
- *   SLACK_CHANNEL_<SLUG>     — channel ID the bot was installed into (C0...)
- *   SLACK_THREAD_P_<SLUG>    — thread_ts of the "positive/completed" parent message
- *   SLACK_THREAD_N_<SLUG>    — thread_ts of the "negative" parent message
+ *
+ * Routing lives on the client config.js (not env):
+ *   slackChannel           — channel ID the bot was installed into (C0...)
+ *   slackThreadPositive    — thread_ts of the "positive/completed" parent message
+ *   slackThreadNegative    — thread_ts of the "negative" parent message
  *
  * thread_ts: right-click a Slack message → Copy link → URL ends in p1718725200123456
  *   → insert a dot before the last 6 digits → 1718725200.123456
- *
- * Clients without bot config automatically fall back to the webhook path.
  */
 function getSlackBotConfig(clientSlug, event) {
   const suffix = toEnvSuffix(clientSlug);
   const token = (process.env[`SLACK_BOT_TOKEN_${suffix}`] || process.env.SLACK_BOT_TOKEN || '').trim();
-  const channel = (process.env[`SLACK_CHANNEL_${suffix}`] || '').trim();
-  const threadKey = event === 'negative' ? `SLACK_THREAD_N_${suffix}` : `SLACK_THREAD_P_${suffix}`;
-  const threadTs = (process.env[threadKey] || '').trim();
+  const fileConfig = readClientConfigFile(clientSlug) || {};
+  const channel = String(fileConfig.slackChannel || '').trim();
+  const threadTs = String(
+    event === 'negative' ? fileConfig.slackThreadNegative : fileConfig.slackThreadPositive,
+  ).trim();
   if (!token || !channel || !threadTs) return null;
   return { token, channel, threadTs };
 }
@@ -49,12 +52,12 @@ module.exports = async function handler(req, res) {
     const suffix = toEnvSuffix(payload.client_slug);
     return res.status(500).json({
       error: 'No Slack delivery method configured for this client',
-      detail: 'Set a bot token + channel + thread TS for this client (or N8N_REPUTATION_WEBHOOK_URL).',
+      detail: 'Set a bot token in env and slackChannel / slackThreadPositive / slackThreadNegative on this client’s config.js (or N8N_REPUTATION_WEBHOOK_URL).',
       expected: [
         'N8N_REPUTATION_WEBHOOK_URL',
         `SLACK_BOT_TOKEN_${suffix} (or SLACK_BOT_TOKEN)`,
-        `SLACK_CHANNEL_${suffix}`,
-        `SLACK_THREAD_P_${suffix} / SLACK_THREAD_N_${suffix}`,
+        'config.js slackChannel',
+        'config.js slackThreadPositive / slackThreadNegative',
       ],
     });
   }
@@ -417,12 +420,11 @@ function buildNegativeEmailSubjectAndText(payload) {
 }
 
 /**
- * Optional: Resend.com. Set RESEND_API_KEY + RESEND_FROM.
+ * Optional: Resend.com. Set RESEND_API_KEY in env. From address is RESEND_FROM above.
  * Recipient: NEGATIVE_ALERT_EMAIL_<CLIENT_SLUG> env (recommended) or support_email from payload.
  *
- * DISABLED: Resend is not set up yet, so this is commented out and unused.
- * To re-enable email alerts: uncomment this function, the RESEND_* env consts
- * at the top, and the sendNegativeSupportEmail() call in the handler.
+ * DISABLED: uncomment this function, RESEND_API_KEY at the top, and the
+ * sendNegativeSupportEmail() call in the handler.
  */
 /*
 async function sendNegativeSupportEmail(payload) {
