@@ -68,7 +68,7 @@ const server = http.createServer(async (req, res) => {
       return callApiHandler(configureLogoutHandler, req, res);
     }
     if (url.pathname === '/api/configure/status') {
-      return callApiHandler(configureStatusHandler, req, res);
+      return callApiHandler(requireFresh('./api/configure/status'), req, res);
     }
     if (url.pathname === '/api/configure/oauth-start') {
       return callApiHandler(configureOauthStartHandler, req, res);
@@ -83,14 +83,14 @@ const server = http.createServer(async (req, res) => {
       return callApiHandler(configureCreateClientHandler, req, res);
     }
     if (url.pathname === '/api/configure/update-settings') {
-      return callApiHandler(configureUpdateSettingsHandler, req, res);
+      return callApiHandler(requireFresh('./api/configure/update-settings'), req, res);
     }
     if (url.pathname === '/api/configure/delete-client') {
       return callApiHandler(configureDeleteClientHandler, req, res);
     }
     if (url.pathname === '/api/client-config') {
       req.query = Object.fromEntries(url.searchParams.entries());
-      return callApiHandler(clientConfigHandler, req, res);
+      return callApiHandler(requireFresh('./api/client-config'), req, res);
     }
 
     return serveStatic(url.pathname, res);
@@ -105,6 +105,21 @@ server.listen(PORT, () => {
   console.log(`Reputation Rocket local dev server running at http://localhost:${PORT}`);
   console.log(`Try: http://localhost:${PORT}/lean-labs/?name=Edward+Test&email=edward@leanlabs.com`);
 });
+
+function requireFresh(relPath) {
+  const abs = require.resolve(relPath);
+  const cached = require.cache[abs];
+  const toBust = [abs];
+  if (cached) {
+    for (const child of cached.children || []) {
+      if (child.filename.startsWith(ROOT) && !child.filename.includes(`${path.sep}node_modules${path.sep}`)) {
+        toBust.push(child.filename);
+      }
+    }
+  }
+  for (const id of toBust) delete require.cache[id];
+  return require(relPath);
+}
 
 async function callApiHandler(handler, req, nodeRes) {
   req.body = await readJsonBody(req);

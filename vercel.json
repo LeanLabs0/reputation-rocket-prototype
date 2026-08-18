@@ -49,6 +49,16 @@
       "source": "/greentec",
       "destination": "/greentec/",
       "permanent": true
+    },
+    {
+      "source": "/fatherhood",
+      "destination": "/fatherhood/",
+      "permanent": true
+    },
+    {
+      "source": "/fatherhood/demo",
+      "destination": "/fatherhood/demo/",
+      "permanent": true
     }
   ],
   "rewrites": [
@@ -91,6 +101,26 @@
     {
       "source": "/eimmigration/:path*",
       "destination": "/pages/clients/eimmigration/:path*"
+    },
+    {
+      "source": "/fatherhood/demo",
+      "destination": "/pages/clients/fatherhood/demo/index.html"
+    },
+    {
+      "source": "/fatherhood/demo/",
+      "destination": "/pages/clients/fatherhood/demo/index.html"
+    },
+    {
+      "source": "/fatherhood",
+      "destination": "/pages/clients/fatherhood/"
+    },
+    {
+      "source": "/fatherhood/",
+      "destination": "/pages/clients/fatherhood/"
+    },
+    {
+      "source": "/fatherhood/:path*",
+      "destination": "/pages/clients/fatherhood/:path*"
     },
     {
       "source": "/greentec/demo",

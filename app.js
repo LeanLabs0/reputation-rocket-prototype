@@ -260,7 +260,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   $$('.provider-name').forEach(el => { el.textContent = PARAMS.providerName; });
   $$('.first-name').forEach(el => { el.textContent = PARAMS.firstName; });
   renderVideoScreenQuestions();
-  document.title = `Reputation Rocket — ${PARAMS.customerCompany}`;
+  applyDocumentTitle();
 
   // Optional welcome video. The element is injected only when a client provides a URL.
   // It starts with a centered play-button overlay; clicking it reveals the native
@@ -499,11 +499,18 @@ function shouldShowHubSpotLeadForm() {
   return !hasLeadCaptureFromUrl();
 }
 
+function applyDocumentTitle() {
+  const provider = String(PARAMS.providerName || '').trim();
+  document.title = provider
+    ? `Reputation Rocket | ${provider}`
+    : 'Reputation Rocket';
+}
+
 function refreshDynamicLabels() {
   $$('.company-name').forEach((el) => { el.textContent = PARAMS.customerCompany; });
   $$('.provider-name').forEach((el) => { el.textContent = PARAMS.providerName; });
   $$('.first-name').forEach((el) => { el.textContent = PARAMS.firstName; });
-  document.title = `Reputation Rocket — ${PARAMS.customerCompany}`;
+  applyDocumentTitle();
 }
 
 function applyLeadIdentityFromStorage(identity) {
@@ -1386,6 +1393,11 @@ const PLATFORM_FAVICON_HOST = {
   clutch: 'clutch.co',
   capterra: 'capterra.com',
   gartner: 'gartner.com',
+  greatnonprofits: 'greatnonprofits.org',
+};
+
+const PLATFORM_LOGOS = {
+  greatnonprofits: '/assets/image/greatnonprofits.png',
 };
 
 function platformFaviconHost(platform) {
@@ -1412,12 +1424,15 @@ function draftTabLogoCandidates(plat) {
 
   const custom = CLIENT_CONFIG.platformLogos && CLIENT_CONFIG.platformLogos[key];
   add(custom);
+  add(PLATFORM_LOGOS[key]);
 
   const canonical = PLATFORM_FAVICON_HOST[key];
   const fromLink = platformFaviconHost(plat);
 
   const s2host = canonical || fromLink;
-  if (s2host) add(`https://www.google.com/s2/favicons?domain=${encodeURIComponent(s2host)}&sz=128`);
+  if (s2host && !PLATFORM_LOGOS[key]) {
+    add(`https://www.google.com/s2/favicons?domain=${encodeURIComponent(s2host)}&sz=128`);
+  }
 
   return urls;
 }
@@ -1733,12 +1748,13 @@ async function sendRegenerateRequest(platform) {
 
 // ── Screen 4: Post ──────────────────────────────────────────
 const PLATFORM_META = {
-  hubspot:    { name: 'HubSpot',         desc: 'B2B marketplace reviews',        icon: 'globe',  flow: 'paste'  },
-  g2:         { name: 'G2',              desc: 'Where buyers compare software',  icon: 'star',   flow: 'fields' },
-  trustpilot: { name: 'Trustpilot',      desc: 'Trusted by millions of consumers', icon: 'shield', flow: 'paste' },
-  google:     { name: 'Google Business', desc: 'Your most visible review',       icon: 'globe',  flow: 'paste'  },
-  capterra:   { name: 'Capterra',        desc: 'Software reviews for businesses', icon: 'star',  flow: 'paste'  },
-  gartner:    { name: 'Gartner',         desc: 'Enterprise buyer reviews',       icon: 'star',   flow: 'fields' },
+  hubspot:          { name: 'HubSpot',          desc: 'B2B marketplace reviews',              icon: 'globe',  flow: 'paste'  },
+  g2:               { name: 'G2',               desc: 'Where buyers compare software',        icon: 'star',   flow: 'fields' },
+  trustpilot:       { name: 'Trustpilot',       desc: 'Trusted by millions of consumers',     icon: 'shield', flow: 'paste'  },
+  google:           { name: 'Google Business',  desc: 'Your most visible review',             icon: 'globe',  flow: 'paste'  },
+  capterra:         { name: 'Capterra',         desc: 'Software reviews for businesses',      icon: 'star',   flow: 'paste'  },
+  gartner:          { name: 'Gartner',          desc: 'Enterprise buyer reviews',             icon: 'star',   flow: 'fields' },
+  greatnonprofits:  { name: 'GreatNonprofits',  desc: 'Where supporters share nonprofit impact', icon: 'star', flow: 'paste' },
 };
 
 function isRichPostLayout() {
@@ -3187,7 +3203,7 @@ function platformDisplayName(platform) {
   const names = {
     hubspot: 'HubSpot', g2: 'G2', trustpilot: 'Trustpilot',
     clutch: 'Clutch', google: 'Google Business', capterra: 'Capterra',
-    gartner: 'Gartner',
+    gartner: 'Gartner', greatnonprofits: 'GreatNonprofits',
   };
   return names[platform] || platform.charAt(0).toUpperCase() + platform.slice(1);
 }

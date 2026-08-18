@@ -2,6 +2,35 @@
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
+  const DEFAULT_PLATFORMS = [
+    { id: 'hubspot', label: 'HubSpot' },
+    { id: 'g2', label: 'G2' },
+    { id: 'trustpilot', label: 'Trustpilot' },
+    { id: 'google', label: 'Google Business' },
+    { id: 'capterra', label: 'Capterra' },
+    { id: 'gartner', label: 'Gartner' },
+    { id: 'clutch', label: 'Clutch' },
+    { id: 'greatnonprofits', label: 'GreatNonprofits' },
+  ];
+
+  const REVIEW_URL_PLACEHOLDERS = {
+    hubspot: 'https://…',
+    g2: 'https://www.g2.com/products/…/take-survey',
+    trustpilot: 'https://www.trustpilot.com/evaluate/…',
+    google: 'https://g.page/…/review',
+    capterra: 'https://www.capterra.com/…',
+    gartner: 'https://www.gartner.com/reviews/…',
+    clutch: 'https://clutch.co/…',
+    greatnonprofits: 'https://greatnonprofits.org/org/…',
+  };
+
+  function configurePlatforms(fromApi) {
+    const list = Array.isArray(fromApi) && fromApi.length ? fromApi : DEFAULT_PLATFORMS;
+    const seen = new Set(list.map((p) => p.id));
+    const extra = DEFAULT_PLATFORMS.filter((p) => !seen.has(p.id));
+    return extra.length ? [...list, ...extra] : list;
+  }
+
   const loginPanel = $('#login-panel');
   const setupPanel = $('#setup-panel');
   const appPanel = $('#app-panel');
@@ -253,7 +282,7 @@
     const provisioned = Boolean(client.provisionedAt && client.formId);
     const propsOk = Boolean(client.properties?.rr_iscomplete && client.properties?.rr_outcome);
     const settings = JSON.parse(JSON.stringify(client.portalSettings || {}));
-    const platforms = appState.availablePlatforms || [];
+    const platforms = configurePlatforms(appState.availablePlatforms);
 
     wrap.innerHTML = `
       <div class="cfg-detail-top">
@@ -279,7 +308,7 @@
       </div>
 
       <div class="cfg-tab-panel" data-panel="experience">
-        <form id="experience-form" class="cfg-experience">
+        <form id="experience-form" class="cfg-experience" novalidate>
           <section class="cfg-section">
             <div class="cfg-section-head">
               <h3>Review platforms</h3>
@@ -406,6 +435,7 @@
       btn.dataset.platform = plat.id;
       btn.innerHTML = `<span>${escapeHtml(plat.label)}</span>`;
       btn.addEventListener('click', () => {
+        persistReviewLinksFromDom();
         if (selected.has(plat.id)) selected.delete(plat.id);
         else selected.add(plat.id);
         btn.classList.toggle('is-on', selected.has(plat.id));
@@ -415,13 +445,22 @@
     });
 
     const linkStack = $('#review-link-stack', wrap);
+    function persistReviewLinksFromDom() {
+      if (!settings.reviewLinks || typeof settings.reviewLinks !== 'object') {
+        settings.reviewLinks = {};
+      }
+      $$('[data-review-link]', wrap).forEach((input) => {
+        settings.reviewLinks[input.dataset.reviewLink] = input.value.trim();
+      });
+    }
     function renderReviewLinks() {
+      persistReviewLinksFromDom();
       linkStack.innerHTML = '';
       [...selected].forEach((id) => {
         const meta = platforms.find((p) => p.id === id) || { id, label: id };
         const label = document.createElement('label');
         label.innerHTML = `${escapeHtml(meta.label)} review URL
-          <input type="url" data-review-link="${escapeAttr(id)}" value="${escapeAttr((settings.reviewLinks || {})[id] || '')}" placeholder="https://…">`;
+          <input type="text" inputmode="url" autocomplete="url" data-review-link="${escapeAttr(id)}" value="${escapeAttr((settings.reviewLinks || {})[id] || '')}" placeholder="${escapeAttr(REVIEW_URL_PLACEHOLDERS[id] || 'https://…')}">`;
         linkStack.appendChild(label);
       });
     }
@@ -620,7 +659,8 @@
       const btn = $('#btn-save-experience', wrap);
       errEl.hidden = true;
 
-      const reviewLinks = {};
+      persistReviewLinksFromDom();
+      const reviewLinks = { ...(settings.reviewLinks || {}) };
       $$('[data-review-link]', form).forEach((input) => {
         reviewLinks[input.dataset.reviewLink] = input.value.trim();
       });
@@ -676,6 +716,14 @@
           : `Saved experience for ${client.providerName}`,
         'ok',
       );
+      const savedPlatforms = new Set(res.settings?.platforms || []);
+      const dropped = payload.platforms.filter((id) => !savedPlatforms.has(id));
+      if (dropped.length) {
+        showFlash(
+          `Saved, but these platforms were dropped: ${dropped.join(', ')}. Restart the local server and save again.`,
+          'warn',
+        );
+      }
       btn.disabled = false;
       btn.textContent = 'Save experience';
     });

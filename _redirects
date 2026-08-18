@@ -32,3 +32,10 @@
 /greentec  /pages/clients/greentec/  200
 /greentec/  /pages/clients/greentec/  200
 /greentec/*  /pages/clients/greentec/:splat  200
+/fatherhood  /fatherhood/  308
+/fatherhood/demo  /fatherhood/demo/  308
+/fatherhood/demo  /pages/clients/fatherhood/demo/index.html  200
+/fatherhood/demo/  /pages/clients/fatherhood/demo/index.html  200
+/fatherhood  /pages/clients/fatherhood/  200
+/fatherhood/  /pages/clients/fatherhood/  200
+/fatherhood/*  /pages/clients/fatherhood/:splat  200

@@ -157,8 +157,9 @@
       g2:         { name: 'G2',              host: 'g2.com' },
       trustpilot: { name: 'Trustpilot',      host: 'trustpilot.com' },
       capterra:   { name: 'Capterra',        host: 'capterra.com' },
-      gartner:    { name: 'Gartner',         host: 'gartner.com' },
-      hubspot:    { name: 'HubSpot',         host: 'hubspot.com' }
+      gartner:          { name: 'Gartner',          host: 'gartner.com' },
+      hubspot:          { name: 'HubSpot',          host: 'hubspot.com' },
+      greatnonprofits:  { name: 'GreatNonprofits',  host: 'greatnonprofits.org', logo: '/assets/image/greatnonprofits.png' }
     };
     var params = new URLSearchParams(window.location.search);
     var key = (params.get('platform') || 'google').toLowerCase();
@@ -168,7 +169,7 @@
     document.getElementById('site-name').textContent = meta.name;
     document.title = meta.name + ' — Review Sandbox';
     var fav = document.getElementById('site-favicon');
-    fav.src = 'https://www.google.com/s2/favicons?domain=' + meta.host + '&sz=64';
+    fav.src = meta.logo || ('https://www.google.com/s2/favicons?domain=' + meta.host + '&sz=64');
     fav.onerror = function () { fav.style.display = 'none'; };
 
     var ta = document.getElementById('review-text');
