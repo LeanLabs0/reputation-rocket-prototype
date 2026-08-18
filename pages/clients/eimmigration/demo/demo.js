@@ -2,7 +2,7 @@
  * eim-demo runtime.
  *   1. Stub /api/notify and /api/upload-video so nothing hits Slack or HubSpot.
  *      /api/agent passes through to the real Reputation Rocket assistant.
- *   2. Guided coach-mark tour tailored to the eImmigration walkthrough.
+ *   2. Guided coach-mark tour tailored to the eimmigration walkthrough.
  *
  * Loaded BEFORE ../../app.js so the fetch override is in place before any request.
  */
@@ -86,7 +86,7 @@
 
   const INTRO = {
     title: 'Welcome to the Reputation Rocket demo',
-    body: 'You’re about to walk through exactly what your happy customers experience with <strong>eImmigration</strong>. Review sites in this demo are dummy placeholders — nothing is posted for real. We’ll pop in with a quick tip at each step.',
+    body: 'You’re about to walk through exactly what your happy customers experience with <strong>eimmigration</strong>. Review sites in this demo are dummy placeholders — nothing is posted for real. We’ll pop in with a quick tip at each step.',
   };
 
   let root = null;
