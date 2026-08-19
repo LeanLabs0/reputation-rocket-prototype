@@ -51,6 +51,11 @@
       "permanent": true
     },
     {
+      "source": "/greentec/demo",
+      "destination": "/greentec/demo/",
+      "permanent": true
+    },
+    {
       "source": "/fatherhood",
       "destination": "/fatherhood/",
       "permanent": true
