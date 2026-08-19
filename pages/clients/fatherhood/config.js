@@ -20,7 +20,7 @@ window.CLIENT_CONFIG = {
   thankYouRedirectDelayMs: 120000,
   allowedRedirectHosts: [],
   supportEmail: "info@fatherhood.org",
-  notifyEmails: ["mbyers@fatherhood.org","edward@lean-labs.com"],
+  notifyEmails: ["mbyers@fatherhood.org","edward@lean-labs.com","jonathan@lean-labs.com"],
   slackChannel: "",
   slackThreadPositive: "",
   slackThreadNegative: "",

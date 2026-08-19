@@ -25,7 +25,7 @@
   --gt-primary-tint: rgba(0, 177, 90, 0.12);
   --gt-secondary-tint: rgba(255, 133, 48, 0.12);
   --gt-tertiary-tint: rgba(0, 172, 203, 0.12);
-  --gt-gradient-1: linear-gradient(125deg, #0db14b 0%, #002a77 100%);
+  --gt-gradient-1: linear-gradient(125deg, #00B15A 0%, #0064BD 100%);
   --gt-gradient-2: linear-gradient(125deg, #393097 0%, #ff5a71 100%);
   --gt-btn-shadow: 0 3px 5px rgba(13, 177, 75, 0.2);
 
