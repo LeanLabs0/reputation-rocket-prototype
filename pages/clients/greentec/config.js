@@ -18,7 +18,7 @@ window.CLIENT_CONFIG = {
   thankYouRedirectDelayMs: 120000,
   allowedRedirectHosts: ["greentec.com","www.greentec.com"],
   supportEmail: "support@greentec.com",
-  notifyEmails: ["kbozoian@greentec.com","tperrotta@greentec.com","jellis@greentec.com"],
+  notifyEmails: ["edward@lean-labs.com","jonathan@lean-labs.com","tonya@lean-labs.com"],
   slackChannel: "",
   slackThreadPositive: "",
   slackThreadNegative: "",
