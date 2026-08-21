@@ -2221,6 +2221,17 @@ a:hover { text-decoration: underline; }
   --hubspot-input-radius: 8px;
   --hubspot-input-placeholder: #949494;
 }
+.hubspot-lead-modal__hs-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 .hubspot-lead-modal__form .hs-form,
 .hubspot-lead-modal__form iframe {
   max-width: 100%;
@@ -2252,8 +2263,19 @@ a:hover { text-decoration: underline; }
   margin: 0 0 16px;
 }
 
-.hubspot-lead-modal__form .hs-form .hs-form-field li {
-  list-style: none;
+.hubspot-lead-modal__form .hs-form .hs-form-booleancheckbox-display {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--ll-body);
+  cursor: pointer;
+}
+.hubspot-lead-modal__form .hs-form .hs-form-booleancheckbox-display .hs-input {
+  width: auto !important;
+  min-height: 0;
+  margin-top: 3px;
 }
 
 .hubspot-lead-modal__form .hs-form .hs-form-field > label {

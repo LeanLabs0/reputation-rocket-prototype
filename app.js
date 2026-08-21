@@ -173,6 +173,7 @@ let isWaitingForAgent = false;
 let lastAgentMessage = '';
 let notificationsSent = {};
 let hubspotCompleteSent = false;
+let hubspotIncompleteSent = false;
 let uploadedVideoMeta = null;
 /** Per-platform: user tapped "Looks good" for that draft (required before Approve all). */
 let draftLooksGood = {};
@@ -821,7 +822,10 @@ function ensureHubSpotLeadModal() {
       </button>
       <h2 id="hubspot-lead-title" class="hubspot-lead-modal__title">Before we continue</h2>
       <p class="hubspot-lead-modal__hint">Please share a few details so we can personalize your review and attribute your feedback correctly.</p>
-      <div id="hubspot-lead-form-target" class="hubspot-lead-modal__form"></div>
+      <div class="hubspot-lead-modal__form">
+        <div id="hubspot-lead-proxy" class="hubspot-lead-proxy hs-form" role="form" aria-labelledby="hubspot-lead-title"></div>
+        <div id="hubspot-lead-form-target" class="hubspot-lead-modal__hs-hidden" aria-hidden="true"></div>
+      </div>
     </div>`;
     document.body.appendChild(modal);
   } else {
@@ -870,26 +874,231 @@ function hideHubSpotLeadModal() {
   modal.setAttribute('aria-hidden', 'true');
 }
 
+function unwrapHubSpotFormEl($form) {
+  let el = $form && $form.length != null && $form[0] ? $form[0] : $form;
+  if (el && typeof el.querySelector === 'function' && el.tagName !== 'FORM') {
+    const inner = el.querySelector('form.hs-form, form');
+    if (inner) el = inner;
+  }
+  return el || null;
+}
+
+function markHubSpotFormDoNotCollect(root) {
+  if (!root) return;
+  const forms = root.tagName === 'FORM'
+    ? [root]
+    : (typeof root.querySelectorAll === 'function' ? [...root.querySelectorAll('form')] : []);
+  forms.forEach((form) => {
+    form.setAttribute('data-hs-do-not-collect', 'true');
+    form.setAttribute('data-hs-ignore', 'true');
+  });
+}
+
+function isHubSpotProxySourceField(field) {
+  if (!field || !field.name) return false;
+  const t = String(field.type || '').toLowerCase();
+  if (['hidden', 'submit', 'button', 'image', 'reset', 'file'].includes(t)) return false;
+  if (/hs_context|hutk|csrf|__hstc|__hssc|utm_|goog-/i.test(field.name)) return false;
+  return true;
+}
+
+function hubspotFieldLabelText(field) {
+  const wrap = field.closest('.hs-form-field');
+  const label = wrap?.querySelector(':scope > label');
+  if (label) {
+    return String(label.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+  return field.getAttribute('placeholder')
+    || field.getAttribute('aria-label')
+    || field.name;
+}
+
+function scrapeLeadFieldsFromProxy() {
+  const proxy = document.getElementById('hubspot-lead-proxy');
+  if (!proxy) return [];
+  const out = [];
+  proxy.querySelectorAll('[data-hs-field]').forEach((field) => {
+    const name = field.dataset.hsField;
+    if (!name) return;
+    const t = String(field.type || '').toLowerCase();
+    if ((t === 'checkbox' || t === 'radio') && !field.checked) return;
+    const value = t === 'checkbox' || t === 'radio'
+      ? (field.checked ? (field.value || 'true') : '')
+      : rowValueToString(field.value);
+    if (!value) return;
+    out.push({ name, value });
+  });
+  return out;
+}
+
+function leadProxyFieldsValid(proxy) {
+  const fields = [...proxy.querySelectorAll('input, select, textarea')];
+  for (const field of fields) {
+    if (!field.checkValidity()) {
+      field.reportValidity();
+      return false;
+    }
+  }
+  return true;
+}
+
+function copyLeadProxyToHubSpotForm(hsForm, proxy) {
+  proxy.querySelectorAll('[data-hs-field]').forEach((proxyField) => {
+    const name = proxyField.dataset.hsField;
+    if (!name) return;
+    let hsField = null;
+    try {
+      hsField = hsForm.querySelector(`[name="${CSS.escape(name)}"]`);
+    } catch (_) {
+      hsField = [...hsForm.querySelectorAll('[name]')].find((el) => el.name === name) || null;
+    }
+    if (!hsField) return;
+    const t = String(hsField.type || '').toLowerCase();
+    if (t === 'checkbox' || t === 'radio') {
+      hsField.checked = !!proxyField.checked;
+    } else {
+      hsField.value = proxyField.value;
+    }
+    hsField.dispatchEvent(new Event('input', { bubbles: true }));
+    hsField.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+}
+
+function submitLeadProxyToHubSpot(hsForm, proxy) {
+  if (!hsForm || !proxy || hubspotLeadFlowBusy === 'submitting') return;
+  if (!leadProxyFieldsValid(proxy)) return;
+  copyLeadProxyToHubSpotForm(hsForm, proxy);
+  markHubSpotFormDoNotCollect(hsForm);
+  hubspotLeadFlowBusy = 'submitting';
+  const btn = hsForm.querySelector('input[type="submit"], button[type="submit"], .hs-button');
+  if (btn) btn.click();
+  else if (typeof hsForm.requestSubmit === 'function') hsForm.requestSubmit();
+  else hsForm.submit();
+}
+
+function buildLeadProxyFromHubSpotForm(hsForm) {
+  const proxy = document.getElementById('hubspot-lead-proxy');
+  if (!proxy || !hsForm) return;
+
+  proxy.innerHTML = '';
+  const seen = new Set();
+  const fields = [...hsForm.querySelectorAll('input[name], select[name], textarea[name]')]
+    .filter((field) => {
+      if (!isHubSpotProxySourceField(field) || seen.has(field.name)) return false;
+      seen.add(field.name);
+      return true;
+    });
+
+  fields.forEach((field, idx) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'hs-form-field';
+    const id = `hubspot-lead-proxy-${idx}`;
+    const type = String(field.type || 'text').toLowerCase();
+    const required = field.required || field.getAttribute('aria-required') === 'true';
+    const labelText = hubspotFieldLabelText(field);
+
+    if (type === 'checkbox') {
+      const label = document.createElement('label');
+      label.className = 'hs-form-booleancheckbox-display';
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.id = id;
+      input.className = 'hs-input';
+      input.dataset.hsField = field.name;
+      input.required = required;
+      input.checked = field.checked;
+      label.appendChild(input);
+      const span = document.createElement('span');
+      span.textContent = labelText.replace(/\*$/, '').trim();
+      if (required) {
+        const star = document.createElement('span');
+        star.className = 'hs-form-required';
+        star.textContent = ' *';
+        span.appendChild(star);
+      }
+      label.appendChild(span);
+      wrap.appendChild(label);
+    } else {
+      const label = document.createElement('label');
+      label.setAttribute('for', id);
+      label.textContent = labelText.replace(/\s*\*\s*$/, '');
+      if (required) {
+        const star = document.createElement('span');
+        star.className = 'hs-form-required';
+        star.textContent = ' *';
+        label.appendChild(star);
+      }
+      wrap.appendChild(label);
+
+      const tag = field.tagName === 'SELECT' || field.tagName === 'TEXTAREA' ? field.tagName.toLowerCase() : 'input';
+      const input = document.createElement(tag);
+      input.id = id;
+      input.className = 'hs-input';
+      input.dataset.hsField = field.name;
+      input.required = required;
+      if (tag === 'input') {
+        input.type = type === 'email' ? 'email' : 'text';
+        if (type === 'email') input.autocomplete = 'email';
+        else if (/first/i.test(field.name)) input.autocomplete = 'given-name';
+        else if (/last/i.test(field.name)) input.autocomplete = 'family-name';
+        else if (/company|organization/i.test(field.name)) input.autocomplete = 'organization';
+      }
+      if (field.maxLength && field.maxLength > 0) input.maxLength = field.maxLength;
+      wrap.appendChild(input);
+    }
+
+    proxy.appendChild(wrap);
+  });
+
+  const hsSubmit = hsForm.querySelector('input[type="submit"], button[type="submit"], .hs-button');
+  const actions = document.createElement('div');
+  actions.className = 'hs_submit';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'hs-button primary';
+  btn.textContent = ((hsSubmit && (hsSubmit.value || hsSubmit.textContent)) || 'Continue').trim() || 'Continue';
+  btn.addEventListener('click', () => submitLeadProxyToHubSpot(hsForm, proxy));
+  actions.appendChild(btn);
+  proxy.appendChild(actions);
+
+  if (!proxy.dataset.enterSubmitWired) {
+    proxy.dataset.enterSubmitWired = '1';
+    proxy.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' || e.target.tagName === 'TEXTAREA') return;
+      const form = document.querySelector('#hubspot-lead-form-target form');
+      if (!form) return;
+      e.preventDefault();
+      submitLeadProxyToHubSpot(form, proxy);
+    });
+  }
+
+  const first = proxy.querySelector('input, select, textarea');
+  if (first) first.focus();
+}
+
 async function openHubSpotLeadModalAndMountForm(onSuccess) {
   const targetSelector = '#hubspot-lead-form-target';
-  const targetEl = () => document.querySelector(targetSelector);
+  const proxy = document.getElementById('hubspot-lead-proxy');
   showHubSpotLeadModal();
-  const target = targetEl();
-  if (target) target.innerHTML = '<p class="hubspot-lead-modal__loading muted">Loading form…</p>';
+  const target = document.querySelector(targetSelector);
+  if (proxy) {
+    proxy.innerHTML = '<p class="hubspot-lead-modal__loading muted">Loading form…</p>';
+  }
 
   try {
     await loadHubSpotFormsV2();
   } catch (err) {
     console.warn(err);
     hubspotLeadFlowBusy = false;
-    if (target) {
-      target.innerHTML =
+    if (proxy) {
+      proxy.innerHTML =
         '<p class="hubspot-lead-modal__error" role="alert">We couldn’t load the form. Please check your connection or use the personalized link from your email.</p>';
     }
     return;
   }
 
   if (target) target.innerHTML = '';
+  if (proxy) proxy.innerHTML = '<p class="hubspot-lead-modal__loading muted">Loading form…</p>';
 
   const portalId = String(CLIENT_CONFIG.hubspotPortalId || '').trim();
   const formId = String(CLIENT_CONFIG.hubspotFormId || '').trim();
@@ -901,28 +1110,25 @@ async function openHubSpotLeadModalAndMountForm(onSuccess) {
       formId,
       region,
       target: targetSelector,
+      cssRequired: false,
+      onFormReady: ($form) => {
+        const hsForm = unwrapHubSpotFormEl($form);
+        const host = document.getElementById('hubspot-lead-form-target');
+        markHubSpotFormDoNotCollect(hsForm || host);
+        if (hsForm) buildLeadProxyFromHubSpotForm(hsForm);
+      },
+      onFormSubmit: () => {
+        window.setTimeout(() => {
+          if (hubspotLeadFlowBusy === 'submitting') hubspotLeadFlowBusy = true;
+        }, 1200);
+      },
       onFormSubmitted: ($form, data) => {
         const fromCallback = parseSubmissionValuesFromHubSpotData(data);
-
-        let el = $form && $form.length ? $form[0] : $form;
-        if (el && typeof el.querySelector === 'function' && !el.querySelector('input[name]')) {
-          const innerForm = el.querySelector('form.hs-form, form');
-          if (innerForm) el = innerForm;
-        }
-
-        let fromDom = [];
-        if (el && typeof el.querySelectorAll === 'function') {
-          fromDom = scrapeLeadFieldsFromHubSpotDom(el);
-        }
-        if (!fromDom.length) {
-          const host = document.getElementById('hubspot-lead-form-target');
-          if (host) {
-            const inner = host.querySelector('form.hs-form, form') || host;
-            fromDom = scrapeLeadFieldsFromHubSpotDom(inner);
-          }
-        }
-
+        const hsForm = unwrapHubSpotFormEl($form);
+        const fromDom = hsForm ? scrapeLeadFieldsFromHubSpotDom(hsForm) : [];
+        const fromProxy = scrapeLeadFieldsFromProxy();
         let values = mergeHubSpotSubmissionRows(fromCallback, fromDom);
+        values = mergeHubSpotSubmissionRows(values, fromProxy);
         if (!values.length) {
           values = extractSubmissionFromHubSpotCallback($form, data);
         }
@@ -935,8 +1141,8 @@ async function openHubSpotLeadModalAndMountForm(onSuccess) {
   } catch (err) {
     console.warn(err);
     hubspotLeadFlowBusy = false;
-    if (target) {
-      target.innerHTML =
+    if (proxy) {
+      proxy.innerHTML =
         '<p class="hubspot-lead-modal__error" role="alert">We couldn’t open the form. Check portal ID and form ID in your client config.</p>';
     }
   }
@@ -961,6 +1167,8 @@ function startExperience() {
 function initChat() {
   const chatInput = $('#chat-input');
   if (chatInput) chatInput.focus();
+
+  markHubSpotContactIncomplete();
 
   if (chatHistory.length === 0) {
     sendMessage('Please start the review process.', true);
@@ -1383,6 +1591,7 @@ function initDraftScreen() {
   setActiveDraft(activeDraftPlatform);
   updateStarDisplay();
   updateDraftScreenChrome();
+  markHubSpotContactIncomplete();
 }
 
 const PLATFORM_FAVICON_HOST = {
@@ -2977,32 +3186,15 @@ function initCompleteScreen() {
   maybeRedirectToThankYou();
 }
 
-async function markHubSpotContactComplete(outcome) {
-  if (hubspotCompleteSent || !CONFIG.HUBSPOT_CONTACT_URL) return;
-
-  const completeProperty = String(CLIENT_CONFIG.hubspotCompleteProperty || '').trim();
-  const completeValue = String(CLIENT_CONFIG.hubspotCompleteValue || 'Yes').trim();
-  const outcomeProperty = String(CLIENT_CONFIG.hubspotOutcomeProperty || '').trim();
-
-  if (!completeProperty && !outcomeProperty) return;
+async function patchHubSpotContact(properties) {
+  if (!CONFIG.HUBSPOT_CONTACT_URL) return false;
+  if (!properties || typeof properties !== 'object' || !Object.keys(properties).length) return false;
 
   const portalId = String(CLIENT_CONFIG.hubspotPortalId || '').trim();
-  if (!portalId) return;
+  if (!portalId) return false;
 
   const email = (getLeadFieldsForApi().customer_email || PARAMS.email || '').trim();
-  if (!email || email === 'Unknown') return;
-
-  const properties = {};
-  if (completeProperty && completeValue) {
-    properties[completeProperty] = completeValue;
-  }
-  if (outcomeProperty && (outcome === 'positive' || outcome === 'negative')) {
-    const outcomeValue = outcome === 'negative'
-      ? String(CLIENT_CONFIG.hubspotOutcomeNegativeValue || 'negative').trim()
-      : String(CLIENT_CONFIG.hubspotOutcomePositiveValue || 'positive').trim();
-    if (outcomeValue) properties[outcomeProperty] = outcomeValue;
-  }
-  if (!Object.keys(properties).length) return;
+  if (!email || email === 'Unknown') return false;
 
   try {
     const res = await fetch(CONFIG.HUBSPOT_CONTACT_URL, {
@@ -3026,11 +3218,52 @@ async function markHubSpotContactComplete(outcome) {
       throw new Error(`${res.status}: ${detail}`);
     }
 
-    hubspotCompleteSent = true;
-    saveSession();
+    return true;
   } catch (err) {
-    console.warn('[Reputation Rocket] HubSpot complete property update failed:', err);
+    console.warn('[Reputation Rocket] HubSpot contact property update failed:', err);
+    return false;
   }
+}
+
+function markHubSpotContactIncomplete() {
+  if (hubspotCompleteSent || hubspotIncompleteSent) return;
+
+  const completeProperty = String(CLIENT_CONFIG.hubspotCompleteProperty || '').trim();
+  const incompleteValue = String(CLIENT_CONFIG.hubspotCompleteIncompleteValue || 'No').trim();
+  if (!completeProperty || !incompleteValue) return;
+
+  patchHubSpotContact({ [completeProperty]: incompleteValue }).then((ok) => {
+    if (!ok) return;
+    hubspotIncompleteSent = true;
+    saveSession();
+  });
+}
+
+async function markHubSpotContactComplete(outcome) {
+  if (hubspotCompleteSent) return;
+
+  const completeProperty = String(CLIENT_CONFIG.hubspotCompleteProperty || '').trim();
+  const completeValue = String(CLIENT_CONFIG.hubspotCompleteValue || 'Yes').trim();
+  const outcomeProperty = String(CLIENT_CONFIG.hubspotOutcomeProperty || '').trim();
+
+  if (!completeProperty && !outcomeProperty) return;
+
+  const properties = {};
+  if (completeProperty && completeValue) {
+    properties[completeProperty] = completeValue;
+  }
+  if (outcomeProperty && (outcome === 'positive' || outcome === 'negative')) {
+    const outcomeValue = outcome === 'negative'
+      ? String(CLIENT_CONFIG.hubspotOutcomeNegativeValue || 'negative').trim()
+      : String(CLIENT_CONFIG.hubspotOutcomePositiveValue || 'positive').trim();
+    if (outcomeValue) properties[outcomeProperty] = outcomeValue;
+  }
+  if (!Object.keys(properties).length) return;
+
+  const ok = await patchHubSpotContact(properties);
+  if (!ok) return;
+  hubspotCompleteSent = true;
+  saveSession();
 }
 
 function maybeRedirectToThankYou() {
@@ -3233,6 +3466,7 @@ function saveSession() {
         lastAgentMessage,
         notificationsSent,
         hubspotCompleteSent,
+        hubspotIncompleteSent,
         uploadedVideoMeta,
         draftLooksGood,
         leadIdentity: {
@@ -3275,6 +3509,7 @@ function restoreSession() {
     lastAgentMessage = data.lastAgentMessage || '';
     notificationsSent = data.notificationsSent || {};
     hubspotCompleteSent = Boolean(data.hubspotCompleteSent);
+    hubspotIncompleteSent = Boolean(data.hubspotIncompleteSent);
     uploadedVideoMeta = data.uploadedVideoMeta && typeof data.uploadedVideoMeta === 'object'
       ? data.uploadedVideoMeta
       : null;
