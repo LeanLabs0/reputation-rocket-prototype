@@ -2,6 +2,7 @@ const { exchangeCodeForTokens, getTokenInfo } = require('../../lib/hubspot/oauth
 const { getClient, upsertClient } = require('../../lib/hubspot/store');
 const { provisionPortal } = require('../../lib/hubspot/provision');
 const { patchClientHubSpotConfig } = require('../../lib/scaffold-client');
+const { readClientConfigFile, resolveHubSpotPropertyConfig } = require('../../lib/client-config-file');
 
 function getQuery(req) {
   if (req.query && typeof req.query === 'object') return req.query;
@@ -70,22 +71,23 @@ module.exports = async function handler(req, res) {
 
     try {
       const provisioned = await provisionPortal(tokens.access_token);
+      const hubspotValues = resolveHubSpotPropertyConfig(
+        record,
+        readClientConfigFile(clientSlug),
+      );
       await upsertClient(clientSlug, {
         formId: provisioned.form?.id || '',
         formName: provisioned.form?.name || '',
         formRegion: 'na1',
         properties: provisioned.properties,
         provisionedAt: new Date().toISOString(),
-        hubspotCompleteProperty: 'rr_iscomplete',
-        hubspotCompleteValue: 'Yes',
-        hubspotOutcomeProperty: 'rr_outcome',
-        hubspotOutcomePositiveValue: 'positive',
-        hubspotOutcomeNegativeValue: 'negative',
+        ...hubspotValues,
       });
       patchClientHubSpotConfig(clientSlug, {
         portalId,
         formId: provisioned.form?.id || '',
         formRegion: 'na1',
+        ...hubspotValues,
       });
     } catch (provisionErr) {
       console.error('[oauth-callback] provision failed:', provisionErr);

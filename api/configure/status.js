@@ -4,7 +4,7 @@ const { listAllClients, getKnownClient } = require('../../lib/known-clients');
 const { envPat } = require('../../lib/hubspot/tokens');
 const { FORM_NAME } = require('../../lib/hubspot/provision');
 const { folderExists } = require('../../lib/scaffold-client');
-const { readClientConfigFile } = require('../../lib/client-config-file');
+const { readClientConfigFile, resolveHubSpotPropertyConfig } = require('../../lib/client-config-file');
 const { hasKvStore } = require('../../lib/hubspot/store');
 const {
   AVAILABLE_PLATFORMS,
@@ -83,8 +83,7 @@ module.exports = async function handler(req, res) {
         folderExists: folderExists(known.clientSlug),
         provisionedAt: publicRec?.provisionedAt || null,
         properties: publicRec?.properties || null,
-        hubspotCompleteProperty: publicRec?.hubspotCompleteProperty || 'rr_iscomplete',
-        hubspotOutcomeProperty: publicRec?.hubspotOutcomeProperty || 'rr_outcome',
+        ...resolveHubSpotPropertyConfig(publicRec, fileConfig),
         slackNotes: publicRec?.slackNotes || '',
         updatedAt: publicRec?.updatedAt || null,
         portalSettings,

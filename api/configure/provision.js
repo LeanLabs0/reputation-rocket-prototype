@@ -4,6 +4,7 @@ const { upsertClient, getClient } = require('../../lib/hubspot/store');
 const { resolveHubSpotAccessToken } = require('../../lib/hubspot/tokens');
 const { provisionPortal } = require('../../lib/hubspot/provision');
 const { patchClientHubSpotConfig } = require('../../lib/scaffold-client');
+const { readClientConfigFile, resolveHubSpotPropertyConfig } = require('../../lib/client-config-file');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -28,6 +29,10 @@ module.exports = async function handler(req, res) {
 
     const provisioned = await provisionPortal(accessToken);
     const existing = await getClient(clientSlug);
+    const hubspotValues = resolveHubSpotPropertyConfig(
+      existing,
+      readClientConfigFile(clientSlug),
+    );
     const saved = await upsertClient(clientSlug, {
       formId: provisioned.form?.id || '',
       formName: provisioned.form?.name || '',
@@ -35,17 +40,14 @@ module.exports = async function handler(req, res) {
       portalId: existing?.portalId || '',
       properties: provisioned.properties,
       provisionedAt: new Date().toISOString(),
-      hubspotCompleteProperty: 'rr_iscomplete',
-      hubspotCompleteValue: 'Yes',
-      hubspotOutcomeProperty: 'rr_outcome',
-      hubspotOutcomePositiveValue: 'positive',
-      hubspotOutcomeNegativeValue: 'negative',
+      ...hubspotValues,
     });
 
     const patched = patchClientHubSpotConfig(clientSlug, {
       portalId: saved.portalId || existing?.portalId || '',
       formId: provisioned.form?.id || '',
       formRegion: 'na1',
+      ...hubspotValues,
     });
 
     return res.status(200).json({ ok: true, provisioned, client: saved, configPatched: patched });

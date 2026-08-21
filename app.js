@@ -3309,7 +3309,11 @@ function markHubSpotContactIncomplete() {
   if (hubspotCompleteSent || hubspotIncompleteSent) return;
 
   const completeProperty = String(CLIENT_CONFIG.hubspotCompleteProperty || '').trim();
-  const incompleteValue = String(CLIENT_CONFIG.hubspotCompleteIncompleteValue || 'No').trim();
+  const incompleteValue = String(
+    CLIENT_CONFIG.hubspotIncompleteValue
+    || CLIENT_CONFIG.hubspotCompleteIncompleteValue
+    || 'No'
+  ).trim();
   if (!completeProperty || !incompleteValue) return;
 
   window.setTimeout(() => {

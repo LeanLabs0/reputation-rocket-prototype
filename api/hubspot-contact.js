@@ -78,18 +78,22 @@ module.exports = async function handler(req, res) {
       ensureContactProperty(token, OUTCOME_PROPERTY).catch(() => null),
     ]);
 
+    const coerced = await coerceEnumerationValues(token, properties);
+
     let upserted;
     try {
-      upserted = await upsertContactByEmail(token, email, { ...properties, email });
+      upserted = await upsertContactByEmail(token, email, { ...coerced, email });
     } catch (err) {
-      const aliases = await mapAliasProperties(token, properties);
+      const aliases = await mapAliasProperties(token, coerced);
       if (!Object.keys(aliases).length) throw err;
-      upserted = await upsertContactByEmail(token, email, { ...aliases, email });
+      const coercedAliases = await coerceEnumerationValues(token, aliases);
+      upserted = await upsertContactByEmail(token, email, { ...coercedAliases, email });
     }
 
-    const aliases = await mapAliasProperties(token, properties).catch(() => ({}));
+    const aliases = await mapAliasProperties(token, coerced).catch(() => ({}));
     if (Object.keys(aliases).length) {
-      await upsertContactByEmail(token, email, aliases).catch(() => null);
+      const coercedAliases = await coerceEnumerationValues(token, aliases);
+      await upsertContactByEmail(token, email, coercedAliases).catch(() => null);
     }
 
     const contactId = upserted?.id || await findContactIdByEmail(token, email);
@@ -100,7 +104,7 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({
       ok: true,
       contact_id: contactId,
-      properties: { ...properties, ...aliases },
+      properties: { ...coerced, ...aliases },
     });
   } catch (err) {
     console.error('[hubspot-contact]', err);
@@ -113,12 +117,13 @@ module.exports = async function handler(req, res) {
 };
 
 async function hubspotFetch(token, url, options = {}) {
+  const { allowNotFound = false, ...fetchOptions } = options;
   const res = await fetch(url, {
-    ...options,
+    ...fetchOptions,
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
-      ...(options.headers || {}),
+      ...(fetchOptions.headers || {}),
     },
   });
   const text = await res.text();
@@ -126,7 +131,7 @@ async function hubspotFetch(token, url, options = {}) {
   try {
     payload = text ? JSON.parse(text) : {};
   } catch (_) { /* not JSON */ }
-  if (!res.ok && !(options.allowNotFound && res.status === 404)) {
+  if (!res.ok && !(allowNotFound && res.status === 404)) {
     const msg = payload.message || payload.error || text || res.statusText;
     const err = new Error(`${res.status}: ${msg}`);
     err.status = res.status;
@@ -179,6 +184,95 @@ async function mapAliasProperties(token, properties) {
     if (alias && alias !== 'rr_outcome') aliases[alias] = properties.rr_outcome;
   }
   return aliases;
+}
+
+async function getContactProperty(token, name) {
+  return hubspotFetch(token, `${CONTACT_PROPERTIES_URL}/${encodeURIComponent(name)}`, {
+    allowNotFound: true,
+  });
+}
+
+function normalizeOptionToken(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function optionFamily(value) {
+  const token = normalizeOptionToken(value);
+  if (token.includes('pos')) return 'positive';
+  if (token.includes('neg')) return 'negative';
+  if (token === 'yes' || token === 'true' || token === 'y') return 'yes';
+  if (token === 'no' || token === 'false' || token === 'n') return 'no';
+  return token;
+}
+
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  if (Math.abs(a.length - b.length) > 2) return 99;
+  const rows = a.length + 1;
+  const cols = b.length + 1;
+  const dp = Array.from({ length: rows }, () => new Array(cols).fill(0));
+  for (let i = 0; i < rows; i++) dp[i][0] = i;
+  for (let j = 0; j < cols; j++) dp[0][j] = j;
+  for (let i = 1; i < rows; i++) {
+    for (let j = 1; j < cols; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1]
+        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[a.length][b.length];
+}
+
+function matchAllowedOption(options, wanted) {
+  const list = Array.isArray(options) ? options : [];
+  if (!list.length || wanted == null || wanted === '') return wanted;
+
+  const exact = list.find((o) => String(o.value) === wanted);
+  if (exact) return exact.value;
+
+  const wantedLower = wanted.toLowerCase();
+  const caseInsensitive = list.find((o) => (
+    String(o.value || '').toLowerCase() === wantedLower
+    || String(o.label || '').toLowerCase() === wantedLower
+  ));
+  if (caseInsensitive) return caseInsensitive.value;
+
+  const wantedNorm = normalizeOptionToken(wanted);
+  const compact = list.find((o) => (
+    normalizeOptionToken(o.value) === wantedNorm
+    || normalizeOptionToken(o.label) === wantedNorm
+  ));
+  if (compact) return compact.value;
+
+  let bestValue = '';
+  let bestDist = 3;
+  for (const option of list) {
+    for (const candidate of [option.value, option.label]) {
+      const dist = levenshtein(normalizeOptionToken(candidate), wantedNorm);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestValue = option.value;
+      }
+    }
+  }
+  if (bestValue) return bestValue;
+
+  const family = optionFamily(wanted);
+  const familyMatch = list.find((o) => (
+    optionFamily(o.value) === family || optionFamily(o.label) === family
+  ));
+  return familyMatch ? familyMatch.value : wanted;
+}
+
+async function coerceEnumerationValues(token, properties) {
+  const coerced = { ...properties };
+  const names = Object.keys(coerced).filter((name) => name !== 'email');
+  await Promise.all(names.map(async (name) => {
+    const definition = await getContactProperty(token, name).catch(() => null);
+    if (!definition || !Array.isArray(definition.options) || !definition.options.length) return;
+    coerced[name] = matchAllowedOption(definition.options, String(coerced[name]));
+  }));
+  return coerced;
 }
 
 function findMatchingProperty(list, aliases, needles) {

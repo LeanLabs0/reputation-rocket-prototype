@@ -8,7 +8,7 @@ const {
   scaffoldClientFolder,
 } = require('../../lib/scaffold-client');
 const { normalizePortalSettings } = require('../../lib/portal-settings');
-const { readClientConfigFile } = require('../../lib/client-config-file');
+const { readClientConfigFile, resolveHubSpotPropertyConfig } = require('../../lib/client-config-file');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -56,11 +56,7 @@ module.exports = async function handler(req, res) {
       supportEmail: portalSettings.supportEmail,
       portalSettings,
       folderCreatedAt: new Date().toISOString(),
-      hubspotCompleteProperty: 'rr_iscomplete',
-      hubspotCompleteValue: 'Yes',
-      hubspotOutcomeProperty: 'rr_outcome',
-      hubspotOutcomePositiveValue: 'positive',
-      hubspotOutcomeNegativeValue: 'negative',
+      ...resolveHubSpotPropertyConfig(fileConfig),
       formRegion: 'na1',
     });
 

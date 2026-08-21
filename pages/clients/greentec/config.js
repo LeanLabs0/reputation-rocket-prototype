@@ -27,7 +27,8 @@ window.CLIENT_CONFIG = {
   hubspotFormRegion: "na1",
   hubspotCompleteProperty: "rr_iscomplete",
   hubspotCompleteValue: "Yes",
+  hubspotIncompleteValue: "No",
   hubspotOutcomeProperty: "rr_outcome",
-  hubspotOutcomePositiveValue: "positive",
-  hubspotOutcomeNegativeValue: "negative"
+  hubspotOutcomePositiveValue: "Positive",
+  hubspotOutcomeNegativeValue: "Negative"
 };
