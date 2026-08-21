@@ -3260,7 +3260,7 @@ function initCompleteScreen() {
   maybeRedirectToThankYou();
 }
 
-async function patchHubSpotContact(properties, { attempts = 5, delayMs = 700 } = {}) {
+async function patchHubSpotContact(properties, { attempts = 5, delayMs = 700, role = '' } = {}) {
   if (!CONFIG.HUBSPOT_CONTACT_URL) return false;
   if (!properties || typeof properties !== 'object' || !Object.keys(properties).length) return false;
 
@@ -3272,6 +3272,7 @@ async function patchHubSpotContact(properties, { attempts = 5, delayMs = 700 } =
 
   let lastErr = null;
   for (let i = 0; i < attempts; i++) {
+    if (role === 'incomplete' && hubspotCompleteSent) return true;
     try {
       const res = await fetch(CONFIG.HUBSPOT_CONTACT_URL, {
         method: 'POST',
@@ -3311,11 +3312,17 @@ function markHubSpotContactIncomplete() {
   const incompleteValue = String(CLIENT_CONFIG.hubspotCompleteIncompleteValue || 'No').trim();
   if (!completeProperty || !incompleteValue) return;
 
-  patchHubSpotContact({ [completeProperty]: incompleteValue }).then((ok) => {
-    if (!ok) return;
-    hubspotIncompleteSent = true;
-    saveSession();
-  });
+  window.setTimeout(() => {
+    if (hubspotCompleteSent || hubspotIncompleteSent) return;
+    patchHubSpotContact(
+      { [completeProperty]: incompleteValue },
+      { role: 'incomplete' },
+    ).then((ok) => {
+      if (!ok || hubspotCompleteSent) return;
+      hubspotIncompleteSent = true;
+      saveSession();
+    });
+  }, 1500);
 }
 
 async function markHubSpotContactComplete(outcome) {
