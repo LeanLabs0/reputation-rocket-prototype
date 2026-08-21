@@ -899,7 +899,109 @@ const LEAD_PROXY_FIELDS = [
   { key: 'lastname', label: 'Last Name', type: 'text', autocomplete: 'family-name' },
   { key: 'email', label: 'Email', type: 'email', autocomplete: 'email' },
   { key: 'company', label: 'Company Name', type: 'text', autocomplete: 'organization' },
+  { key: 'website', label: 'Website', type: 'text', autocomplete: 'url' },
 ];
+
+const LEAD_PROXY_FIELD_META = {
+  firstname: { label: 'First Name', type: 'text', autocomplete: 'given-name' },
+  lastname: { label: 'Last Name', type: 'text', autocomplete: 'family-name' },
+  email: { label: 'Email', type: 'email', autocomplete: 'email' },
+  company: { label: 'Company Name', type: 'text', autocomplete: 'organization' },
+  website: { label: 'Website', type: 'text', autocomplete: 'url' },
+  phone: { label: 'Phone', type: 'tel', autocomplete: 'tel' },
+  jobtitle: { label: 'Job Title', type: 'text', autocomplete: 'organization-title' },
+};
+
+function leadProxyFieldSpec(key, hsField) {
+  const k = normalizeHubSpotFieldKey(key);
+  const known = LEAD_PROXY_FIELD_META[k];
+  if (known) return { key: k, ...known };
+  let label = '';
+  if (hsField) {
+    const wrap = hsField.closest('.hs-form-field');
+    const el = wrap?.querySelector(':scope > label');
+    label = String(el?.textContent || '').replace(/\s*\*+\s*$/, '').replace(/\s+/g, ' ').trim();
+  }
+  if (!label) {
+    label = k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+  return { key: k, label, type: 'text', autocomplete: 'on' };
+}
+
+function ensureLeadProxyField(spec) {
+  const proxy = document.getElementById('hubspot-lead-proxy');
+  if (!proxy || !spec?.key) return;
+  if (proxy.querySelector(`[data-hs-field="${spec.key}"]`)) return;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'hs-form-field';
+  const id = `hubspot-lead-proxy-${spec.key}`;
+
+  const label = document.createElement('label');
+  label.setAttribute('for', id);
+  label.textContent = spec.label;
+  const star = document.createElement('span');
+  star.className = 'hs-form-required';
+  star.textContent = ' *';
+  label.appendChild(star);
+  wrap.appendChild(label);
+
+  const input = document.createElement('input');
+  input.id = id;
+  input.className = 'hs-input';
+  input.type = spec.type || 'text';
+  input.required = true;
+  if (spec.autocomplete) input.autocomplete = spec.autocomplete;
+  if (spec.key === 'website') input.placeholder = 'https://';
+  input.dataset.hsField = spec.key;
+  wrap.appendChild(input);
+
+  const actions = proxy.querySelector('.hs_submit');
+  if (actions) proxy.insertBefore(wrap, actions);
+  else proxy.appendChild(wrap);
+}
+
+function syncRequiredFieldsFromHubSpotForm(hsForm) {
+  if (!hsForm) return;
+  [...hsForm.querySelectorAll('input[name], select[name], textarea[name]')].forEach((field) => {
+    const key = normalizeHubSpotFieldKey(field.name);
+    if (!key || /hs_context|hutk|csrf|__hstc|__hssc|utm_/i.test(key)) return;
+    const type = String(field.type || '').toLowerCase();
+    if (['submit', 'button', 'image', 'reset', 'file'].includes(type)) return;
+    const required = field.required || field.getAttribute('aria-required') === 'true';
+    if (!required) return;
+    ensureLeadProxyField(leadProxyFieldSpec(key, field));
+  });
+}
+
+function setLeadProxyError(message) {
+  const proxy = document.getElementById('hubspot-lead-proxy');
+  if (!proxy) return;
+  let el = proxy.querySelector('.hubspot-lead-modal__error');
+  if (!message) {
+    if (el) el.remove();
+    return;
+  }
+  if (!el) {
+    el = document.createElement('p');
+    el.className = 'hubspot-lead-modal__error';
+    el.setAttribute('role', 'alert');
+    proxy.insertBefore(el, proxy.firstChild);
+  }
+  el.textContent = message;
+}
+
+function missingFieldsFromHubSpotError(err) {
+  const text = String(err && (err.message || err) || '');
+  const names = [];
+  const re = /fields\.([a-z0-9_]+)/gi;
+  let m;
+  while ((m = re.exec(text))) {
+    const key = normalizeHubSpotFieldKey(m[1]);
+    if (key && !names.includes(key)) names.push(key);
+  }
+  return names;
+}
 
 function scrapeLeadFieldsFromProxy() {
   const proxy = document.getElementById('hubspot-lead-proxy');
@@ -1013,6 +1115,7 @@ async function submitLeadProxyToHubSpot(onSuccess) {
   if (!leadProxyFieldsValid(proxy)) return;
 
   hubspotLeadFlowBusy = 'submitting';
+  setLeadProxyError('');
   const values = scrapeLeadFieldsFromProxy();
   const host = document.getElementById('hubspot-lead-form-target');
   const hsForm = host ? unwrapHubSpotFormEl(host) : null;
@@ -1023,8 +1126,15 @@ async function submitLeadProxyToHubSpot(onSuccess) {
     await submitLeadFieldsToHubSpotApi(values);
   } catch (err) {
     console.warn('[Reputation Rocket] HubSpot form API submit failed:', err);
-    const btn = hsForm && hsForm.querySelector('input[type="submit"], button[type="submit"], .hs-button');
-    if (btn) btn.click();
+    const missing = missingFieldsFromHubSpotError(err);
+    missing.forEach((key) => ensureLeadProxyField(leadProxyFieldSpec(key)));
+    setLeadProxyError(
+      missing.length
+        ? `Please fill in ${missing.map((k) => leadProxyFieldSpec(k).label).join(', ')}.`
+        : 'We couldn’t save your details. Check the form and try again.',
+    );
+    hubspotLeadFlowBusy = true;
+    return;
   }
 
   finishLeadCapture(onSuccess, values);
@@ -1102,7 +1212,9 @@ async function openHubSpotLeadModalAndMountForm(onSuccess) {
       target: targetSelector,
       cssRequired: false,
       onFormReady: ($form) => {
-        markHubSpotFormDoNotCollect(unwrapHubSpotFormEl($form) || target);
+        const hsForm = unwrapHubSpotFormEl($form) || target;
+        markHubSpotFormDoNotCollect(hsForm);
+        syncRequiredFieldsFromHubSpotForm(hsForm);
       },
     });
   } catch (err) {
@@ -3148,7 +3260,7 @@ function initCompleteScreen() {
   maybeRedirectToThankYou();
 }
 
-async function patchHubSpotContact(properties) {
+async function patchHubSpotContact(properties, { attempts = 5, delayMs = 700 } = {}) {
   if (!CONFIG.HUBSPOT_CONTACT_URL) return false;
   if (!properties || typeof properties !== 'object' || !Object.keys(properties).length) return false;
 
@@ -3158,33 +3270,38 @@ async function patchHubSpotContact(properties) {
   const email = (getLeadFieldsForApi().customer_email || PARAMS.email || '').trim();
   if (!email || email === 'Unknown') return false;
 
-  try {
-    const res = await fetch(CONFIG.HUBSPOT_CONTACT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client_slug: PARAMS.clientSlug,
-        portal_id: portalId,
-        email,
-        properties,
-      }),
-    });
+  let lastErr = null;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(CONFIG.HUBSPOT_CONTACT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_slug: PARAMS.clientSlug,
+          portal_id: portalId,
+          email,
+          properties,
+        }),
+      });
 
-    if (!res.ok) {
+      if (res.ok) return true;
+
       const errorText = await res.text();
       let detail = errorText;
       try {
         const parsed = JSON.parse(errorText);
         detail = parsed.detail || parsed.error || parsed.message || errorText;
       } catch (_) { /* not JSON */ }
-      throw new Error(`${res.status}: ${detail}`);
+      lastErr = new Error(`${res.status}: ${detail}`);
+      if (res.status !== 404 && res.status !== 502) break;
+    } catch (err) {
+      lastErr = err;
     }
-
-    return true;
-  } catch (err) {
-    console.warn('[Reputation Rocket] HubSpot contact property update failed:', err);
-    return false;
+    await new Promise((resolve) => setTimeout(resolve, delayMs * (i + 1)));
   }
+
+  console.warn('[Reputation Rocket] HubSpot contact property update failed:', lastErr);
+  return false;
 }
 
 function markHubSpotContactIncomplete() {
