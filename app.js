@@ -168,6 +168,8 @@ let platformsPosted = {};
 let platformPostedAt = {};
 /** Platforms where user has clicked "Open … review form" (fields flow / G2); unlocks inline confirm. */
 let reviewFormOpened = {};
+/** Platform waiting to show the review-complete overlay when user returns focus. */
+let pendingReviewOverlayPlatform = null;
 let negativeFlagData = null;
 let isWaitingForAgent = false;
 let lastAgentMessage = '';
@@ -384,6 +386,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!text) return;
     const ok = await copyToClipboard(text);
     if (ok) showToast();
+  });
+
+  // Show pending review-complete overlay when user returns focus from external review site
+  window.addEventListener('visibilitychange', () => {
+    if (!document.hidden && pendingReviewOverlayPlatform) {
+      const plat = pendingReviewOverlayPlatform;
+      pendingReviewOverlayPlatform = null;
+      showReviewCompleteOverlay(plat);
+    }
+  });
+  window.addEventListener('focus', () => {
+    if (pendingReviewOverlayPlatform) {
+      const plat = pendingReviewOverlayPlatform;
+      pendingReviewOverlayPlatform = null;
+      showReviewCompleteOverlay(plat);
+    }
   });
 
   $('#btn-skip-video').addEventListener('click', () => transitionTo('complete'));
@@ -2250,11 +2268,13 @@ function showReviewCompleteOverlay(platform) {
   if (currentState !== 'post') return;
   const meta = PLATFORM_META[platform] || { name: platform };
   const titleEl = $('#review-complete-title');
+  const hintEl = $('#review-complete-hint');
   const draftWrap = $('#review-complete-draft-wrap');
   const draftEl = $('#review-complete-draft');
   const rawDraftText = String((drafts[platform] || reviewDraft || '')).trim();
   const draftText = formatDraftForOverlay(platform, rawDraftText);
   if (titleEl) titleEl.textContent = `Finished on ${meta.name}?`;
+  if (hintEl) hintEl.textContent = `Mark your session as complete below. Note: ${meta.name} and other platforms only show updates after they review and publish your submission.`;
   if (draftWrap && draftEl) {
     draftWrap.hidden = !draftText;
     draftEl.textContent = draftText;
@@ -2341,7 +2361,7 @@ function initPostScreen() {
     `;
 
       if (isPosted) {
-        card.innerHTML = header + '<span class="platform-status done">Posted!</span>';
+        card.innerHTML = header + '<span class="platform-status done">Marked posted</span>';
       } else if (flow === 'fields') {
         card.innerHTML = header + renderG2CardBody(plat);
       } else {
@@ -2381,7 +2401,8 @@ function initPostScreen() {
       reviewFormOpened[plat] = true;
       saveSession();
       initPostScreen();
-      showReviewCompleteOverlay(plat);
+      // Defer overlay until user returns focus from the external review site
+      pendingReviewOverlayPlatform = plat;
     });
   });
   grid.querySelectorAll('[data-action="open-only"]').forEach(btn => {
@@ -2390,7 +2411,8 @@ function initPostScreen() {
       const link = PARAMS.reviewLinks[plat];
       if (link) {
         openReviewPlatform(link);
-        showReviewCompleteOverlay(plat);
+        // Defer overlay until user returns focus from the external review site
+        pendingReviewOverlayPlatform = plat;
       }
     });
   });
@@ -2485,7 +2507,8 @@ async function handlePastePost(platform, opts = {}) {
   }
 
   if (!skipOverlay) {
-    showReviewCompleteOverlay(platform);
+    // Defer overlay until user returns focus from the external review site
+    pendingReviewOverlayPlatform = platform;
   }
 
   try {
@@ -2538,9 +2561,9 @@ function updatePostProgress() {
   const fill = $('#post-progress-fill');
   const text = $('#post-progress-text');
   if (fill) fill.style.width = pct + '%';
-  if (text) text.textContent = `${posted} of ${total} posted`;
+  if (text) text.textContent = `${posted} of ${total} marked posted`;
   const headline = $('#post-progress-headline');
-  if (headline) headline.textContent = `${posted} of ${total} reviews confirmed`;
+  if (headline) headline.textContent = `${posted} of ${total} sessions completed`;
 }
 
 function handleContinueAfterPost() {
