@@ -257,7 +257,7 @@ function buildSlackMessage(payload) {
 
   const posted = Array.isArray(payload.posted) && payload.posted.length
     ? payload.posted.join(', ')
-    : 'None marked posted';
+    : 'None marked submitted';
   const video = payload.video_testimonial && typeof payload.video_testimonial === 'object'
     ? payload.video_testimonial
     : null;
@@ -266,13 +266,13 @@ function buildSlackMessage(payload) {
     : (video && video.id ? `HubSpot file ID: ${video.id}` : 'Not submitted');
 
   return {
-    text: `${mentionPrefix}:rocket: ${payload.customer_name || 'A customer'} completed Reputation Rocket for ${payload.client || 'a client'}`,
+    text: `${mentionPrefix}:rocket: ${payload.customer_name || 'A customer'} marked a Reputation Rocket session completed for ${payload.client || 'a client'}`,
     blocks: [
       {
         type: 'header',
         text: {
           type: 'plain_text',
-          text: 'Reputation Rocket Completed',
+          text: 'Session completed',
         },
       },
         ...mentionBlock,
@@ -283,7 +283,7 @@ function buildSlackMessage(payload) {
             { type: 'mrkdwn', text: `*Customer company:*\n${payload.client || 'Unknown'}` },
             { type: 'mrkdwn', text: `*Customer:*\n${payload.customer_name || 'Unknown'}` },
             { type: 'mrkdwn', text: `*Email:*\n${payload.customer_email || 'Unknown'}` },
-            { type: 'mrkdwn', text: `*Marked posted:*\n${posted}` },
+            { type: 'mrkdwn', text: `*Marked submitted:*\n${posted}` },
             { type: 'mrkdwn', text: `*Rating:*\n${payload.rating || 'Unknown'}` },
           ],
         },
@@ -465,7 +465,7 @@ function buildCompletedEmailSubjectAndText(payload) {
   const receivedAt = formatReceivedAt(payload.received_at || payload.ts);
   const posted = Array.isArray(payload.posted) && payload.posted.length
     ? payload.posted.join(', ')
-    : 'None marked posted';
+    : 'None marked submitted';
   const video = payload.video_testimonial && typeof payload.video_testimonial === 'object'
     ? payload.video_testimonial
     : null;
@@ -473,17 +473,17 @@ function buildCompletedEmailSubjectAndText(payload) {
     ? video.url
     : (video && video.id ? `HubSpot file ID: ${video.id}` : 'Not submitted');
 
-  const subject = `[Reputation Rocket] Completed — ${payload.client || 'Unknown'} — ${receivedAt}`;
+  const subject = `[Reputation Rocket] Session completed — ${payload.client || 'Unknown'} — ${receivedAt}`;
 
   const text = [
-    `Reputation Rocket completed — ${payload.client || 'Unknown client'}`,
+    `Reputation Rocket session completed — ${payload.client || 'Unknown client'}`,
     '',
     `Portal: ${payload.provider || '—'}`,
     `Customer company: ${payload.client || 'Unknown'}`,
     `Customer: ${payload.customer_name || 'Unknown'}`,
     `Email: ${payload.customer_email || 'Unknown'}`,
     `Date received: ${receivedAt}`,
-    `Marked posted: ${posted}`,
+    `Marked submitted: ${posted}`,
     `Rating: ${payload.rating || 'Unknown'}`,
     '',
     `Video testimonial: ${videoLine}`,
@@ -539,3 +539,6 @@ async function sendNotifyEmail(payload, to) {
     return { sent: false, reason: 'resend_exception', message: error.message };
   }
 }
+
+module.exports.buildSlackMessage = buildSlackMessage;
+module.exports.buildCompletedEmailSubjectAndText = buildCompletedEmailSubjectAndText;
