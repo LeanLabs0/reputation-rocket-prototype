@@ -2515,7 +2515,7 @@ function initPostScreen() {
       const link = PARAMS.reviewLinks[plat];
       if (link) {
         openReviewPlatform(link, plat);
-        showReviewCompleteOverlay(plat);
+        scheduleReviewCompleteOverlay(plat);
       }
     });
   });
