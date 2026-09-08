@@ -168,6 +168,16 @@ let platformsPosted = {};
 let platformPostedAt = {};
 /** Platforms where user has clicked "Open … review form" (fields flow / G2); unlocks inline confirm. */
 let reviewFormOpened = {};
+/** Platform waiting to show the review-complete overlay when user returns. */
+let pendingReviewOverlayPlatform = null;
+/** True only after we observed the app lose visibility or window focus. */
+let reviewOverlayAwaitingReturn = false;
+let reviewOverlayFallbackTimer = null;
+let pendingReviewOverlayScheduledAt = 0;
+/** Ignore the blur/focus bounce from opening a tab so the overlay does not flash immediately. */
+const REVIEW_OVERLAY_BOUNCE_MS = 300;
+/** If the opener never leaves (blocked tab, missing URL), still offer confirm. */
+const REVIEW_OVERLAY_FALLBACK_MS = 400;
 let negativeFlagData = null;
 let isWaitingForAgent = false;
 let lastAgentMessage = '';
@@ -387,6 +397,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (ok) showToast();
   });
 
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      markReviewOverlayLeftApp();
+      return;
+    }
+    maybeShowPendingReviewOverlay();
+  });
+  window.addEventListener('blur', markReviewOverlayLeftApp);
+  window.addEventListener('focus', maybeShowPendingReviewOverlay);
+
   $('#btn-skip-video').addEventListener('click', () => transitionTo('complete'));
   $('#btn-record-video').addEventListener('click', openVideoCaptureModal);
   $('.video-powered')?.replaceChildren(document.createTextNode('Uploaded to HubSpot'));
@@ -398,6 +418,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // ── State Machine ───────────────────────────────────────────
 function transitionTo(state) {
+  clearPendingReviewOverlay();
   hideReviewCompleteOverlay();
 
   $$('.screen').forEach(s => s.classList.remove('active'));
@@ -2134,7 +2155,7 @@ function mountRichPostedCard(card, plat, meta, postedAtIso) {
     </p>
     <div class="platform-card-actions platform-card-actions--split">
       <button type="button" class="btn btn-secondary btn-sm" data-action="view-review-link" data-platform="${escapeHtml(plat)}">
-        View my review ${iconExternalLink()}
+        Open review site ${iconExternalLink()}
       </button>
       <button type="button" class="btn btn-secondary btn-sm" data-action="post-another" data-platform="${escapeHtml(plat)}">
         Post another review
@@ -2161,7 +2182,7 @@ function mountRichPasteUnpostedCard(card, plat, index1, meta) {
         Open ${escapeHtml(meta.name)} review form ${iconExternalLink()}
       </button>
     </div>
-    <p class="platform-card-foot-hint">${iconLockSmall()}<span>We'll ask you to confirm once the review site opens</span></p>`;
+    <p class="platform-card-foot-hint">${iconLockSmall()}<span>We'll ask you to confirm when you return to this tab</span></p>`;
   const wrap = card.querySelector('.platform-card-logo-wrap');
   if (wrap) wrap.appendChild(createPlatformCardLogo(plat));
 }
@@ -2236,6 +2257,69 @@ function mountRichG2UnpostedCard(card, plat, index1, meta) {
   if (wrap) wrap.appendChild(createPlatformCardLogo(plat));
 }
 
+function clearPendingReviewOverlay() {
+  pendingReviewOverlayPlatform = null;
+  reviewOverlayAwaitingReturn = false;
+  pendingReviewOverlayScheduledAt = 0;
+  if (reviewOverlayFallbackTimer != null) {
+    clearTimeout(reviewOverlayFallbackTimer);
+    reviewOverlayFallbackTimer = null;
+  }
+}
+
+function flushPendingReviewOverlay() {
+  const plat = pendingReviewOverlayPlatform;
+  clearPendingReviewOverlay();
+  if (plat != null) showReviewCompleteOverlay(plat);
+}
+
+function markReviewOverlayLeftApp() {
+  if (pendingReviewOverlayPlatform != null) reviewOverlayAwaitingReturn = true;
+}
+
+function pageIsForeground() {
+  if (document.hidden) return false;
+  if (typeof document.hasFocus === 'function' && !document.hasFocus()) return false;
+  return true;
+}
+
+function maybeShowPendingReviewOverlay() {
+  if (pendingReviewOverlayPlatform == null) return;
+  if (!pageIsForeground()) return;
+  if (!reviewOverlayAwaitingReturn) return;
+  if (Date.now() - pendingReviewOverlayScheduledAt < REVIEW_OVERLAY_BOUNCE_MS) return;
+  flushPendingReviewOverlay();
+}
+
+/**
+ * Ask "finished?" only after the user comes back from the review site.
+ * If they never leave (blocked tab, missing URL, opener stayed focused),
+ * show the overlay after a short fallback so confirm is not lost.
+ */
+function scheduleReviewCompleteOverlay(platform) {
+  if (platform == null || platformsPosted[platform]) return;
+  if (currentState !== 'post') return;
+  clearPendingReviewOverlay();
+  pendingReviewOverlayPlatform = platform;
+  pendingReviewOverlayScheduledAt = Date.now();
+  reviewOverlayAwaitingReturn = !pageIsForeground();
+
+  reviewOverlayFallbackTimer = setTimeout(() => {
+    reviewOverlayFallbackTimer = null;
+    if (pendingReviewOverlayPlatform !== platform) return;
+    if (!pageIsForeground()) {
+      reviewOverlayAwaitingReturn = true;
+      return;
+    }
+    flushPendingReviewOverlay();
+  }, REVIEW_OVERLAY_FALLBACK_MS);
+}
+
+function reviewPublicationHint(platformName) {
+  const name = String(platformName || 'That site').trim() || 'That site';
+  return `Mark your session as complete below. ${name} — and any site that reads it — only update once ${name} publishes your review.`;
+}
+
 function hideReviewCompleteOverlay() {
   const overlay = $('#review-complete-overlay');
   if (!overlay) return;
@@ -2254,11 +2338,13 @@ function showReviewCompleteOverlay(platform) {
   if (currentState !== 'post') return;
   const meta = PLATFORM_META[platform] || { name: platform };
   const titleEl = $('#review-complete-title');
+  const hintEl = $('#review-complete-hint');
   const draftWrap = $('#review-complete-draft-wrap');
   const draftEl = $('#review-complete-draft');
   const rawDraftText = String((drafts[platform] || reviewDraft || '')).trim();
   const draftText = formatDraftForOverlay(platform, rawDraftText);
   if (titleEl) titleEl.textContent = `Finished on ${meta.name}?`;
+  if (hintEl) hintEl.textContent = reviewPublicationHint(meta.name);
   if (draftWrap && draftEl) {
     draftWrap.hidden = !draftText;
     draftEl.textContent = draftText;
@@ -2380,13 +2466,13 @@ function initPostScreen() {
     `;
 
       if (isPosted) {
-        card.innerHTML = header + '<span class="platform-status done">Posted!</span>';
+        card.innerHTML = header + '<span class="platform-status done">Marked submitted</span>';
       } else if (flow === 'fields') {
         card.innerHTML = header + renderG2CardBody(plat);
       } else {
         card.innerHTML = header + `
         <span class="platform-status ready" data-action="post-paste" data-platform="${plat}">Copy &amp; open ${meta.name} →</span>
-        <p class="platform-hint">We'll ask you to confirm once the review site opens</p>
+        <p class="platform-hint">We'll ask you to confirm when you return to this tab</p>
       `;
       }
     }
@@ -2420,7 +2506,7 @@ function initPostScreen() {
       reviewFormOpened[plat] = true;
       saveSession();
       initPostScreen();
-      showReviewCompleteOverlay(plat);
+      scheduleReviewCompleteOverlay(plat);
     });
   });
   grid.querySelectorAll('[data-action="open-only"]').forEach(btn => {
@@ -2468,7 +2554,7 @@ function renderG2CardBody(plat) {
     // backwards-compat fallback: no markers found, treat as paste flow
     return `
       <span class="platform-status ready" data-action="post-paste" data-platform="${plat}">Copy &amp; open ${escapeHtml(name)} →</span>
-      <p class="platform-hint">We'll ask you to confirm once the review site opens</p>
+      <p class="platform-hint">We'll ask you to confirm when you return to this tab</p>
     `;
   }
 
@@ -2525,7 +2611,7 @@ async function handlePastePost(platform, opts = {}) {
   }
 
   if (!skipOverlay) {
-    showReviewCompleteOverlay(platform);
+    scheduleReviewCompleteOverlay(platform);
   }
 
   try {
@@ -2578,9 +2664,9 @@ function updatePostProgress() {
   const fill = $('#post-progress-fill');
   const text = $('#post-progress-text');
   if (fill) fill.style.width = pct + '%';
-  if (text) text.textContent = `${posted} of ${total} posted`;
+  if (text) text.textContent = `${posted} of ${total} marked submitted`;
   const headline = $('#post-progress-headline');
-  if (headline) headline.textContent = `${posted} of ${total} reviews confirmed`;
+  if (headline) headline.textContent = `${posted} of ${total} sessions completed`;
 }
 
 function handleContinueAfterPost() {
