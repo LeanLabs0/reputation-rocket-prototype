@@ -2442,6 +2442,116 @@ a:hover { text-decoration: underline; }
   stroke-width: 2;
 }
 
+/* Post-step stay reminder (on-brand per client via --ll-* tokens) */
+.post-stay-nudge {
+  position: fixed;
+  right: 20px;
+  bottom: 24px;
+  z-index: 1900;
+  width: min(360px, calc(100vw - 32px));
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  column-gap: 12px;
+  padding: 16px 16px 16px 14px;
+  overflow: hidden;
+  background: var(--ll-chat-messages-bg);
+  color: var(--ll-heading);
+  border: 1px solid var(--ll-brand-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--ll-stepper-shadow), var(--shadow-md);
+  font-family: var(--font-family);
+  opacity: 0;
+  transform: translateY(16px);
+  pointer-events: none;
+  transition: opacity 0.28s ease, transform 0.28s ease;
+}
+.post-stay-nudge.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.post-stay-nudge-accent {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+  background: red;
+}
+.post-stay-nudge-icon {
+  grid-column: 1;
+  align-self: start;
+  width: 36px;
+  height: 36px;
+  margin-left: 4px;
+  border-radius: var(--radius-full);
+  background: var(--ll-purple-tint);
+  color: var(--ll-purple);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.post-stay-nudge-copy {
+  grid-column: 2;
+  min-width: 0;
+  padding-right: 8px;
+}
+.post-stay-nudge-title {
+  margin: 0 0 4px;
+  font-family: var(--font-heading, var(--font-family));
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ll-heading);
+}
+.post-stay-nudge-body {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--ll-body);
+}
+.post-stay-nudge-close {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  grid-column: 3;
+  align-self: start;
+  width: 28px;
+  height: 28px;
+  margin: -4px -4px 0 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ll-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.post-stay-nudge-close:hover,
+.post-stay-nudge-close:focus-visible {
+  background: var(--ll-purple-tint);
+  color: var(--ll-heading);
+  outline: none;
+}
+
+@media (max-width: 640px) {
+  .post-stay-nudge {
+    right: 12px;
+    left: 12px;
+    bottom: 16px;
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .post-stay-nudge {
+    transition: none;
+  }
+}
+
 /* ── Screen 5: Video ──────────────────────────────────────── */
 .video-card {
   border-radius: var(--radius-lg);

@@ -309,6 +309,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const startOverBtn = $('#btn-start-over');
   if (startOverBtn) {
     startOverBtn.addEventListener('click', () => {
+      allowPageUnload = true;
       if (typeof window.rrReset === 'function') {
         window.rrReset();
       } else {
@@ -390,6 +391,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('#btn-record-video').addEventListener('click', openVideoCaptureModal);
   $('.video-powered')?.replaceChildren(document.createTextNode('Uploaded to HubSpot'));
 
+  window.addEventListener('beforeunload', onBeforeUnloadReviewPost);
+
   if (restoreSession()) return;
 });
 
@@ -433,6 +436,7 @@ function transitionTo(state) {
   }
 
   saveSession();
+  syncPostStayNudge();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -2266,12 +2270,47 @@ function showReviewCompleteOverlay(platform) {
 }
 
 /**
- * Opens a review-site URL in a new browser tab. Must be called from a user
- * gesture (click). Uses a temporary anchor with target="_blank" for reliable,
- * popup-blocker-friendly behavior (no popup window sizing/quirks).
+ * Opens a review site in a focused mini window (not a background tab).
+ * Must run from a user click. Width/height in the features string is what
+ * Chrome, Edge, Firefox, and Safari use to create a popup instead of a tab.
+ * If the popup is blocked (typical on some mobile browsers), fall back to a tab.
  */
-function openReviewPlatform(url) {
+function openReviewPlatform(url, platform) {
   if (!url) return null;
+
+  const availW = window.screen?.availWidth || window.innerWidth || 1280;
+  const availH = window.screen?.availHeight || window.innerHeight || 800;
+  const width = Math.min(1080, Math.max(760, Math.round(availW * 0.7)));
+  const height = Math.min(880, Math.max(640, Math.round(availH * 0.8)));
+  const dualLeft = window.screenLeft ?? window.screenX ?? 0;
+  const dualTop = window.screenTop ?? window.screenY ?? 0;
+  const viewportW = window.outerWidth || window.innerWidth || width;
+  const viewportH = window.outerHeight || window.innerHeight || height;
+  const left = Math.max(0, Math.round(dualLeft + (viewportW - width) / 2));
+  const top = Math.max(0, Math.round(dualTop + (viewportH - height) / 2));
+  const name = `rr-review-${String(platform || 'site').replace(/[^a-z0-9_-]+/gi, '') || 'site'}`;
+  const features = [
+    'popup=yes',
+    `width=${width}`,
+    `height=${height}`,
+    `left=${left}`,
+    `top=${top}`,
+    'scrollbars=yes',
+    'resizable=yes',
+  ].join(',');
+
+  let popup = null;
+  try {
+    popup = window.open(url, name, features);
+  } catch (_) {
+    popup = null;
+  }
+
+  if (popup) {
+    try { popup.opener = null; } catch (_) { /* ignore */ }
+    try { popup.focus(); } catch (_) { /* ignore */ }
+    return popup;
+  }
 
   const a = document.createElement('a');
   a.href = url;
@@ -2361,7 +2400,7 @@ function initPostScreen() {
     btn.addEventListener('click', () => {
       const plat = btn.dataset.platform;
       const link = PARAMS.reviewLinks[plat];
-      if (link) window.open(link, '_blank', 'noopener,noreferrer');
+      if (link) openReviewPlatform(link, plat);
     });
   });
   grid.querySelectorAll('[data-action="post-another"]').forEach(btn => {
@@ -2372,11 +2411,11 @@ function initPostScreen() {
     btn.addEventListener('click', () => {
       const plat = btn.dataset.platform;
       const link = PARAMS.reviewLinks[plat];
-      // Only open the tab when a link is configured, but ALWAYS surface the
+      // Only open the review window when a link is configured, but ALWAYS surface the
       // confirm overlay (matching the post-paste flow) so an empty/missing
       // reviewLink can never silently swallow the click.
       if (link) {
-        openReviewPlatform(link);
+        openReviewPlatform(link, plat);
       }
       reviewFormOpened[plat] = true;
       saveSession();
@@ -2389,7 +2428,7 @@ function initPostScreen() {
       const plat = btn.dataset.platform;
       const link = PARAMS.reviewLinks[plat];
       if (link) {
-        openReviewPlatform(link);
+        openReviewPlatform(link, plat);
         showReviewCompleteOverlay(plat);
       }
     });
@@ -2416,6 +2455,7 @@ function initPostScreen() {
   });
   updatePostContinueButton();
   updatePostProgress();
+  syncPostStayNudge();
 }
 
 function renderG2CardBody(plat) {
@@ -2481,7 +2521,7 @@ async function handlePastePost(platform, opts = {}) {
   const draftText = drafts[platform] || reviewDraft || '';
 
   if (link) {
-    openReviewPlatform(link);
+    openReviewPlatform(link, platform);
   }
 
   if (!skipOverlay) {
@@ -2549,6 +2589,110 @@ function handleContinueAfterPost() {
   } else {
     transitionTo('complete');
   }
+}
+
+/**
+ * Native leave-site prompt while the visitor is still on the review-post step
+ * with unconfirmed platforms. Modern browsers ignore custom copy and show a
+ * generic “Leave site?” dialog — that is the only blocking API available.
+ * Opening a review site in a new tab does not fire this.
+ */
+let allowPageUnload = false;
+
+function shouldWarnBeforeLeavingReviewPost() {
+  if (allowPageUnload) return false;
+  if (currentState !== 'post') return false;
+  const platforms = PARAMS.platforms || [];
+  if (!platforms.length) return false;
+  return platforms.some((plat) => !platformsPosted[plat]);
+}
+
+function onBeforeUnloadReviewPost(event) {
+  if (!shouldWarnBeforeLeavingReviewPost()) return;
+  event.preventDefault();
+  event.returnValue = '';
+}
+
+function postStayNudgeStorageKey() {
+  return `rr-post-stay-nudge:${PARAMS.clientSlug || 'default'}`;
+}
+
+function isPostStayNudgeDismissed() {
+  try {
+    return sessionStorage.getItem(postStayNudgeStorageKey()) === '1';
+  } catch (_) {
+    return false;
+  }
+}
+
+function dismissPostStayNudge() {
+  try {
+    sessionStorage.setItem(postStayNudgeStorageKey(), '1');
+  } catch (_) { /* ignore */ }
+  const el = document.getElementById('post-stay-nudge');
+  if (!el) return;
+  el.classList.remove('is-visible');
+  el.hidden = true;
+}
+
+function reviewSitePhrase() {
+  const names = (PARAMS.platforms || []).map((id) => (PLATFORM_META[id] || {}).name || id);
+  if (names.length <= 1) return names[0] || 'the review site';
+  if (names.length === 2) return `${names[0]} or ${names[1]}`;
+  return `one of the ${names.length} review sites`;
+}
+
+function ensurePostStayNudge() {
+  let el = document.getElementById('post-stay-nudge');
+  if (el) return el;
+
+  el = document.createElement('aside');
+  el.id = 'post-stay-nudge';
+  el.className = 'post-stay-nudge';
+  el.hidden = true;
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-labelledby', 'post-stay-nudge-title');
+  el.setAttribute('aria-describedby', 'post-stay-nudge-body');
+  el.innerHTML = `
+    <div class="post-stay-nudge-accent" aria-hidden="true"></div>
+    <button type="button" class="post-stay-nudge-close" aria-label="Dismiss reminder">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <path d="M18 6 6 18M6 6l12 12"/>
+      </svg>
+    </button>
+    <div class="post-stay-nudge-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+    </div>
+    <div class="post-stay-nudge-copy">
+      <p id="post-stay-nudge-title" class="post-stay-nudge-title"></p>
+      <p id="post-stay-nudge-body" class="post-stay-nudge-body"></p>
+    </div>
+  `;
+  el.querySelector('.post-stay-nudge-close').addEventListener('click', dismissPostStayNudge);
+  document.body.appendChild(el);
+  return el;
+}
+
+function syncPostStayNudge() {
+  const el = ensurePostStayNudge();
+  const show = shouldWarnBeforeLeavingReviewPost() && !isPostStayNudgeDismissed();
+  const provider = PARAMS.providerName || 'this team';
+  el.querySelector('#post-stay-nudge-title').textContent = 'Wait, did you post yet?';
+  el.querySelector('#post-stay-nudge-body').textContent =
+    `Your reviews won’t be posted unless you visit ${reviewSitePhrase()}. Come back here and confirm so ${provider} can see them.`;
+
+  if (!show) {
+    el.classList.remove('is-visible');
+    el.hidden = true;
+    return;
+  }
+
+  el.hidden = false;
+  requestAnimationFrame(() => el.classList.add('is-visible'));
 }
 
 function isVideoStepEnabled() {
@@ -3621,6 +3765,7 @@ function restoreSession() {
 }
 
 window.rrReset = () => {
+  allowPageUnload = true;
   hideReviewCompleteOverlay();
   try {
     sessionStorage.removeItem(getSessionStorageKey());
