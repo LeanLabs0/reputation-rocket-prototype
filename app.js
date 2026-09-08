@@ -2332,7 +2332,7 @@ function hideReviewCompleteOverlay() {
   delete overlay.dataset.platform;
 }
 
-function showReviewCompleteOverlay(platform) {
+function showReviewCompleteOverlay(platform, { stealFocus = true } = {}) {
   const overlay = $('#review-complete-overlay');
   if (!overlay || platform == null || platformsPosted[platform]) return;
   if (currentState !== 'post') return;
@@ -2352,7 +2352,24 @@ function showReviewCompleteOverlay(platform) {
   overlay.dataset.platform = platform;
   overlay.hidden = false;
   overlay.setAttribute('aria-hidden', 'false');
-  $('#btn-review-complete-confirm')?.focus();
+  if (stealFocus) {
+    $('#btn-review-complete-confirm')?.focus();
+  }
+}
+
+/**
+ * Mini windows keep Reputation Rocket visible, so show the copy/confirm
+ * modal on this page immediately (without stealing focus). New-tab fallback
+ * still waits until the visitor returns.
+ */
+function presentReviewCompleteAfterOpen(platform, popup) {
+  if (popup) {
+    clearPendingReviewOverlay();
+    showReviewCompleteOverlay(platform, { stealFocus: false });
+    try { popup.focus(); } catch (_) { /* ignore */ }
+    return;
+  }
+  scheduleReviewCompleteOverlay(platform);
 }
 
 /**
@@ -2500,13 +2517,11 @@ function initPostScreen() {
       // Only open the review window when a link is configured, but ALWAYS surface the
       // confirm overlay (matching the post-paste flow) so an empty/missing
       // reviewLink can never silently swallow the click.
-      if (link) {
-        openReviewPlatform(link, plat);
-      }
+      const popup = link ? openReviewPlatform(link, plat) : null;
       reviewFormOpened[plat] = true;
       saveSession();
       initPostScreen();
-      scheduleReviewCompleteOverlay(plat);
+      presentReviewCompleteAfterOpen(plat, popup);
     });
   });
   grid.querySelectorAll('[data-action="open-only"]').forEach(btn => {
@@ -2514,8 +2529,8 @@ function initPostScreen() {
       const plat = btn.dataset.platform;
       const link = PARAMS.reviewLinks[plat];
       if (link) {
-        openReviewPlatform(link, plat);
-        scheduleReviewCompleteOverlay(plat);
+        const popup = openReviewPlatform(link, plat);
+        presentReviewCompleteAfterOpen(plat, popup);
       }
     });
   });
@@ -2606,12 +2621,10 @@ async function handlePastePost(platform, opts = {}) {
   const link = PARAMS.reviewLinks[platform];
   const draftText = drafts[platform] || reviewDraft || '';
 
-  if (link) {
-    openReviewPlatform(link, platform);
-  }
+  const popup = link ? openReviewPlatform(link, platform) : null;
 
   if (!skipOverlay) {
-    scheduleReviewCompleteOverlay(platform);
+    presentReviewCompleteAfterOpen(platform, popup);
   }
 
   try {
