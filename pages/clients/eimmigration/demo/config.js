@@ -11,6 +11,7 @@
 window.CLIENT_CONFIG = {
   clientSlug: 'eim-demo',
   providerName: 'eimmigration',
+  displayName: 'eImmigration',
   agentEndpoint: '/api/agent',
   notificationEndpoint: '/api/notify',
   platforms: ['gartner', 'g2', 'trustpilot'],
