@@ -42,3 +42,6 @@
 /fatherhood  /pages/clients/fatherhood/  200
 /fatherhood/  /pages/clients/fatherhood/  200
 /fatherhood/*  /pages/clients/fatherhood/:splat  200
+
+# Unknown paths
+/*  /404.html  404

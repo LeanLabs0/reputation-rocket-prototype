@@ -234,6 +234,15 @@ function resolveStaticFile(pathname) {
 function serveStatic(rawPathname, res) {
   const filePath = resolveStaticFile(rawPathname);
   if (!filePath) {
+    const notFound = path.join(ROOT, '404.html');
+    if (fs.existsSync(notFound)) {
+      res.writeHead(404, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'X-Content-Type-Options': 'nosniff',
+      });
+      fs.createReadStream(notFound).pipe(res);
+      return;
+    }
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Not found');
     return;

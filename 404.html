@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Page not found</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/home.css">
+<link rel="SHORTCUT ICON" href="/assets/image/reprocket-icon.svg">
+</head>
+<body class="rr-directory rr-lp">
+  <div class="rr-directory-bg" aria-hidden="true"></div>
+
+  <main class="rr-lp-main rr-lp-404">
+    <header class="rr-directory-header rr-lp-header">
+      <div class="rr-directory-brand">
+        <div class="rr-directory-logo-shell">
+          <img class="rr-directory-logo" src="/assets/image/reprocket-icon.svg" width="20" height="20" alt="" decoding="async">
+        </div>
+        <span class="rr-directory-brand-text">Reputation Rocket</span>
+      </div>
+    </header>
+
+    <section class="rr-lp-hero">
+      <span class="rr-lp-eyebrow">404</span>
+      <h1 class="rr-lp-title">Page not found</h1>
+      <p class="rr-lp-lead">
+        That link doesn’t go anywhere. Head home or try the live demo.
+      </p>
+      <div class="rr-lp-cta-row">
+        <a class="rr-lp-cta" href="/">
+          <span>Back to home</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M3.33331 8H12.6666" stroke="#1C1C1C" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M8 3.33301L12.6667 7.99967L8 12.6663" stroke="#1C1C1C" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="rr-legal-footer">
+    <p>© <span data-current-year></span> All Rights Reserved. Reputation Rocket&reg; is a registered trademark of <a href="https://www.brandvious.com" target="_blank" rel="noopener noreferrer">Brandvious</a>, Inc.</p>
+  </footer>
+  <script>
+    document.querySelectorAll('[data-current-year]').forEach((el) => {
+      el.textContent = String(new Date().getFullYear());
+    });
+  </script>
+</body>
+</html>

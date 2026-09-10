@@ -256,3 +256,9 @@
     grid-template-columns: 1fr;
   }
 }
+
+.rr-lp-404 {
+  justify-content: center;
+  min-height: calc(100vh - 120px);
+  gap: 48px;
+}
