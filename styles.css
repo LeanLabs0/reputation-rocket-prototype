@@ -3531,3 +3531,90 @@ body.rr-directory {
 .mt-sm { margin-top: 12px; }
 .mt-md { margin-top: 24px; }
 .mt-lg { margin-top: 32px; }
+
+/* ── Guided post checklist (ralph-last-step) ─────────────────
+   Shown on a rich platform card after the visitor opens the
+   review window. Walks login → copy → paste → confirm. */
+.guided-steps {
+  list-style: none;
+  margin: 14px 0 12px;
+  padding: 12px 14px;
+  display: grid;
+  row-gap: 10px;
+  background: var(--ll-off-white);
+  border: 1px solid var(--ll-border-light);
+  border-radius: var(--radius-md);
+  text-align: left;
+}
+.guided-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--ll-muted);
+}
+.guided-step-dot {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  border: 1.5px solid var(--ll-border);
+  color: var(--ll-muted);
+  background: transparent;
+}
+.guided-step-label { padding-top: 2px; }
+.guided-step.active { color: var(--ll-heading); font-weight: 600; }
+.guided-step.active .guided-step-dot {
+  border-color: var(--ll-purple);
+  color: var(--ll-btn-primary-text);
+  background: var(--ll-btn-primary-bg);
+}
+.guided-step.done { color: var(--ll-body); }
+.guided-step.done .guided-step-dot {
+  border-color: var(--ll-accent);
+  color: var(--ll-accent);
+  background: rgba(37, 193, 150, 0.12);
+}
+
+.field-row--copied { border-color: rgba(37, 193, 150, 0.55); }
+.field-row--next {
+  border-color: var(--ll-purple);
+  box-shadow: 0 0 0 1px var(--ll-purple);
+}
+.field-next-tag {
+  flex: 0 0 auto;
+  align-self: center;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ll-purple);
+  border: 1px solid var(--ll-purple);
+  border-radius: var(--radius-full);
+  padding: 2px 8px;
+}
+.btn-copy--done {
+  border-color: var(--ll-accent);
+  color: var(--ll-accent);
+  background: rgba(37, 193, 150, 0.12);
+}
+
+.guided-confirm { margin-top: 12px; }
+.btn-confirm-guided.pulse { animation: guided-pulse 1.4s ease-out 2; }
+@keyframes guided-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(37, 193, 150, 0.55); }
+  70% { box-shadow: 0 0 0 12px rgba(37, 193, 150, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(37, 193, 150, 0); }
+}
+
+/* Keep the floating stay-nudge clear of the last row of content. */
+#screen-post.has-stay-nudge { padding-bottom: 180px; }
+@media (max-width: 640px) {
+  #screen-post.has-stay-nudge { padding-bottom: 210px; }
+}

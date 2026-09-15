@@ -1,6 +1,7 @@
 window.CLIENT_CONFIG = {
   clientSlug: "eimmigration",
   providerName: "eimmigration",
+  displayName: "eImmigration",
   agentEndpoint: "/api/agent",
   notificationEndpoint: "/api/notify",
   platforms: ["gartner","g2","trustpilot"],

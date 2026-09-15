@@ -168,6 +168,8 @@ let platformsPosted = {};
 let platformPostedAt = {};
 /** Platforms where user has clicked "Open … review form" (fields flow / G2); unlocks inline confirm. */
 let reviewFormOpened = {};
+/** Guided post flow: per-platform list of field indexes the visitor already copied. */
+let platformFieldsCopied = {};
 /** Platform waiting to show the review-complete overlay when user returns. */
 let pendingReviewOverlayPlatform = null;
 /** True only after we observed the app lose visibility or window focus. */
@@ -403,9 +405,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     maybeShowPendingReviewOverlay();
+    maybePulseGuidedConfirm();
   });
   window.addEventListener('blur', markReviewOverlayLeftApp);
-  window.addEventListener('focus', maybeShowPendingReviewOverlay);
+  window.addEventListener('focus', () => {
+    maybeShowPendingReviewOverlay();
+    maybePulseGuidedConfirm();
+  });
 
   $('#btn-skip-video').addEventListener('click', () => transitionTo('complete'));
   $('#btn-record-video').addEventListener('click', openVideoCaptureModal);
@@ -2070,6 +2076,14 @@ function isRichPostLayout() {
   return String((el && el.dataset.postLayout) || CLIENT_CONFIG.postScreenLayout || '') === 'rich';
 }
 
+/**
+ * Human-facing client name for UI copy. providerName doubles as the backend
+ * routing slug (often lowercase), so never show it raw when a displayName exists.
+ */
+function clientDisplayName() {
+  return String(CLIENT_CONFIG.displayName || PARAMS.providerName || 'this team').trim() || 'this team';
+}
+
 function truncatePostSnippet(s, max = 280) {
   const t = String(s || '')
     .trim()
@@ -2148,7 +2162,7 @@ function mountRichPostedCard(card, plat, meta, postedAtIso) {
       <p>${escapeHtml(meta.desc)}</p>
     </div>
     ${renderRichStarsRow()}
-    <p class="platform-card-snippet">${escapeHtml(truncatePostSnippet(drafts[plat] || reviewDraft || ''))}</p>
+    <p class="platform-card-snippet">${escapeHtml(truncatePostSnippet(draftSnippetText(plat, drafts[plat] || reviewDraft || '')))}</p>
     <p class="platform-card-confirmed-meta">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
       Confirmed on ${escapeHtml(whenLabel)}
@@ -2158,7 +2172,7 @@ function mountRichPostedCard(card, plat, meta, postedAtIso) {
         Open review site ${iconExternalLink()}
       </button>
       <button type="button" class="btn btn-secondary btn-sm" data-action="post-another" data-platform="${escapeHtml(plat)}">
-        Post another review
+        Undo confirmation
       </button>
     </div>`;
   const wrap = card.querySelector('.platform-card-logo-wrap');
@@ -2166,7 +2180,11 @@ function mountRichPostedCard(card, plat, meta, postedAtIso) {
 }
 
 function mountRichPasteUnpostedCard(card, plat, index1, meta) {
-  card.innerHTML = `
+  const guided = Boolean(reviewFormOpened[plat]) && isRichPostLayout();
+  const draft = drafts[plat] || reviewDraft || '';
+
+  if (guided) {
+    card.innerHTML = `
     <div class="platform-card-top">
       ${richPendingStatusHTML()}
     </div>
@@ -2176,13 +2194,34 @@ function mountRichPasteUnpostedCard(card, plat, index1, meta) {
       <p>${escapeHtml(meta.desc)}</p>
     </div>
     ${renderRichStarsRow()}
-    <p class="platform-card-snippet">${escapeHtml(truncatePostSnippet(drafts[plat] || reviewDraft || ''))}</p>
+    ${guidedStepsHTML(plat, meta, 1, 1, { pasteFlow: true })}
+    <div class="field-row">
+      <div class="field-row-head">
+        <span class="field-label">Your review</span>
+        <button type="button" class="btn-copy" data-action="copy-all" data-platform="${escapeHtml(plat)}">Copy again</button>
+      </div>
+      <p class="field-body">${escapeHtml(truncatePostSnippet(draft, 420))}</p>
+    </div>
+    ${guidedConfirmHTML(plat, meta)}`;
+  } else {
+    card.innerHTML = `
+    <div class="platform-card-top">
+      ${richPendingStatusHTML()}
+    </div>
+    <div class="platform-card-brand">
+      <div class="platform-card-logo-wrap"></div>
+      <h4>${escapeHtml(meta.name)}</h4>
+      <p>${escapeHtml(meta.desc)}</p>
+    </div>
+    ${renderRichStarsRow()}
+    <p class="platform-card-snippet">${escapeHtml(truncatePostSnippet(draft))}</p>
     <div class="platform-card-actions platform-card-actions--stack">
       <button type="button" class="btn btn-primary btn-md" data-action="post-paste" data-platform="${escapeHtml(plat)}">
         Open ${escapeHtml(meta.name)} review form ${iconExternalLink()}
       </button>
     </div>
-    <p class="platform-card-foot-hint">${iconLockSmall()}<span>We'll ask you to confirm when you return to this tab</span></p>`;
+    <p class="platform-card-foot-hint">${iconLockSmall()}<span>We copy your review for you. Takes about a minute.</span></p>`;
+  }
   const wrap = card.querySelector('.platform-card-logo-wrap');
   if (wrap) wrap.appendChild(createPlatformCardLogo(plat));
 }
@@ -2207,6 +2246,79 @@ function formatDraftForOverlay(platform, draftText) {
   return text.replace(/\[FIELD:\s*([^\]]+?)\]/g, '$1');
 }
 
+/**
+ * Card-preview text: for fields-flow drafts, drop the question labels entirely
+ * (they read as noise in a truncated snippet) and keep only the answers.
+ */
+function draftSnippetText(platform, draftText) {
+  const meta = PLATFORM_META[String(platform || '').toLowerCase()];
+  if (meta && meta.flow === 'fields') {
+    const fields = parseG2Fields(draftText);
+    if (fields.length > 0) return fields.map((f) => f.body).join(' ');
+  }
+  return formatDraftForOverlay(platform, draftText);
+}
+
+// ── Guided post flow (rich layout) ──────────────────────────
+// After "Open … review form" the card turns into a 4-step checklist that
+// walks the visitor through login → copy → paste → confirm. Replaces the
+// old instant "Finished?" overlay, which covered the drafts it asked about.
+
+function copiedFieldIdxs(plat) {
+  const arr = platformFieldsCopied[plat];
+  return Array.isArray(arr) ? arr : [];
+}
+
+function markFieldCopied(plat, idx) {
+  const seen = new Set(copiedFieldIdxs(plat));
+  seen.add(idx);
+  platformFieldsCopied[plat] = [...seen];
+  saveSession();
+}
+
+/** Current step in the guided checklist: 1 login, 2 copy, 3 paste, 4 confirm. */
+function guidedCurrentStep(copiedCount, totalFields) {
+  if (copiedCount === 0) return 1;
+  if (copiedCount < totalFields) return 2;
+  return 3;
+}
+
+function guidedStepsHTML(plat, meta, copiedCount, totalFields, { pasteFlow = false } = {}) {
+  const current = pasteFlow ? 3 : guidedCurrentStep(copiedCount, totalFields);
+  const copyLabel = pasteFlow
+    ? 'Your review is already copied'
+    : `Copy your answers below (${copiedCount} of ${totalFields} copied)`;
+  const steps = [
+    { n: 1, label: `Log in to ${meta.name}, or create a free account` },
+    { n: 2, label: copyLabel },
+    { n: 3, label: `Paste into the ${meta.name} window` },
+    { n: 4, label: 'Come back here and tap "I posted my review"' },
+  ];
+  const items = steps
+    .map((s) => {
+      const done = s.n < current || (s.n === 2 && (pasteFlow || (totalFields > 0 && copiedCount >= totalFields)));
+      const cls = done ? 'done' : s.n === current ? 'active' : '';
+      const dot = done
+        ? '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>'
+        : String(s.n);
+      return `<li class="guided-step ${cls}"><span class="guided-step-dot" aria-hidden="true">${dot}</span><span class="guided-step-label">${escapeHtml(s.label)}</span></li>`;
+    })
+    .join('');
+  return `<ol class="guided-steps" aria-label="How to post your review">${items}</ol>`;
+}
+
+function guidedConfirmHTML(plat, meta) {
+  return `
+    <div class="platform-card-actions platform-card-actions--stack guided-confirm">
+      <button type="button" class="btn btn-primary btn-md btn-confirm-guided" data-action="confirm-posted" data-platform="${escapeHtml(plat)}">
+        I posted my review on ${escapeHtml(meta.name)}
+      </button>
+      <button type="button" class="btn btn-secondary btn-sm" data-action="reopen-window" data-platform="${escapeHtml(plat)}">
+        Reopen ${escapeHtml(meta.name)} window ${iconExternalLink()}
+      </button>
+    </div>`;
+}
+
 function mountRichG2UnpostedCard(card, plat, index1, meta) {
   const draft = drafts[plat] || reviewDraft || '';
   const fields = parseG2Fields(draft);
@@ -2216,20 +2328,30 @@ function mountRichG2UnpostedCard(card, plat, index1, meta) {
     return;
   }
 
+  const guided = Boolean(reviewFormOpened[plat]);
+  const copied = new Set(copiedFieldIdxs(plat));
+  const nextIdx = fields.findIndex((_, i) => !copied.has(i));
+
   const fieldRows = fields
-    .map(
-      (f) => `
-    <div class="field-row">
+    .map((f, i) => {
+      const isCopied = copied.has(i);
+      const isNext = guided && i === nextIdx;
+      const rowCls = `field-row${isCopied ? ' field-row--copied' : ''}${isNext ? ' field-row--next' : ''}`;
+      const btnLabel = isCopied ? 'Copied ✓' : 'Copy';
+      const nextTag = isNext ? '<span class="field-next-tag">Next</span>' : '';
+      return `
+    <div class="${rowCls}">
       <div class="field-row-head">
         <span class="field-label">${escapeHtml(f.label)}</span>
-        <button type="button" class="btn-copy" data-action="copy-section" data-text="${escapeAttr(f.body)}">Copy</button>
+        ${nextTag}
+        <button type="button" class="btn-copy${isCopied ? ' btn-copy--done' : ''}" data-action="copy-section" data-platform="${escapeHtml(plat)}" data-idx="${i}" data-text="${escapeAttr(f.body)}">${btnLabel}</button>
       </div>
       <p class="field-body">${escapeHtml(f.body)}</p>
-    </div>`,
-    )
+    </div>`;
+    })
     .join('');
 
-  const g2Hint = `Open the ${meta.name} form with the button below, then copy each answer.`;
+  const preHint = `Takes about 2 minutes. You may need a free ${meta.name} account, and that is normal.`;
 
   card.innerHTML = `
     <div class="platform-card-top">
@@ -2241,17 +2363,19 @@ function mountRichG2UnpostedCard(card, plat, index1, meta) {
       <p>${escapeHtml(meta.desc)}</p>
     </div>
     ${renderRichStarsRow()}
-    <p class="platform-card-snippet">${escapeHtml(truncatePostSnippet(draft))}</p>
+    ${guided ? '' : `<p class="platform-card-snippet">${escapeHtml(truncatePostSnippet(draftSnippetText(plat, draft)))}</p>`}
+    ${guided ? guidedStepsHTML(plat, meta, copied.size, fields.length) : `
     <div class="platform-card-actions platform-card-actions--stack">
       <button type="button" class="btn btn-primary btn-md" data-action="open-form" data-platform="${escapeHtml(plat)}">
         Open ${escapeHtml(meta.name)} review form ${iconExternalLink()}
       </button>
     </div>
-    <p class="platform-card-foot-hint">${iconLockSmall()}<span>${escapeHtml(g2Hint)}</span></p>
+    <p class="platform-card-foot-hint">${iconLockSmall()}<span>${escapeHtml(preHint)}</span></p>`}
     <details class="card-details card-details--rich" open>
       <summary>Your answers for ${escapeHtml(meta.name)} (${fields.length})</summary>
       <div class="card-details-body">${fieldRows}</div>
-    </details>`;
+    </details>
+    ${guided ? guidedConfirmHTML(plat, meta) : ''}`;
 
   const wrap = card.querySelector('.platform-card-logo-wrap');
   if (wrap) wrap.appendChild(createPlatformCardLogo(plat));
@@ -2292,6 +2416,19 @@ function maybeShowPendingReviewOverlay() {
 }
 
 /**
+ * When the visitor comes back from a review window, draw their eye to the
+ * card-level "I posted my review" button instead of throwing a modal at them.
+ */
+function maybePulseGuidedConfirm() {
+  if (currentState !== 'post' || !isRichPostLayout()) return;
+  $$('.btn-confirm-guided').forEach((btn) => {
+    btn.classList.remove('pulse');
+    void btn.offsetWidth; /* restart the animation */
+    btn.classList.add('pulse');
+  });
+}
+
+/**
  * Ask "finished?" only after the user comes back from the review site.
  * If they never leave (blocked tab, missing URL, opener stayed focused),
  * show the overlay after a short fallback so confirm is not lost.
@@ -2317,7 +2454,7 @@ function scheduleReviewCompleteOverlay(platform) {
 
 function reviewPublicationHint(platformName) {
   const name = String(platformName || 'That site').trim() || 'That site';
-  return `Mark your session as complete below. ${name} — and any site that reads it — only update once ${name} publishes your review.`;
+  return `Mark your session as complete below. ${name}, and any site that reads it, only updates once ${name} publishes your review.`;
 }
 
 function hideReviewCompleteOverlay() {
@@ -2446,6 +2583,7 @@ function resetPlatformPostProgress(platform) {
   delete platformsPosted[platform];
   delete platformPostedAt[platform];
   delete reviewFormOpened[platform];
+  delete platformFieldsCopied[platform];
   initPostScreen();
   saveSession();
 }
@@ -2509,16 +2647,28 @@ function initPostScreen() {
   grid.querySelectorAll('[data-action="post-another"]').forEach(btn => {
     btn.addEventListener('click', () => resetPlatformPostProgress(btn.dataset.platform));
   });
-  // open-form: multi-field flows (G2) — open URL; rich layout also prompts confirm overlay.
+  // open-form: multi-field flows (G2/Gartner). Rich layout enters the guided
+  // checklist (auto-copies the first answer, no overlay). Legacy layout keeps
+  // the return-triggered confirm overlay.
   grid.querySelectorAll('[data-action="open-form"]').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const plat = btn.dataset.platform;
       const link = PARAMS.reviewLinks[plat];
-      // Only open the review window when a link is configured, but ALWAYS surface the
-      // confirm overlay (matching the post-paste flow) so an empty/missing
-      // reviewLink can never silently swallow the click.
       const popup = link ? openReviewPlatform(link, plat) : null;
       reviewFormOpened[plat] = true;
+      if (isRichPostLayout()) {
+        const fields = parseG2Fields(drafts[plat] || reviewDraft || '');
+        if (fields.length > 0) {
+          const ok = await copyToClipboard(fields[0].body);
+          if (ok) {
+            markFieldCopied(plat, 0);
+            showToast();
+          }
+        }
+        saveSession();
+        initPostScreen();
+        return;
+      }
       saveSession();
       initPostScreen();
       presentReviewCompleteAfterOpen(plat, popup);
@@ -2534,6 +2684,14 @@ function initPostScreen() {
       }
     });
   });
+  // reopen-window: guided cards offer a way back to the (possibly buried) mini window.
+  grid.querySelectorAll('[data-action="reopen-window"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const plat = btn.dataset.platform;
+      const link = PARAMS.reviewLinks[plat];
+      if (link) openReviewPlatform(link, plat);
+    });
+  });
   grid.querySelectorAll('[data-action="confirm-posted"]').forEach(btn => {
     btn.addEventListener('click', () => markPlatformPosted(btn.dataset.platform));
   });
@@ -2542,6 +2700,14 @@ function initPostScreen() {
     btn.addEventListener('click', async () => {
       const ok = await copyToClipboard(btn.dataset.text);
       if (ok) showToast();
+      const plat = btn.dataset.platform;
+      const idx = Number(btn.dataset.idx);
+      // Guided cards persist copied state and advance the checklist.
+      if (isRichPostLayout() && plat && reviewFormOpened[plat] && Number.isInteger(idx)) {
+        markFieldCopied(plat, idx);
+        initPostScreen();
+        return;
+      }
       btn.textContent = 'Copied ✓';
       setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
     });
@@ -2623,7 +2789,12 @@ async function handlePastePost(platform, opts = {}) {
 
   const popup = link ? openReviewPlatform(link, platform) : null;
 
-  if (!skipOverlay) {
+  if (isRichPostLayout()) {
+    // Guided checklist takes over; the draft is copied below either way.
+    reviewFormOpened[platform] = true;
+    markFieldCopied(platform, 0);
+    initPostScreen();
+  } else if (!skipOverlay) {
     presentReviewCompleteAfterOpen(platform, popup);
   }
 
@@ -2666,7 +2837,7 @@ function updatePostContinueButton() {
     sub.textContent = 'Next up: Record a quick video';
   } else {
     sub.hidden = false;
-    sub.textContent = "You're all set — we'll wrap up on the next screen.";
+    sub.textContent = "You're all set. We'll wrap up on the next screen.";
   }
 }
 
@@ -2677,9 +2848,9 @@ function updatePostProgress() {
   const fill = $('#post-progress-fill');
   const text = $('#post-progress-text');
   if (fill) fill.style.width = pct + '%';
-  if (text) text.textContent = `${posted} of ${total} marked submitted`;
+  if (text) text.textContent = `${posted} of ${total} confirmed`;
   const headline = $('#post-progress-headline');
-  if (headline) headline.textContent = `${posted} of ${total} sessions completed`;
+  if (headline) headline.textContent = `${posted} of ${total} reviews posted`;
 }
 
 function handleContinueAfterPost() {
@@ -2779,10 +2950,25 @@ function ensurePostStayNudge() {
 function syncPostStayNudge() {
   const el = ensurePostStayNudge();
   const show = shouldWarnBeforeLeavingReviewPost() && !isPostStayNudgeDismissed();
-  const provider = PARAMS.providerName || 'this team';
-  el.querySelector('#post-stay-nudge-title').textContent = 'Wait, did you post yet?';
-  el.querySelector('#post-stay-nudge-body').textContent =
-    `Your reviews won’t be posted unless you visit ${reviewSitePhrase()}. Come back here and confirm so ${provider} can see them.`;
+  const provider = clientDisplayName();
+  const total = (PARAMS.platforms || []).length;
+  const posted = Object.values(platformsPosted).filter(Boolean).length;
+  const titleEl = el.querySelector('#post-stay-nudge-title');
+  const bodyEl = el.querySelector('#post-stay-nudge-body');
+  if (posted > 0) {
+    // Acknowledge progress so the reminder never feels like it ignored the click.
+    const remaining = Math.max(0, total - posted);
+    titleEl.textContent = `${posted} down, ${remaining} to go 🎉`;
+    bodyEl.textContent = `Nice work! Confirm the rest so ${provider} can see your reviews.`;
+  } else {
+    titleEl.textContent = 'Wait, did you post yet?';
+    bodyEl.textContent =
+      `Your reviews won’t be posted unless you visit ${reviewSitePhrase()}. Come back here and confirm so ${provider} can see them.`;
+  }
+
+  // Reserve room so the floating reminder never sits on top of the cards.
+  const postScreen = document.getElementById('screen-post');
+  if (postScreen) postScreen.classList.toggle('has-stay-nudge', show);
 
   if (!show) {
     el.classList.remove('is-visible');
@@ -3795,6 +3981,7 @@ function saveSession() {
         platformsPosted,
         platformPostedAt,
         reviewFormOpened,
+        platformFieldsCopied,
         negativeFlagData,
         lastAgentMessage,
         notificationsSent,
@@ -3838,6 +4025,8 @@ function restoreSession() {
     platformPostedAt =
       data.platformPostedAt && typeof data.platformPostedAt === 'object' ? data.platformPostedAt : {};
     reviewFormOpened = data.reviewFormOpened || {};
+    platformFieldsCopied =
+      data.platformFieldsCopied && typeof data.platformFieldsCopied === 'object' ? data.platformFieldsCopied : {};
     negativeFlagData = data.negativeFlagData || null;
     lastAgentMessage = data.lastAgentMessage || '';
     notificationsSent = data.notificationsSent || {};
