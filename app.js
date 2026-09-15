@@ -2291,7 +2291,7 @@ function guidedStepsHTML(plat, meta, copiedCount, totalFields, { pasteFlow = fal
   const steps = [
     { n: 1, label: `Log in to ${meta.name}, or create a free account` },
     { n: 2, label: copyLabel },
-    { n: 3, label: `Paste into the ${meta.name} window` },
+    { n: 3, label: `Paste into the ${meta.name} tab` },
     { n: 4, label: 'Come back here and tap "I posted my review"' },
   ];
   const items = steps
@@ -2314,7 +2314,7 @@ function guidedConfirmHTML(plat, meta) {
         I posted my review on ${escapeHtml(meta.name)}
       </button>
       <button type="button" class="btn btn-secondary btn-sm" data-action="reopen-window" data-platform="${escapeHtml(plat)}">
-        Reopen ${escapeHtml(meta.name)} window ${iconExternalLink()}
+        Reopen ${escapeHtml(meta.name)} tab ${iconExternalLink()}
       </button>
     </div>`;
 }
@@ -2495,62 +2495,27 @@ function showReviewCompleteOverlay(platform, { stealFocus = true } = {}) {
 }
 
 /**
- * Mini windows keep Reputation Rocket visible, so show the copy/confirm
- * modal on this page immediately (without stealing focus). New-tab fallback
- * still waits until the visitor returns.
+ * Legacy (non-guided) layout: ask "finished?" only once the visitor comes
+ * back from the review tab. The popup argument is kept for call-site
+ * compatibility; review sites always open in a tab now, so it is null.
  */
 function presentReviewCompleteAfterOpen(platform, popup) {
   if (popup) {
-    clearPendingReviewOverlay();
-    showReviewCompleteOverlay(platform, { stealFocus: false });
     try { popup.focus(); } catch (_) { /* ignore */ }
-    return;
   }
   scheduleReviewCompleteOverlay(platform);
 }
 
 /**
- * Opens a review site in a focused mini window (not a background tab).
- * Must run from a user click. Width/height in the features string is what
- * Chrome, Edge, Firefox, and Safari use to create a popup instead of a tab.
- * If the popup is blocked (typical on some mobile browsers), fall back to a tab.
+ * Opens a review site in a new browser tab. Must run from a user click.
+ * A temporary anchor with target="_blank" is the most popup-blocker-friendly
+ * way to do this. Always returns null: there is no popup window to track, and
+ * the guided checklist plus the return-triggered confirm handle the way back.
+ * (A centered mini window was tried 9/8; it covered Reputation Rocket instead
+ * of keeping it visible, and tabs are what people already know.)
  */
 function openReviewPlatform(url, platform) {
   if (!url) return null;
-
-  const availW = window.screen?.availWidth || window.innerWidth || 1280;
-  const availH = window.screen?.availHeight || window.innerHeight || 800;
-  const width = Math.min(1080, Math.max(760, Math.round(availW * 0.7)));
-  const height = Math.min(880, Math.max(640, Math.round(availH * 0.8)));
-  const dualLeft = window.screenLeft ?? window.screenX ?? 0;
-  const dualTop = window.screenTop ?? window.screenY ?? 0;
-  const viewportW = window.outerWidth || window.innerWidth || width;
-  const viewportH = window.outerHeight || window.innerHeight || height;
-  const left = Math.max(0, Math.round(dualLeft + (viewportW - width) / 2));
-  const top = Math.max(0, Math.round(dualTop + (viewportH - height) / 2));
-  const name = `rr-review-${String(platform || 'site').replace(/[^a-z0-9_-]+/gi, '') || 'site'}`;
-  const features = [
-    'popup=yes',
-    `width=${width}`,
-    `height=${height}`,
-    `left=${left}`,
-    `top=${top}`,
-    'scrollbars=yes',
-    'resizable=yes',
-  ].join(',');
-
-  let popup = null;
-  try {
-    popup = window.open(url, name, features);
-  } catch (_) {
-    popup = null;
-  }
-
-  if (popup) {
-    try { popup.opener = null; } catch (_) { /* ignore */ }
-    try { popup.focus(); } catch (_) { /* ignore */ }
-    return popup;
-  }
 
   const a = document.createElement('a');
   a.href = url;
@@ -2684,7 +2649,7 @@ function initPostScreen() {
       }
     });
   });
-  // reopen-window: guided cards offer a way back to the (possibly buried) mini window.
+  // reopen-window: guided cards offer a way back to the review tab if the visitor closed it.
   grid.querySelectorAll('[data-action="reopen-window"]').forEach(btn => {
     btn.addEventListener('click', () => {
       const plat = btn.dataset.platform;
