@@ -2914,7 +2914,10 @@ function ensurePostStayNudge() {
 
 function syncPostStayNudge() {
   const el = ensurePostStayNudge();
-  const show = shouldWarnBeforeLeavingReviewPost() && !isPostStayNudgeDismissed();
+  // Only nag once the visitor has actually opened a review site. Before that
+  // the reminder has nothing to remind them of and just reads as noise.
+  const anyFormOpened = (PARAMS.platforms || []).some((plat) => Boolean(reviewFormOpened[plat]));
+  const show = anyFormOpened && shouldWarnBeforeLeavingReviewPost() && !isPostStayNudgeDismissed();
   const provider = clientDisplayName();
   const total = (PARAMS.platforms || []).length;
   const posted = Object.values(platformsPosted).filter(Boolean).length;
