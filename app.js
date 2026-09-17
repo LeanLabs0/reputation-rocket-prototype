@@ -44,9 +44,25 @@ function normalizeMediaUrl(value) {
     .join('/');
 }
 
+/** Case-insensitive query param lookup. First matching alias with a value wins. */
+function getQueryParam(searchParams, ...aliases) {
+  const wanted = aliases.map((a) => String(a || '').trim().toLowerCase()).filter(Boolean);
+  if (!wanted.length) return '';
+  for (const [key, raw] of searchParams.entries()) {
+    if (!wanted.includes(String(key).toLowerCase())) continue;
+    const value = String(raw || '').trim();
+    if (value) return value;
+  }
+  return '';
+}
+
 function buildParamsFromConfig(config) {
   const p = new URLSearchParams(window.location.search);
-  const name = p.get('name') || '';
+  const firstNameFromUrl = getQueryParam(p, 'firstname', 'first_name');
+  const lastNameFromUrl = getQueryParam(p, 'lastname', 'last_name');
+  const name =
+    getQueryParam(p, 'name') ||
+    [firstNameFromUrl, lastNameFromUrl].filter(Boolean).join(' ');
   const cfg = config || {};
 
   const providerName = (
@@ -54,13 +70,12 @@ function buildParamsFromConfig(config) {
     'our team'
   );
 
-  const customerCompanyFromUrl =
-    (p.get('companyName') || p.get('company_name') || p.get('company') || '').trim();
-
+  // Visitor HubSpot `company` in the URL is the reviewer's org, never the
+  // portal brand shown in .company-name / welcome copy.
   const customerCompany =
-    customerCompanyFromUrl ||
     (cfg.defaultCustomerCompany || cfg.customerCompany || '').trim() ||
     providerName;
+  const visitorCompany = getQueryParam(p, 'company', 'companyname', 'company_name');
 
   const platformsFromUrl = (p.get('platforms') || '').split(',').map(s => s.trim()).filter(Boolean);
   const platforms = platformsFromUrl.length
@@ -87,12 +102,12 @@ function buildParamsFromConfig(config) {
   return {
     clientSlug: cfg.clientSlug || window.location.pathname.split('/').filter(Boolean)[0] || 'default',
     name,
-    firstName: name.split(' ')[0] || 'there',
+    firstName: firstNameFromUrl || name.split(' ')[0] || 'there',
     providerName,
     customerCompany,
     company: customerCompany,
-    visitorCompany: '',
-    email: p.get('email') || '',
+    visitorCompany,
+    email: getQueryParam(p, 'email'),
     platforms,
     reviewLinks,
     videoUrl: p.get('video_url') || cfg.videoUrl || '',
@@ -269,7 +284,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch (_) { }
 
   // Populate dynamic text
-  $$('.company-name').forEach(el => { el.textContent = PARAMS.customerCompany; });
+  $$('.company-name').forEach(el => { el.textContent = PARAMS.providerName; });
   $$('.provider-name').forEach(el => { el.textContent = PARAMS.providerName; });
   $$('.first-name').forEach(el => { el.textContent = PARAMS.firstName; });
   renderVideoScreenQuestions();
@@ -517,17 +532,61 @@ function updateProgressBar(state) {
 }
 
 // ── Welcome → Chat ──────────────────────────────────────────
-function hasLeadCaptureFromUrl() {
+const URL_TO_HUBSPOT_LEAD_FIELDS = [
+  { hs: 'firstname', keys: ['firstname', 'first_name'] },
+  { hs: 'lastname', keys: ['lastname', 'last_name'] },
+  { hs: 'email', keys: ['email'] },
+  { hs: 'company', keys: ['company', 'companyname', 'company_name'] },
+  { hs: 'website', keys: ['website', 'website_url'] },
+  { hs: 'phone', keys: ['phone', 'phone_number', 'mobilephone'] },
+  { hs: 'jobtitle', keys: ['jobtitle', 'job_title'] },
+];
+
+function getLeadFieldsFromUrl() {
   const p = new URLSearchParams(window.location.search);
-  const name = (p.get('name') || '').trim();
-  const email = (p.get('email') || '').trim();
-  return !!(name && email);
+  const rows = [];
+  const seen = new Set();
+
+  URL_TO_HUBSPOT_LEAD_FIELDS.forEach(({ hs, keys }) => {
+    const value = getQueryParam(p, ...keys);
+    if (!value || seen.has(hs)) return;
+    seen.add(hs);
+    rows.push({ name: hs, value });
+  });
+
+  if (!seen.has('firstname')) {
+    const fullName = getQueryParam(p, 'name');
+    if (fullName) {
+      const parts = fullName.split(/\s+/).filter(Boolean);
+      if (parts[0]) {
+        seen.add('firstname');
+        rows.push({ name: 'firstname', value: parts[0] });
+      }
+      if (parts.length > 1 && !seen.has('lastname')) {
+        seen.add('lastname');
+        rows.push({ name: 'lastname', value: parts.slice(1).join(' ') });
+      }
+    }
+  }
+
+  return rows;
+}
+
+function hasHubSpotLeadFormConfigured() {
+  const portal = String(CLIENT_CONFIG.hubspotPortalId || '').trim();
+  const formId = String(CLIENT_CONFIG.hubspotFormId || '').trim();
+  return !!(portal && formId);
+}
+
+function hasLeadCaptureFromUrl() {
+  const rows = getLeadFieldsFromUrl();
+  const email = rows.find((row) => row.name === 'email')?.value;
+  const firstname = rows.find((row) => row.name === 'firstname')?.value;
+  return !!(email && firstname);
 }
 
 function shouldShowHubSpotLeadForm() {
-  const portal = String(CLIENT_CONFIG.hubspotPortalId || '').trim();
-  const formId = String(CLIENT_CONFIG.hubspotFormId || '').trim();
-  if (!portal || !formId) return false;
+  if (!hasHubSpotLeadFormConfigured()) return false;
   return !hasLeadCaptureFromUrl();
 }
 
@@ -539,7 +598,7 @@ function applyDocumentTitle() {
 }
 
 function refreshDynamicLabels() {
-  $$('.company-name').forEach((el) => { el.textContent = PARAMS.customerCompany; });
+  $$('.company-name').forEach((el) => { el.textContent = PARAMS.providerName; });
   $$('.provider-name').forEach((el) => { el.textContent = PARAMS.providerName; });
   $$('.first-name').forEach((el) => { el.textContent = PARAMS.firstName; });
   applyDocumentTitle();
@@ -1031,7 +1090,28 @@ function missingFieldsFromHubSpotError(err) {
     const key = normalizeHubSpotFieldKey(m[1]);
     if (key && !names.includes(key)) names.push(key);
   }
+  const extra = text.match(/not present in the form definition:\s*\[?([^\]]+)/i);
+  if (extra && extra[1]) {
+    extra[1].split(/[,\s]+/).forEach((raw) => {
+      const key = normalizeHubSpotFieldKey(raw);
+      if (key && !names.includes(key)) names.push(key);
+    });
+  }
   return names;
+}
+
+function hubspotErrorLooksLikeUnknownFields(err) {
+  const text = String(err && (err.message || err) || '').toLowerCase();
+  return /does not exist|not present in the form|not in the form/.test(text);
+}
+
+function prefillLeadProxyFromUrl() {
+  const proxy = document.getElementById('hubspot-lead-proxy');
+  if (!proxy) return;
+  getLeadFieldsFromUrl().forEach(({ name, value }) => {
+    const field = proxy.querySelector(`[data-hs-field="${name}"]`);
+    if (field && value && !field.value) field.value = value;
+  });
 }
 
 function scrapeLeadFieldsFromProxy() {
@@ -1103,7 +1183,7 @@ async function submitLeadFieldsToHubSpotApi(rows) {
   const region = String(CLIENT_CONFIG.hubspotFormRegion || 'na1').trim() || 'na1';
   if (!portalId || !formId) return false;
 
-  const fields = (rows || [])
+  let fields = (rows || [])
     .map((row) => ({
       objectTypeId: '0-1',
       name: normalizeHubSpotFieldKey(row.name) || String(row.name || '').trim(),
@@ -1114,23 +1194,38 @@ async function submitLeadFieldsToHubSpotApi(rows) {
   if (!fields.length) return false;
 
   const hutk = hubspotTrackingCookie();
-  const res = await fetch(hubspotFormSubmitUrl(portalId, formId, region), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      fields,
-      context: {
-        pageUri: window.location.href,
-        pageName: document.title,
-        ...(hutk ? { hutk } : {}),
-      },
-    }),
-  });
-  if (!res.ok) {
+  let lastError = '';
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const res = await fetch(hubspotFormSubmitUrl(portalId, formId, region), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fields,
+        context: {
+          pageUri: window.location.href,
+          pageName: document.title,
+          ...(hutk ? { hutk } : {}),
+        },
+      }),
+    });
+    if (res.ok) return true;
+
     const text = await res.text();
-    throw new Error(text || `HubSpot form submit failed (${res.status})`);
+    lastError = text || `HubSpot form submit failed (${res.status})`;
+    const unknown = hubspotErrorLooksLikeUnknownFields(lastError)
+      ? missingFieldsFromHubSpotError(lastError)
+      : [];
+    if (!unknown.length) throw new Error(lastError);
+
+    const drop = new Set(unknown);
+    const next = fields.filter((row) => !drop.has(row.name));
+    if (next.length === fields.length) throw new Error(lastError);
+    fields = next;
+    if (!fields.length) throw new Error(lastError);
   }
-  return true;
+
+  throw new Error(lastError || 'HubSpot form submit failed');
 }
 
 function finishLeadCapture(onSuccess, values) {
@@ -1220,6 +1315,7 @@ function renderLeadProxyForm(onSuccess) {
     });
   }
 
+  prefillLeadProxyFromUrl();
   proxy.querySelector('input')?.focus();
 }
 
@@ -1246,6 +1342,7 @@ async function openHubSpotLeadModalAndMountForm(onSuccess) {
         const hsForm = unwrapHubSpotFormEl($form) || target;
         markHubSpotFormDoNotCollect(hsForm);
         syncRequiredFieldsFromHubSpotForm(hsForm);
+        prefillLeadProxyFromUrl();
       },
     });
   } catch (err) {
@@ -1258,13 +1355,40 @@ function beginSessionAfterLeadCapture() {
   transitionTo('chat');
 }
 
-function startExperience() {
+function setStartButtonBusy(busy) {
+  const btn = $('#btn-start');
+  if (!btn) return;
+  btn.disabled = !!busy;
+  btn.setAttribute('aria-busy', busy ? 'true' : 'false');
+}
+
+async function startExperience() {
+  if (hubspotLeadFlowBusy) return;
+
+  if (hasHubSpotLeadFormConfigured() && hasLeadCaptureFromUrl()) {
+    hubspotLeadFlowBusy = 'submitting';
+    setStartButtonBusy(true);
+    const rows = getLeadFieldsFromUrl();
+    try {
+      await submitLeadFieldsToHubSpotApi(rows);
+      hubspotLeadFlowBusy = false;
+      setStartButtonBusy(false);
+      finishLeadCapture(beginSessionAfterLeadCapture, rows);
+    } catch (err) {
+      console.warn('[Reputation Rocket] Silent HubSpot lead submit failed:', err);
+      hubspotLeadFlowBusy = true;
+      setStartButtonBusy(false);
+      openHubSpotLeadModalAndMountForm(beginSessionAfterLeadCapture);
+    }
+    return;
+  }
+
   if (shouldShowHubSpotLeadForm()) {
-    if (hubspotLeadFlowBusy) return;
     hubspotLeadFlowBusy = true;
     openHubSpotLeadModalAndMountForm(beginSessionAfterLeadCapture);
     return;
   }
+
   beginSessionAfterLeadCapture();
 }
 
