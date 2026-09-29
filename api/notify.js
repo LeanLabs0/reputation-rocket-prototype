@@ -308,6 +308,13 @@ function clipText(value, max) {
   return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
 }
 
+function escapeMrkdwn(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 /**
  * 4-star choice ("murky middle") context: which rating the customer picked
  * after tapping 4, and the improvement feedback they want routed to support.
@@ -316,10 +323,10 @@ function clipText(value, max) {
 function ratingChoiceBlocks(payload) {
   const parts = [];
   if (payload.rating_note) {
-    parts.push(`*Rating note:*\n${clipText(payload.rating_note, 300)}`);
+    parts.push(`*Rating note:*\n${escapeMrkdwn(clipText(payload.rating_note, 300))}`);
   }
   if (payload.support_feedback) {
-    parts.push(`*Feedback for support:*\n${clipText(payload.support_feedback, RATING_CHOICE_MAX_CHARS)}`);
+    parts.push(`*Feedback for support:*\n${escapeMrkdwn(clipText(payload.support_feedback, RATING_CHOICE_MAX_CHARS))}`);
   }
   if (!parts.length) return [];
   return [{ type: 'section', text: { type: 'mrkdwn', text: parts.join('\n\n') } }];

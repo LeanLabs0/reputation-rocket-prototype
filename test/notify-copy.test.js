@@ -1,6 +1,10 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { buildSlackMessage, buildCompletedEmailSubjectAndText } = require('../api/notify');
+const {
+  buildSlackMessage,
+  buildCompletedEmailSubjectAndText,
+  buildNegativeEmailSubjectAndText,
+} = require('../api/notify');
 
 test('completed Slack header and fields do not imply the review is live', () => {
   const message = buildSlackMessage({
@@ -47,9 +51,6 @@ test('completed email copy matches session completed / marked submitted', () => 
   assert.doesNotMatch(email.text, /Marked posted:/);
 });
 
-// 4-star choice ("murky middle") context lines.
-const { buildNegativeEmailSubjectAndText } = require('../api/notify');
-
 function allBlockText(message) {
   return message.blocks
     .map((block) => [
@@ -95,4 +96,32 @@ test('alerts without the 4-star prompt are unchanged', () => {
   }
   const email = buildCompletedEmailSubjectAndText({ event: 'completed', client: 'Acme' });
   assert.doesNotMatch(email.text, /Rating note|Feedback for support/);
+});
+
+test('Slack 4-star fields escape markup so customer text cannot mention the channel', () => {
+  const payload = {
+    event: 'completed',
+    client: 'Acme',
+    rating: 5,
+    rating_note: 'Rated 4, chose 5 after the 4-star prompt',
+    support_feedback: 'See <!channel> and <https://evil.example>',
+  };
+  const slack = allBlockText(buildSlackMessage(payload));
+  assert.match(slack, /See &lt;!channel&gt; and &lt;https:\/\/evil\.example&gt;/);
+  assert.doesNotMatch(slack, /See <!channel>/);
+
+  const email = buildCompletedEmailSubjectAndText(payload);
+  assert.match(email.text, /See <!channel> and <https:\/\/evil\.example>/);
+});
+
+test('Slack 4-star support feedback is clipped before the Slack section limit', () => {
+  const payload = {
+    event: 'completed',
+    client: 'Acme',
+    support_feedback: `${'x'.repeat(2600)}TAIL`,
+  };
+  const slack = allBlockText(buildSlackMessage(payload));
+  assert.match(slack, /Feedback for support:/);
+  assert.doesNotMatch(slack, /TAIL/);
+  assert.match(slack, /…/);
 });
