@@ -3621,7 +3621,8 @@ body.rr-directory {
 
 /* ── Tap-to-answer rating (star buttons + 4-star choice) ─────
    Replaces the text box for the rating question and the 4-star
-   choice. Same frame as .chat-input-bar so it sits in its place. */
+   choice. The private-feedback step keeps the text box and only
+   adds the skip button above it. Same frame as .chat-input-bar. */
 .chat-choice-bar {
   padding: 20px 24px 24px;
   background: var(--ll-dark);
