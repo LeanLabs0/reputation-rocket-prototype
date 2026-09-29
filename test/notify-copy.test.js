@@ -1,6 +1,10 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { buildSlackMessage, buildCompletedEmailSubjectAndText } = require('../api/notify');
+const {
+  buildSlackMessage,
+  buildCompletedEmailSubjectAndText,
+  buildNegativeEmailSubjectAndText,
+} = require('../api/notify');
 
 test('completed Slack header and fields do not imply the review is live', () => {
   const message = buildSlackMessage({
@@ -45,4 +49,79 @@ test('completed email copy matches session completed / marked submitted', () => 
   assert.match(email.text, /Marked submitted: gartner/);
   assert.doesNotMatch(email.subject, /live/i);
   assert.doesNotMatch(email.text, /Marked posted:/);
+});
+
+function allBlockText(message) {
+  return message.blocks
+    .map((block) => [
+      block.text && block.text.text,
+      ...(block.fields || []).map((field) => field.text),
+    ].filter(Boolean).join('\n'))
+    .join('\n');
+}
+
+test('completed alert shows the 4-star choice note and support feedback', () => {
+  const payload = {
+    event: 'completed',
+    client: 'Acme',
+    rating: 5,
+    rating_note: 'Rated 4, chose 5 after the 4-star prompt',
+    support_feedback: 'Onboarding docs could be clearer.',
+  };
+  const text = allBlockText(buildSlackMessage(payload));
+  assert.match(text, /\*Rating note:\*\nRated 4, chose 5 after the 4-star prompt/);
+  assert.match(text, /\*Feedback for support:\*\nOnboarding docs could be clearer\./);
+
+  const email = buildCompletedEmailSubjectAndText(payload);
+  assert.match(email.text, /Rating note: Rated 4, chose 5 after the 4-star prompt/);
+  assert.match(email.text, /Feedback for support: Onboarding docs could be clearer\./);
+});
+
+test('negative alert shows the 4-star choice note', () => {
+  const payload = {
+    event: 'negative',
+    client: 'Acme',
+    rating_note: 'Rated 4, chose 3 after the 4-star prompt',
+    negative_flag: { rating: 3, severity: 'low' },
+  };
+  assert.match(allBlockText(buildSlackMessage(payload)), /\*Rating note:\*\nRated 4, chose 3 after the 4-star prompt/);
+  assert.match(buildNegativeEmailSubjectAndText(payload).text, /Rating note: Rated 4, chose 3 after the 4-star prompt/);
+});
+
+test('alerts without the 4-star prompt are unchanged', () => {
+  const completed = allBlockText(buildSlackMessage({ event: 'completed', client: 'Acme', rating: 5 }));
+  const negative = allBlockText(buildSlackMessage({ event: 'negative', client: 'Acme', negative_flag: { rating: 2 } }));
+  for (const text of [completed, negative]) {
+    assert.doesNotMatch(text, /Rating note|Feedback for support/);
+  }
+  const email = buildCompletedEmailSubjectAndText({ event: 'completed', client: 'Acme' });
+  assert.doesNotMatch(email.text, /Rating note|Feedback for support/);
+});
+
+test('Slack 4-star fields escape markup so customer text cannot mention the channel', () => {
+  const payload = {
+    event: 'completed',
+    client: 'Acme',
+    rating: 5,
+    rating_note: 'Rated 4, chose 5 after the 4-star prompt',
+    support_feedback: 'See <!channel> and <https://evil.example>',
+  };
+  const slack = allBlockText(buildSlackMessage(payload));
+  assert.match(slack, /See &lt;!channel&gt; and &lt;https:\/\/evil\.example&gt;/);
+  assert.doesNotMatch(slack, /See <!channel>/);
+
+  const email = buildCompletedEmailSubjectAndText(payload);
+  assert.match(email.text, /See <!channel> and <https:\/\/evil\.example>/);
+});
+
+test('Slack 4-star support feedback is clipped before the Slack section limit', () => {
+  const payload = {
+    event: 'completed',
+    client: 'Acme',
+    support_feedback: `${'x'.repeat(2600)}TAIL`,
+  };
+  const slack = allBlockText(buildSlackMessage(payload));
+  assert.match(slack, /Feedback for support:/);
+  assert.doesNotMatch(slack, /TAIL/);
+  assert.match(slack, /…/);
 });

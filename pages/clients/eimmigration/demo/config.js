@@ -12,6 +12,10 @@ window.CLIENT_CONFIG = {
   clientSlug: 'eim-demo',
   providerName: 'eimmigration',
   displayName: 'eImmigration',
+  // Tap-to-answer rating + the 4-star choice (Kevin 9/29). Demo only until
+  // Viv greens it; then flip the same two keys on the live EIM config.
+  ratingButtons: true,
+  murkyMiddle: true,
   agentEndpoint: '/api/agent',
   notificationEndpoint: '/api/notify',
   platforms: ['gartner', 'g2', 'trustpilot'],

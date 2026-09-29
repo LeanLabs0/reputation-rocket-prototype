@@ -230,6 +230,7 @@ function buildSlackMessage(payload) {
             { type: 'mrkdwn', text: `*Rating:*\n${rating}` },
           ],
         },
+        ...ratingChoiceBlocks(payload),
         {
           type: 'section',
           text: {
@@ -287,6 +288,7 @@ function buildSlackMessage(payload) {
             { type: 'mrkdwn', text: `*Rating:*\n${payload.rating || 'Unknown'}` },
           ],
         },
+        ...ratingChoiceBlocks(payload),
         {
           type: 'section',
           text: {
@@ -297,6 +299,46 @@ function buildSlackMessage(payload) {
         ...formatTranscriptBlocks(payload.transcript),
     ],
   };
+}
+
+const RATING_CHOICE_MAX_CHARS = 2500;
+
+function clipText(value, max) {
+  const text = String(value || '').trim();
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
+}
+
+function escapeMrkdwn(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
+ * 4-star choice ("murky middle") context: which rating the customer picked
+ * after tapping 4, and the improvement feedback they want routed to support.
+ * Returns nothing when the session never hit the 4-star prompt.
+ */
+function ratingChoiceBlocks(payload) {
+  const parts = [];
+  if (payload.rating_note) {
+    parts.push(`*Rating note:*\n${escapeMrkdwn(clipText(payload.rating_note, 300))}`);
+  }
+  if (payload.support_feedback) {
+    parts.push(`*Feedback for support:*\n${escapeMrkdwn(clipText(payload.support_feedback, RATING_CHOICE_MAX_CHARS))}`);
+  }
+  if (!parts.length) return [];
+  return [{ type: 'section', text: { type: 'mrkdwn', text: parts.join('\n\n') } }];
+}
+
+function ratingChoiceLines(payload) {
+  const lines = [];
+  if (payload.rating_note) lines.push(`Rating note: ${clipText(payload.rating_note, 300)}`);
+  if (payload.support_feedback) {
+    lines.push(`Feedback for support: ${clipText(payload.support_feedback, RATING_CHOICE_MAX_CHARS)}`);
+  }
+  return lines;
 }
 
 /**
@@ -437,6 +479,7 @@ function buildNegativeEmailSubjectAndText(payload) {
     `Date received: ${receivedAt}`,
     `Severity: ${flag.severity || '—'}`,
     `Rating: ${rating}`,
+    ...ratingChoiceLines(payload),
     '',
     'Survey responses / summary:',
     surveySummary,
@@ -485,6 +528,7 @@ function buildCompletedEmailSubjectAndText(payload) {
     `Date received: ${receivedAt}`,
     `Marked submitted: ${posted}`,
     `Rating: ${payload.rating || 'Unknown'}`,
+    ...ratingChoiceLines(payload),
     '',
     `Video testimonial: ${videoLine}`,
     '',
@@ -542,3 +586,4 @@ async function sendNotifyEmail(payload, to) {
 
 module.exports.buildSlackMessage = buildSlackMessage;
 module.exports.buildCompletedEmailSubjectAndText = buildCompletedEmailSubjectAndText;
+module.exports.buildNegativeEmailSubjectAndText = buildNegativeEmailSubjectAndText;

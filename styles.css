@@ -3618,3 +3618,62 @@ body.rr-directory {
 @media (max-width: 640px) {
   #screen-post.has-stay-nudge { padding-bottom: 210px; }
 }
+
+/* ── Tap-to-answer rating (star buttons + 4-star choice) ─────
+   Replaces the text box for the rating question and the 4-star
+   choice. Same frame as .chat-input-bar so it sits in its place. */
+.chat-choice-bar {
+  padding: 20px 24px 24px;
+  background: var(--ll-dark);
+  border-top: 1px solid var(--ll-border);
+}
+.chat-choice-bar[hidden] { display: none; }
+
+.rating-choice-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+.rating-choice {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 54px;
+  border: 1px solid var(--ll-border);
+  border-radius: var(--radius-md);
+  background: var(--ll-off-white);
+  color: var(--ll-heading);
+  font-family: var(--font-family);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.rating-choice-star { color: #f5b301; }
+.rating-choice:hover,
+.rating-choice:focus-visible {
+  border-color: var(--ll-purple);
+  background: var(--ll-purple-tint);
+  outline: none;
+}
+.rating-choice-legend {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: var(--ll-muted);
+}
+
+.murky-choice {
+  display: grid;
+  gap: 10px;
+}
+.murky-choice .btn { width: 100%; justify-content: center; }
+
+@media (max-width: 480px) {
+  .chat-choice-bar { padding: 16px; }
+  .rating-choice-row { gap: 6px; }
+  .rating-choice { height: 48px; font-size: 0.9375rem; gap: 4px; }
+}

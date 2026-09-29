@@ -196,6 +196,13 @@ const REVIEW_OVERLAY_BOUNCE_MS = 300;
 /** If the opener never leaves (blocked tab, missing URL), still offer confirm. */
 const REVIEW_OVERLAY_FALLBACK_MS = 400;
 let negativeFlagData = null;
+/**
+ * Which tap-to-answer button set the chat is showing instead of the text box:
+ * 'stars' (the 1 to 5 rating question) | 'murky' (the 4-star choice) | null.
+ */
+let chatChoiceMode = null;
+/** 4-star "murky middle" outcome for this session: { chose: 5 | 3, feedback } or null. */
+let murkyMiddle = null;
 let isWaitingForAgent = false;
 let lastAgentMessage = '';
 let notificationsSent = {};
@@ -1394,15 +1401,199 @@ async function startExperience() {
 
 // ── Chat Logic ──────────────────────────────────────────────
 function initChat() {
-  const chatInput = $('#chat-input');
-  if (chatInput) chatInput.focus();
-
   markHubSpotContactIncomplete();
 
   if (chatHistory.length === 0) {
     sendMessage('Please start the review process.', true);
   }
   syncChatDraftPromptVisibility();
+  if (!chatChoiceMode) maybeShowRatingButtons(latestAgentText());
+  renderChatChoices();
+
+  const chatInput = $('#chat-input');
+  if (chatInput && !isChatChoiceActive() && !isChatDraftPromptVisible()) {
+    chatInput.focus();
+  }
+}
+
+// ── Tap-to-answer rating (star buttons + 4-star choice) ─────
+// Handled entirely by the page: the assistant only ever receives the final
+// whole-number rating. A tapped 4 never reaches it; the customer picks 5
+// (public review) or 3 (private feedback) first, and the assistant runs its
+// normal path for that number.
+
+function isRatingButtonsEnabled() {
+  return CLIENT_CONFIG.ratingButtons === true;
+}
+
+function isMurkyMiddleEnabled() {
+  return CLIENT_CONFIG.murkyMiddle === true;
+}
+
+function isChatChoiceActive() {
+  if (chatChoiceMode === 'stars') return isRatingButtonsEnabled();
+  if (chatChoiceMode === 'murky') return isRatingButtonsEnabled() && isMurkyMiddleEnabled();
+  return false;
+}
+
+function looksLikeRatingQuestion(text) {
+  const t = String(text || '').toLowerCase();
+  return /\brat(e|ing)\b/.test(t) && /\b1\b/.test(t) && /\b5\b/.test(t);
+}
+
+function customerAnswerCount() {
+  return chatHistory.filter((m) => m && m.role === 'user').length;
+}
+
+function latestAgentText() {
+  for (let i = chatHistory.length - 1; i >= 0; i--) {
+    const msg = chatHistory[i];
+    if (msg && msg.role === 'agent' && String(msg.content || '').trim()) {
+      return String(msg.content);
+    }
+  }
+  return lastAgentMessage || '';
+}
+
+/** Only 3 or 5, plus a string feedback field. Anything else is dropped. */
+function normalizeMurkyMiddle(value) {
+  if (!value || typeof value !== 'object') return null;
+  const chose = Number(value.chose);
+  if (chose !== 5 && chose !== 3) return null;
+  const feedback = typeof value.feedback === 'string' ? value.feedback : '';
+  return { chose, feedback };
+}
+
+const MURKY_MIDDLE_MESSAGE =
+  "Thank you for your 4-star rating. We've found that 4 stars is often the murky middle. " +
+  'Would you prefer to leave a 3-star rating that goes to our support team, or a 5-star review ' +
+  'about the best parts of your experience, with any feedback also shared with our support team?';
+
+const MURKY_CHOICE_LABELS = {
+  5: 'Leave a 5-star review',
+  3: 'Send a 3-star rating to our support team',
+};
+
+function ratingStarIcon() {
+  return '<svg class="rating-choice-star" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><polygon fill="currentColor" points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+}
+
+function ensureChatChoiceBar() {
+  let bar = document.getElementById('chat-choice-bar');
+  if (bar) return bar;
+  const inputBar = $('.chat-input-bar');
+  if (!inputBar || !inputBar.parentNode) return null;
+  bar = document.createElement('div');
+  bar.id = 'chat-choice-bar';
+  bar.className = 'chat-choice-bar';
+  bar.hidden = true;
+  inputBar.parentNode.insertBefore(bar, inputBar);
+  return bar;
+}
+
+function renderChatChoices() {
+  const bar = ensureChatChoiceBar();
+  if (!bar) return;
+
+  if (!isChatChoiceActive()) {
+    bar.hidden = true;
+    bar.innerHTML = '';
+    syncChatComposerState();
+    return;
+  }
+
+  if (chatChoiceMode === 'stars') {
+    const buttons = [1, 2, 3, 4, 5]
+      .map((n) => `
+        <button type="button" class="rating-choice" data-rating="${n}" aria-label="${n} star${n === 1 ? '' : 's'}">
+          <span class="rating-choice-num">${n}</span>${ratingStarIcon()}
+        </button>`)
+      .join('');
+    bar.innerHTML = `
+      <div class="rating-choice-row" role="group" aria-label="Your rating from 1 to 5">${buttons}</div>
+      <div class="rating-choice-legend" aria-hidden="true"><span>Poor</span><span>Excellent</span></div>`;
+    bar.querySelectorAll('[data-rating]').forEach((btn) => {
+      btn.addEventListener('click', () => handleRatingTap(Number(btn.dataset.rating)));
+    });
+  } else if (chatChoiceMode === 'murky') {
+    bar.innerHTML = `
+      <div class="murky-choice" role="group" aria-label="Choose your rating">
+        <button type="button" class="btn btn-primary btn-md" data-murky="5">${escapeHtml(MURKY_CHOICE_LABELS[5])}</button>
+        <button type="button" class="btn btn-secondary btn-md" data-murky="3">${escapeHtml(MURKY_CHOICE_LABELS[3])}</button>
+      </div>`;
+    bar.querySelectorAll('[data-murky]').forEach((btn) => {
+      btn.addEventListener('click', () => handleMurkyChoice(Number(btn.dataset.murky)));
+    });
+  }
+
+  bar.hidden = false;
+  syncChatComposerState();
+  const messages = $('#chat-messages');
+  if (messages) messages.scrollTop = messages.scrollHeight;
+}
+
+function handleRatingTap(n) {
+  if (isWaitingForAgent || chatChoiceMode !== 'stars') return;
+  if (!Number.isInteger(n) || n < 1 || n > 5) return;
+
+  // Lock first so a double-tap cannot add a second bubble or send twice.
+  chatChoiceMode = null;
+  renderChatChoices();
+
+  const label = `${n} star${n === 1 ? '' : 's'}`;
+  addChatBubble('user', label);
+  chatHistory.push({ role: 'user', content: label });
+
+  if (n === 4 && isMurkyMiddleEnabled()) {
+    addChatBubble('agent', MURKY_MIDDLE_MESSAGE);
+    chatHistory.push({ role: 'agent', content: MURKY_MIDDLE_MESSAGE });
+    chatChoiceMode = 'murky';
+    renderChatChoices();
+    saveSession();
+    return;
+  }
+
+  saveSession();
+  sendMessage(String(n), true);
+}
+
+function handleMurkyChoice(choice) {
+  if (isWaitingForAgent || chatChoiceMode !== 'murky') return;
+  if (choice !== 5 && choice !== 3) return;
+
+  chatChoiceMode = null;
+  renderChatChoices();
+
+  const label = MURKY_CHOICE_LABELS[choice];
+  addChatBubble('user', label);
+  chatHistory.push({ role: 'user', content: label });
+  murkyMiddle = { chose: choice, feedback: '' };
+  saveSession();
+  sendMessage(String(choice), true);
+}
+
+/** Show the star buttons when the assistant has just asked the rating question. */
+function maybeShowRatingButtons(agentText) {
+  if (!isRatingButtonsEnabled()) return;
+  if (customerAnswerCount() !== 0) return;
+  if (!looksLikeRatingQuestion(agentText)) return;
+  chatChoiceMode = 'stars';
+  renderChatChoices();
+}
+
+function isNoFeedbackAnswer(text) {
+  return /^\s*(no|nope|none|nothing|n\/a|na|all good)\b[\s.!]*$/i.test(String(text || ''));
+}
+
+/** Extra alert fields so support sees a 4-star customer was asked to choose. */
+function murkyMiddleNotifyFields() {
+  const state = normalizeMurkyMiddle(murkyMiddle);
+  if (!state) return {};
+  const out = { rating_note: `Rated 4, chose ${state.chose} after the 4-star prompt` };
+  if (state.chose === 5 && state.feedback) {
+    out.support_feedback = state.feedback;
+  }
+  return out;
 }
 
 function isChatDraftPromptVisible() {
@@ -1423,7 +1614,7 @@ function syncChatComposerState() {
   const chatSend = $('#chat-send');
   if (!chatInput || !chatSend) return;
 
-  const promptVisible = isChatDraftPromptVisible();
+  const promptVisible = isChatDraftPromptVisible() || isChatChoiceActive();
   if (inputBar) {
     inputBar.hidden = promptVisible;
     inputBar.setAttribute('aria-hidden', promptVisible ? 'true' : 'false');
@@ -1543,6 +1734,18 @@ async function sendMessage(text, isHidden = false) {
     chatHistory.push({ role: 'agent', content: displayText });
     agentMessageCount++;
 
+    // The answer that produced the drafts is the improvements question; on a
+    // 4-star-choice session that feedback is routed to support.
+    if (
+      draftsParsed
+      && murkyMiddle
+      && murkyMiddle.chose === 5
+      && !isNoFeedbackAnswer(text)
+      && !/^[1-5]$/.test(String(text).trim())
+    ) {
+      murkyMiddle.feedback = String(text).trim();
+    }
+
     // Handle transitions
     // Route negative when the agent flags it (covers the sentiment override:
     // high rating + negative text) OR when the decimal rating is below the 4.1
@@ -1565,6 +1768,8 @@ async function sendMessage(text, isHidden = false) {
       draftLooksGood = {};
       renderChatDraftPrompt();
       setChatDraftPromptVisible(true);
+    } else {
+      maybeShowRatingButtons(displayText);
     }
 
   } catch (err) {
@@ -1577,7 +1782,7 @@ async function sendMessage(text, isHidden = false) {
   } finally {
     isWaitingForAgent = false;
     syncChatComposerState();
-    if (!isChatDraftPromptVisible()) {
+    if (!isChatDraftPromptVisible() && !isChatChoiceActive()) {
       chatInput.focus();
     }
     saveSession();
@@ -3981,6 +4186,7 @@ async function sendLifecycleNotification(event) {
           .filter((m) => m && m.content && String(m.content).trim())
           .map((m) => ({ role: m.role, content: String(m.content).trim() }))
       : [],
+    ...murkyMiddleNotifyFields(),
   };
   if (PARAMS.supportEmail) {
     payload.support_email = PARAMS.supportEmail;
@@ -4081,6 +4287,8 @@ function saveSession() {
         hubspotIncompleteSent,
         uploadedVideoMeta,
         draftLooksGood,
+        chatChoiceMode,
+        murkyMiddle,
         leadIdentity: {
           name: PARAMS.name,
           firstName: PARAMS.firstName,
@@ -4130,6 +4338,14 @@ function restoreSession() {
     draftLooksGood = data.draftLooksGood && typeof data.draftLooksGood === 'object'
       ? data.draftLooksGood
       : {};
+    chatChoiceMode = data.chatChoiceMode === 'stars' || data.chatChoiceMode === 'murky'
+      ? data.chatChoiceMode
+      : null;
+    if (chatChoiceMode === 'stars' && !isRatingButtonsEnabled()) chatChoiceMode = null;
+    if (chatChoiceMode === 'murky' && (!isRatingButtonsEnabled() || !isMurkyMiddleEnabled())) {
+      chatChoiceMode = null;
+    }
+    murkyMiddle = normalizeMurkyMiddle(data.murkyMiddle);
 
     applyLeadIdentityFromStorage(data.leadIdentity);
 
