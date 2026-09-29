@@ -6,6 +6,7 @@ const { URL } = require('url');
 loadDotEnv(path.join(__dirname, '.env.local'));
 
 const agentHandler = require('./api/agent');
+const healthHandler = require('./api/health');
 const notifyHandler = require('./api/notify');
 const uploadVideoHandler = require('./api/upload-video');
 const hubspotContactHandler = require('./api/hubspot-contact');
@@ -47,6 +48,10 @@ const server = http.createServer(async (req, res) => {
 
     if (url.pathname === '/api/agent') {
       return callApiHandler(agentHandler, req, res);
+    }
+
+    if (url.pathname === '/api/health') {
+      return callApiHandler(healthHandler, req, res);
     }
 
     if (url.pathname === '/api/notify') {
