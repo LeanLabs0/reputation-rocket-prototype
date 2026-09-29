@@ -197,8 +197,11 @@ const REVIEW_OVERLAY_BOUNCE_MS = 300;
 const REVIEW_OVERLAY_FALLBACK_MS = 400;
 let negativeFlagData = null;
 /**
- * Which tap-to-answer button set the chat is showing instead of the text box:
- * 'stars' (the 1 to 5 rating question) | 'murky' (the 4-star choice) | null.
+ * Which tap-to-answer button set the chat is showing:
+ * 'stars' (the 1 to 5 rating question; hides the text box)
+ * | 'murky' (the 4-star choice; hides the text box)
+ * | 'murky-feedback' (private support note after choosing 5; text box stays)
+ * | null.
  */
 let chatChoiceMode = null;
 /** 4-star "murky middle" outcome for this session: { chose: 5 | 3, feedback } or null. */
@@ -1462,12 +1465,14 @@ function latestAgentText() {
   return lastAgentMessage || '';
 }
 
-/** Only 3 or 5, plus a string feedback field. Anything else is dropped. */
+/** Only 3 or 5, plus a clipped string feedback field. Anything else is dropped. */
 function normalizeMurkyMiddle(value) {
   if (!value || typeof value !== 'object') return null;
   const chose = Number(value.chose);
   if (chose !== 5 && chose !== 3) return null;
-  const feedback = typeof value.feedback === 'string' ? value.feedback : '';
+  const feedback = typeof value.feedback === 'string'
+    ? value.feedback.slice(0, MURKY_FEEDBACK_MAX_CHARS)
+    : '';
   return { chose, feedback };
 }
 
@@ -1614,6 +1619,7 @@ function handleMurkyFeedback(text) {
   if (isWaitingForAgent || chatChoiceMode !== 'murky-feedback') return;
   const feedback = String(text || '').trim().slice(0, MURKY_FEEDBACK_MAX_CHARS);
 
+  // Lock first so a second Enter/click cannot send this text to the assistant.
   chatChoiceMode = null;
   const input = $('#chat-input');
   if (input) input.value = '';
@@ -1623,7 +1629,7 @@ function handleMurkyFeedback(text) {
   addChatBubble('user', label);
   chatHistory.push({ role: 'user', content: label });
 
-  const kept = feedback && !isNoFeedbackAnswer(feedback) ? feedback : '';
+  const kept = keptMurkySupportFeedback(feedback);
   murkyMiddle = { chose: 5, feedback: kept };
   if (kept) {
     addChatBubble('agent', MURKY_FEEDBACK_THANKS);
@@ -1643,7 +1649,17 @@ function maybeShowRatingButtons(agentText) {
 }
 
 function isNoFeedbackAnswer(text) {
-  return /^\s*(no|nope|none|nothing|n\/a|na|all good)\b[\s.!]*$/i.test(String(text || ''));
+  const t = String(text || '').trim();
+  if (!t) return true;
+  if (t.toLowerCase() === MURKY_FEEDBACK_SKIP_LABEL.toLowerCase()) return true;
+  return /^(no|nope|none|nothing|n\/a|na|all good)\b[\s.!]*$/i.test(t);
+}
+
+/** Keep only real support notes. Skip-button copy and "no"/"nothing" stay out of the alert. */
+function keptMurkySupportFeedback(text) {
+  const feedback = String(text || '').trim().slice(0, MURKY_FEEDBACK_MAX_CHARS);
+  if (!feedback || isNoFeedbackAnswer(feedback)) return '';
+  return feedback;
 }
 
 /** Extra alert fields so support sees a 4-star customer was asked to choose. */
@@ -1676,9 +1692,17 @@ function syncChatComposerState() {
   if (!chatInput || !chatSend) return;
 
   if (!chatInput.dataset.defaultPlaceholder) chatInput.dataset.defaultPlaceholder = chatInput.placeholder || '';
-  chatInput.placeholder = chatChoiceMode === 'murky-feedback' && isChatChoiceActive()
+  const feedbackStep = chatChoiceMode === 'murky-feedback';
+  chatInput.placeholder = feedbackStep
     ? MURKY_FEEDBACK_PLACEHOLDER
     : chatInput.dataset.defaultPlaceholder;
+  if (feedbackStep) {
+    chatInput.setAttribute('maxlength', String(MURKY_FEEDBACK_MAX_CHARS));
+    chatInput.setAttribute('aria-label', 'Private feedback for our support team');
+  } else {
+    chatInput.removeAttribute('maxlength');
+    chatInput.removeAttribute('aria-label');
+  }
 
   const promptVisible = isChatDraftPromptVisible() || chatChoiceHidesInput();
   if (inputBar) {
@@ -1847,7 +1871,9 @@ function handleChatSend() {
   const input = $('#chat-input');
   const text = input.value.trim();
   if (!text || isWaitingForAgent) return;
-  if (chatChoiceMode === 'murky-feedback' && isChatChoiceActive()) {
+  // Never send the private support note to the assistant, even if the demo
+  // flags later disagree with chatChoiceMode.
+  if (chatChoiceMode === 'murky-feedback') {
     handleMurkyFeedback(text);
     return;
   }
