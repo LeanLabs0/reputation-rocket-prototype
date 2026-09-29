@@ -44,13 +44,13 @@
       target: '#btn-start',
       count: 'Step 1 of 6',
       title: 'Welcome',
-      body: 'Every review starts here. Click <strong>Begin</strong> to kick off the guided flow — go ahead, we’ll follow along.',
+      body: 'Every review starts here. Click <strong>Begin</strong> to kick off the guided flow. Go ahead, we’ll follow along.',
     },
     chat: {
-      target: '.chat-input-bar',
+      target: '.chat-container',
       count: 'Step 2 of 6',
       title: 'Quick chat',
-      body: 'A friendly AI assistant asks a few questions about your experience. Answer naturally and hit send. These replies are powered by the real assistant.',
+      body: 'A friendly AI assistant asks a few questions about your experience. Tap a star rating to start, then answer the rest in your own words. These replies are powered by the real assistant.',
     },
     draft: {
       target: '.draft-card',
@@ -86,7 +86,7 @@
 
   const INTRO = {
     title: 'Welcome to the Reputation Rocket demo',
-    body: 'You’re about to walk through exactly what your happy customers experience with <strong>eimmigration</strong>. Review sites in this demo are dummy placeholders — nothing is posted for real. We’ll pop in with a quick tip at each step.',
+    body: 'You’re about to walk through exactly what your happy customers experience with <strong>eimmigration</strong>. Review sites in this demo are dummy placeholders, so nothing is posted for real. We’ll pop in with a quick tip at each step.',
   };
 
   let root = null;

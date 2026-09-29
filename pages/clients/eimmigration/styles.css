@@ -107,13 +107,15 @@ body {
 /* ── Chat ─────────────────────────────────────────────────── */
 .chat-header,
 .chat-input-bar,
+.chat-choice-bar,
 .chat-draft-prompt {
   background: var(--ei-surface);
 }
 .chat-header {
   border-bottom-color: var(--ei-border);
 }
-.chat-input-bar {
+.chat-input-bar,
+.chat-choice-bar {
   border-top-color: var(--ei-border);
 }
 .chat-messages {
