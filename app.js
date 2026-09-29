@@ -1411,7 +1411,7 @@ function initChat() {
   renderChatChoices();
 
   const chatInput = $('#chat-input');
-  if (chatInput && !isChatChoiceActive() && !isChatDraftPromptVisible()) {
+  if (chatInput && !chatChoiceHidesInput() && !isChatDraftPromptVisible()) {
     chatInput.focus();
   }
 }
@@ -1432,8 +1432,15 @@ function isMurkyMiddleEnabled() {
 
 function isChatChoiceActive() {
   if (chatChoiceMode === 'stars') return isRatingButtonsEnabled();
-  if (chatChoiceMode === 'murky') return isRatingButtonsEnabled() && isMurkyMiddleEnabled();
+  if (chatChoiceMode === 'murky' || chatChoiceMode === 'murky-feedback') {
+    return isRatingButtonsEnabled() && isMurkyMiddleEnabled();
+  }
   return false;
+}
+
+/** Choice modes that replace the text box entirely (the feedback step keeps it). */
+function chatChoiceHidesInput() {
+  return isChatChoiceActive() && chatChoiceMode !== 'murky-feedback';
 }
 
 function looksLikeRatingQuestion(text) {
@@ -1473,6 +1480,19 @@ const MURKY_CHOICE_LABELS = {
   5: 'Leave a 5-star review',
   3: 'Send a 3-star rating to our support team',
 };
+
+// Picking 5 after a 4 promises "any feedback also shared with our support
+// team", so the page asks for it right away. The answer only goes into the
+// team's alert (chat history), never to the assistant, so it stays out of
+// the public review drafts.
+const MURKY_FEEDBACK_PROMPT =
+  "Great, we'll draft your 5-star review next. First, is there anything you'd like our " +
+  "support team to know or improve? This stays private and won't be part of your review.";
+const MURKY_FEEDBACK_SKIP_LABEL = 'Nothing to add';
+const MURKY_FEEDBACK_THANKS =
+  "Thank you, we'll share that with our support team. Now a few quick questions for your review.";
+const MURKY_FEEDBACK_PLACEHOLDER = 'Type your feedback for our support team...';
+const MURKY_FEEDBACK_MAX_CHARS = 2000;
 
 function ratingStarIcon() {
   return '<svg class="rating-choice-star" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><polygon fill="currentColor" points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
@@ -1524,6 +1544,12 @@ function renderChatChoices() {
     bar.querySelectorAll('[data-murky]').forEach((btn) => {
       btn.addEventListener('click', () => handleMurkyChoice(Number(btn.dataset.murky)));
     });
+  } else if (chatChoiceMode === 'murky-feedback') {
+    bar.innerHTML = `
+      <div class="murky-choice murky-feedback" role="group" aria-label="Private feedback for our support team">
+        <button type="button" class="btn btn-secondary btn-md" data-murky-skip>${escapeHtml(MURKY_FEEDBACK_SKIP_LABEL)}</button>
+      </div>`;
+    bar.querySelector('[data-murky-skip]')?.addEventListener('click', () => handleMurkyFeedback(''));
   }
 
   bar.hidden = false;
@@ -1568,8 +1594,43 @@ function handleMurkyChoice(choice) {
   addChatBubble('user', label);
   chatHistory.push({ role: 'user', content: label });
   murkyMiddle = { chose: choice, feedback: '' };
+
+  if (choice === 5) {
+    addChatBubble('agent', MURKY_FEEDBACK_PROMPT);
+    chatHistory.push({ role: 'agent', content: MURKY_FEEDBACK_PROMPT });
+    chatChoiceMode = 'murky-feedback';
+    renderChatChoices();
+    saveSession();
+    $('#chat-input')?.focus();
+    return;
+  }
+
   saveSession();
   sendMessage(String(choice), true);
+}
+
+/** The private feedback step after "Leave a 5-star review". Empty = nothing to add. */
+function handleMurkyFeedback(text) {
+  if (isWaitingForAgent || chatChoiceMode !== 'murky-feedback') return;
+  const feedback = String(text || '').trim().slice(0, MURKY_FEEDBACK_MAX_CHARS);
+
+  chatChoiceMode = null;
+  const input = $('#chat-input');
+  if (input) input.value = '';
+  renderChatChoices();
+
+  const label = feedback || MURKY_FEEDBACK_SKIP_LABEL;
+  addChatBubble('user', label);
+  chatHistory.push({ role: 'user', content: label });
+
+  const kept = feedback && !isNoFeedbackAnswer(feedback) ? feedback : '';
+  murkyMiddle = { chose: 5, feedback: kept };
+  if (kept) {
+    addChatBubble('agent', MURKY_FEEDBACK_THANKS);
+    chatHistory.push({ role: 'agent', content: MURKY_FEEDBACK_THANKS });
+  }
+  saveSession();
+  sendMessage('5', true);
 }
 
 /** Show the star buttons when the assistant has just asked the rating question. */
@@ -1614,7 +1675,12 @@ function syncChatComposerState() {
   const chatSend = $('#chat-send');
   if (!chatInput || !chatSend) return;
 
-  const promptVisible = isChatDraftPromptVisible() || isChatChoiceActive();
+  if (!chatInput.dataset.defaultPlaceholder) chatInput.dataset.defaultPlaceholder = chatInput.placeholder || '';
+  chatInput.placeholder = chatChoiceMode === 'murky-feedback' && isChatChoiceActive()
+    ? MURKY_FEEDBACK_PLACEHOLDER
+    : chatInput.dataset.defaultPlaceholder;
+
+  const promptVisible = isChatDraftPromptVisible() || chatChoiceHidesInput();
   if (inputBar) {
     inputBar.hidden = promptVisible;
     inputBar.setAttribute('aria-hidden', promptVisible ? 'true' : 'false');
@@ -1734,18 +1800,6 @@ async function sendMessage(text, isHidden = false) {
     chatHistory.push({ role: 'agent', content: displayText });
     agentMessageCount++;
 
-    // The answer that produced the drafts is the improvements question; on a
-    // 4-star-choice session that feedback is routed to support.
-    if (
-      draftsParsed
-      && murkyMiddle
-      && murkyMiddle.chose === 5
-      && !isNoFeedbackAnswer(text)
-      && !/^[1-5]$/.test(String(text).trim())
-    ) {
-      murkyMiddle.feedback = String(text).trim();
-    }
-
     // Handle transitions
     // Route negative when the agent flags it (covers the sentiment override:
     // high rating + negative text) OR when the decimal rating is below the 4.1
@@ -1782,7 +1836,7 @@ async function sendMessage(text, isHidden = false) {
   } finally {
     isWaitingForAgent = false;
     syncChatComposerState();
-    if (!isChatDraftPromptVisible() && !isChatChoiceActive()) {
+    if (!isChatDraftPromptVisible() && !chatChoiceHidesInput()) {
       chatInput.focus();
     }
     saveSession();
@@ -1793,6 +1847,10 @@ function handleChatSend() {
   const input = $('#chat-input');
   const text = input.value.trim();
   if (!text || isWaitingForAgent) return;
+  if (chatChoiceMode === 'murky-feedback' && isChatChoiceActive()) {
+    handleMurkyFeedback(text);
+    return;
+  }
   sendMessage(text);
 }
 
@@ -4338,11 +4396,14 @@ function restoreSession() {
     draftLooksGood = data.draftLooksGood && typeof data.draftLooksGood === 'object'
       ? data.draftLooksGood
       : {};
-    chatChoiceMode = data.chatChoiceMode === 'stars' || data.chatChoiceMode === 'murky'
+    chatChoiceMode = ['stars', 'murky', 'murky-feedback'].includes(data.chatChoiceMode)
       ? data.chatChoiceMode
       : null;
     if (chatChoiceMode === 'stars' && !isRatingButtonsEnabled()) chatChoiceMode = null;
-    if (chatChoiceMode === 'murky' && (!isRatingButtonsEnabled() || !isMurkyMiddleEnabled())) {
+    if (
+      (chatChoiceMode === 'murky' || chatChoiceMode === 'murky-feedback')
+      && (!isRatingButtonsEnabled() || !isMurkyMiddleEnabled())
+    ) {
       chatChoiceMode = null;
     }
     murkyMiddle = normalizeMurkyMiddle(data.murkyMiddle);
