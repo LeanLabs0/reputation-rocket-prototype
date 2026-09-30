@@ -1487,17 +1487,29 @@ const MURKY_CHOICE_LABELS = {
 };
 
 // Picking 5 after a 4 promises "any feedback also shared with our support
-// team", so the page asks for it right away. The answer only goes into the
-// team's alert (chat history), never to the assistant, so it stays out of
-// the public review drafts.
-const MURKY_FEEDBACK_PROMPT =
-  "Great, we'll draft your 5-star review next. First, is there anything you'd like our " +
-  "support team to know or improve? This stays private and won't be part of your review.";
+// team". Order (Tonya, 9/30): the 5-star review questions come first; the
+// review flow's closing improvements question is then shown as the support
+// question below. Its answer still goes to the assistant (G2/Gartner ask
+// what could be better, so the drafts need it) and is ALSO sent straight to
+// the client's support flow the moment it is given, so it is never lost if
+// the customer leaves before the final screen.
+const MURKY_IMPROVE_QUESTION =
+  "Thank you! Before you go, is there anything we could improve or do better? " +
+  "We'll share your feedback with our support team.";
 const MURKY_FEEDBACK_SKIP_LABEL = 'Nothing to add';
-const MURKY_FEEDBACK_THANKS =
-  "Thank you, we'll share that with our support team. Now a few quick questions for your review.";
-const MURKY_FEEDBACK_PLACEHOLDER = 'Type your feedback for our support team...';
+const MURKY_FEEDBACK_PLACEHOLDER = 'Type your feedback...';
 const MURKY_FEEDBACK_MAX_CHARS = 2000;
+
+/** The review flow's closing improvements question (Q5), in any phrasing the agent uses. */
+function isImprovementQuestion(text) {
+  return /\bremove friction\b|\bimprove the experience\b|put "no" if nothing/i.test(String(text || ''));
+}
+
+function isMurkyFiveSession() {
+  if (!isRatingButtonsEnabled() || !isMurkyMiddleEnabled()) return false;
+  const state = normalizeMurkyMiddle(murkyMiddle);
+  return !!state && state.chose === 5;
+}
 
 function ratingStarIcon() {
   return '<svg class="rating-choice-star" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><polygon fill="currentColor" points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
@@ -1551,7 +1563,7 @@ function renderChatChoices() {
     });
   } else if (chatChoiceMode === 'murky-feedback') {
     bar.innerHTML = `
-      <div class="murky-choice murky-feedback" role="group" aria-label="Private feedback for our support team">
+      <div class="murky-choice murky-feedback" role="group" aria-label="Feedback for our support team">
         <button type="button" class="btn btn-secondary btn-md" data-murky-skip>${escapeHtml(MURKY_FEEDBACK_SKIP_LABEL)}</button>
       </div>`;
     bar.querySelector('[data-murky-skip]')?.addEventListener('click', () => handleMurkyFeedback(''));
@@ -1599,44 +1611,38 @@ function handleMurkyChoice(choice) {
   addChatBubble('user', label);
   chatHistory.push({ role: 'user', content: label });
   murkyMiddle = { chose: choice, feedback: '' };
-
-  if (choice === 5) {
-    addChatBubble('agent', MURKY_FEEDBACK_PROMPT);
-    chatHistory.push({ role: 'agent', content: MURKY_FEEDBACK_PROMPT });
-    chatChoiceMode = 'murky-feedback';
-    renderChatChoices();
-    saveSession();
-    $('#chat-input')?.focus();
-    return;
-  }
-
   saveSession();
   sendMessage(String(choice), true);
 }
 
-/** The private feedback step after "Leave a 5-star review". Empty = nothing to add. */
+/**
+ * Answer to the support question at the end of the 4 -> 5 review flow.
+ * Empty = "Nothing to add". The answer goes to the assistant as the review
+ * flow's improvements answer (drafts need it) and, when it is real feedback,
+ * straight to the client's support flow.
+ */
 function handleMurkyFeedback(text) {
   if (isWaitingForAgent || chatChoiceMode !== 'murky-feedback') return;
   const feedback = String(text || '').trim().slice(0, MURKY_FEEDBACK_MAX_CHARS);
 
-  // Lock first so a second Enter/click cannot send this text to the assistant.
+  // Lock first so a second Enter/click cannot send twice.
   chatChoiceMode = null;
   const input = $('#chat-input');
   if (input) input.value = '';
   renderChatChoices();
 
-  const label = feedback || MURKY_FEEDBACK_SKIP_LABEL;
-  addChatBubble('user', label);
-  chatHistory.push({ role: 'user', content: label });
-
   const kept = keptMurkySupportFeedback(feedback);
   murkyMiddle = { chose: 5, feedback: kept };
-  if (kept) {
-    addChatBubble('agent', MURKY_FEEDBACK_THANKS);
-    chatHistory.push({ role: 'agent', content: MURKY_FEEDBACK_THANKS });
-  }
   saveSession();
-  sendMessage('5', true);
+
+  if (feedback) {
+    sendMessage(feedback);
+  } else {
+    addChatBubble('user', MURKY_FEEDBACK_SKIP_LABEL);
+    chatHistory.push({ role: 'user', content: MURKY_FEEDBACK_SKIP_LABEL });
+    sendMessage('no', true);
+  }
+  if (kept) sendLifecycleNotification('support_feedback');
 }
 
 /** Show the star buttons when the assistant has just asked the rating question. */
@@ -1698,7 +1704,7 @@ function syncChatComposerState() {
     : chatInput.dataset.defaultPlaceholder;
   if (feedbackStep) {
     chatInput.setAttribute('maxlength', String(MURKY_FEEDBACK_MAX_CHARS));
-    chatInput.setAttribute('aria-label', 'Private feedback for our support team');
+    chatInput.setAttribute('aria-label', 'Feedback for our support team');
   } else {
     chatInput.removeAttribute('maxlength');
     chatInput.removeAttribute('aria-label');
@@ -1819,10 +1825,29 @@ async function sendMessage(text, isHidden = false) {
       .replace(/<drafts>[\s\S]*?<\/drafts>/g, '')
       .trim();
 
+    // 4 -> 5 path: the closing improvements question becomes the support
+    // question (Tonya, 9/30), with a "Nothing to add" button.
+    const enterSupportFeedback = !draftsParsed
+      && !negativeFlagData
+      && isMurkyFiveSession()
+      && isImprovementQuestion(displayText);
+    if (enterSupportFeedback) displayText = MURKY_IMPROVE_QUESTION;
+
     showTypingIndicator(false);
     addChatBubble('agent', displayText);
     chatHistory.push({ role: 'agent', content: displayText });
     agentMessageCount++;
+
+    // Safety net so 4 -> 5 feedback is never lost: if the drafts arrive and
+    // the support question was never recognized (agent rephrased it), the
+    // answer that produced the drafts is that feedback.
+    if (draftsParsed && isMurkyFiveSession() && !murkyMiddle.feedback) {
+      const answer = keptMurkySupportFeedback(isHidden ? '' : text);
+      if (answer && !/^[1-5]$/.test(answer)) {
+        murkyMiddle = { chose: 5, feedback: answer };
+        sendLifecycleNotification('support_feedback');
+      }
+    }
 
     // Handle transitions
     // Route negative when the agent flags it (covers the sentiment override:
@@ -1846,6 +1871,9 @@ async function sendMessage(text, isHidden = false) {
       draftLooksGood = {};
       renderChatDraftPrompt();
       setChatDraftPromptVisible(true);
+    } else if (enterSupportFeedback) {
+      chatChoiceMode = 'murky-feedback';
+      renderChatChoices();
     } else {
       maybeShowRatingButtons(displayText);
     }
@@ -1871,8 +1899,7 @@ function handleChatSend() {
   const input = $('#chat-input');
   const text = input.value.trim();
   if (!text || isWaitingForAgent) return;
-  // Never send the private support note to the assistant, even if the demo
-  // flags later disagree with chatChoiceMode.
+  // The 4 -> 5 support question: also routes the answer to the support flow.
   if (chatChoiceMode === 'murky-feedback') {
     handleMurkyFeedback(text);
     return;

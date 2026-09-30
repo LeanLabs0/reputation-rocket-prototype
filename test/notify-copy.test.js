@@ -125,3 +125,53 @@ test('Slack 4-star support feedback is clipped before the Slack section limit', 
   assert.doesNotMatch(slack, /TAIL/);
   assert.match(slack, /…/);
 });
+
+
+// Feedback for support: 4 -> 5 customers' improvement answer, sent right away.
+const notifyModule = require('../api/notify');
+
+test('support feedback is an allowed event routed to the support (negative) thread', () => {
+  assert.equal(notifyModule.ALLOWED_EVENTS.has('support_feedback'), true);
+  assert.equal(notifyModule.slackThreadKindForEvent('support_feedback'), 'negative');
+  assert.equal(notifyModule.slackThreadKindForEvent('negative'), 'negative');
+  assert.equal(notifyModule.slackThreadKindForEvent('completed'), 'positive');
+});
+
+test('support feedback Slack alert shows the feedback, the rating note and the context', () => {
+  const message = notifyModule.buildSlackMessage({
+    event: 'support_feedback',
+    client: 'Acme',
+    provider: 'eImmigration',
+    customer_name: 'Jane Doe',
+    customer_email: 'jane@example.com',
+    rating: 5,
+    rating_note: 'Rated 4, chose 5 after the 4-star prompt',
+    support_feedback: 'Response time has been a little slow for support <!channel>',
+    transcript: [],
+  });
+  assert.equal(message.blocks[0].text.text, 'Feedback for support, Acme');
+  assert.match(message.text, /Feedback for support/);
+  const all = message.blocks
+    .map((b) => [b.text && b.text.text, ...(b.fields || []).map((f) => f.text)].filter(Boolean).join('\n'))
+    .join('\n');
+  assert.match(all, /\*Rating note:\*\nRated 4, chose 5 after the 4-star prompt/);
+  assert.match(all, /\*Feedback for support:\*\nResponse time has been a little slow for support/);
+  assert.match(all, /first rated 4 stars, then chose to leave a 5-star review/);
+  assert.doesNotMatch(all, /<!channel>/);
+  assert.doesNotMatch(message.blocks[0].text.text, /—/);
+});
+
+test('support feedback email carries the feedback and never the completed copy', () => {
+  const email = notifyModule.buildSupportFeedbackEmailSubjectAndText({
+    event: 'support_feedback',
+    client: 'Acme',
+    received_at: '2026-09-30T17:00:00.000Z',
+    rating_note: 'Rated 4, chose 5 after the 4-star prompt',
+    support_feedback: 'Onboarding docs could be clearer.',
+  });
+  assert.match(email.subject, /^\[Reputation Rocket\] Feedback for support, Acme, /);
+  assert.doesNotMatch(email.subject, /—/);
+  assert.match(email.text, /Feedback for support: Onboarding docs could be clearer\./);
+  assert.match(email.text, /Rating note: Rated 4, chose 5 after the 4-star prompt/);
+  assert.doesNotMatch(email.text, /Session completed|Marked submitted/);
+});
