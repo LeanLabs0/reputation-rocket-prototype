@@ -88,6 +88,31 @@ test('negative alert shows the 4-star choice note', () => {
   assert.match(buildNegativeEmailSubjectAndText(payload).text, /Rating note: Rated 4, chose 3 after the 4-star prompt/);
 });
 
+test('negative alert on the 4-then-5 path includes support feedback like a 3-star alert', () => {
+  const payload = {
+    event: 'negative',
+    client: 'Acme',
+    rating: 5,
+    rating_note: 'Rated 4, chose 5 after the 4-star prompt',
+    support_feedback: 'Response time has been a little bit slow for support.',
+    negative_flag: {
+      rating: 5,
+      severity: 'low',
+      key_concerns: ['Response time has been a little bit slow for support.'],
+    },
+  };
+  const slack = allBlockText(buildSlackMessage(payload));
+  assert.match(slack, /Negative feedback/);
+  assert.match(slack, /\*Rating note:\*\nRated 4, chose 5 after the 4-star prompt/);
+  assert.match(slack, /\*Feedback for support:\*\nResponse time has been a little bit slow for support\./);
+  assert.match(slack, /Response time has been a little bit slow for support/);
+
+  const email = buildNegativeEmailSubjectAndText(payload);
+  assert.match(email.subject, /Negative feedback/);
+  assert.match(email.text, /Rating note: Rated 4, chose 5 after the 4-star prompt/);
+  assert.match(email.text, /Feedback for support: Response time has been a little bit slow for support\./);
+});
+
 test('alerts without the 4-star prompt are unchanged', () => {
   const completed = allBlockText(buildSlackMessage({ event: 'completed', client: 'Acme', rating: 5 }));
   const negative = allBlockText(buildSlackMessage({ event: 'negative', client: 'Acme', negative_flag: { rating: 2 } }));
