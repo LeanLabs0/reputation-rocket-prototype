@@ -1511,6 +1511,35 @@ function isMurkyFiveSession() {
   return !!state && state.chose === 5;
 }
 
+// Jonathan, 9/30: after a 4 -> 5 choice, say we'll draft their review
+// instead of the agent's "That's wonderful to hear!" (which reads as fake
+// for someone who just told us 4).
+const MURKY_REVIEW_INTRO = "Great, we'll draft your 5-star review. First, a few quick questions.";
+
+function firstCustomerAnswer() {
+  const first = chatHistory.find((m) => m && m.role === 'user');
+  return first ? String(first.content || '') : '';
+}
+
+function lastCustomerAnswer() {
+  for (let i = chatHistory.length - 1; i >= 0; i--) {
+    if (chatHistory[i] && chatHistory[i].role === 'user') return String(chatHistory[i].content || '');
+  }
+  return '';
+}
+
+/** Tapped 5 on the star buttons (not via the 4-star choice). */
+function isDirectFiveSession() {
+  return isRatingButtonsEnabled() && !normalizeMurkyMiddle(murkyMiddle) && firstCustomerAnswer() === '5 stars';
+}
+
+/** Drop the agent's leading acknowledgment; keep from the first question on. */
+function questionPart(text) {
+  const sentences = String(text || '').replace(/([.!?])\s+/g, '$1\u0000').split('\u0000');
+  const idx = sentences.findIndex((part) => part.includes('?'));
+  return idx >= 0 ? sentences.slice(idx).join(' ').trim() : String(text || '').trim();
+}
+
 function ratingStarIcon() {
   return '<svg class="rating-choice-star" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><polygon fill="currentColor" points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
 }
@@ -1728,6 +1757,7 @@ function syncChatComposerState() {
 
 async function sendMessage(text, isHidden = false) {
   if (isWaitingForAgent) return;
+  let autoAnswer = null;
 
   if (!isHidden) {
     addChatBubble('user', text);
@@ -1833,10 +1863,33 @@ async function sendMessage(text, isHidden = false) {
       && isImprovementQuestion(displayText);
     if (enterSupportFeedback) displayText = MURKY_IMPROVE_QUESTION;
 
-    showTypingIndicator(false);
-    addChatBubble('agent', displayText);
-    chatHistory.push({ role: 'agent', content: displayText });
-    agentMessageCount++;
+    // First question after choosing 5 on the 4-star prompt.
+    if (
+      !draftsParsed
+      && !negativeFlagData
+      && isMurkyFiveSession()
+      && lastCustomerAnswer() === MURKY_CHOICE_LABELS[5]
+      && displayText.includes('?')
+    ) {
+      displayText = `${MURKY_REVIEW_INTRO} ${questionPart(displayText)}`;
+    }
+
+    // Jonathan, 9/30: someone who tapped 5 and just praised the team should
+    // not be asked "where could we improve?". Answer it for them, unseen, so
+    // the review flow finishes exactly as a "no" answer does today.
+    const skipImprovementQuestion = !draftsParsed
+      && !negativeFlagData
+      && isDirectFiveSession()
+      && isImprovementQuestion(displayText);
+
+    if (skipImprovementQuestion) {
+      autoAnswer = 'no';
+    } else {
+      showTypingIndicator(false);
+      addChatBubble('agent', displayText);
+      chatHistory.push({ role: 'agent', content: displayText });
+      agentMessageCount++;
+    }
 
     // Safety net so 4 -> 5 feedback is never lost: if the drafts arrive and
     // the support question was never recognized (agent rephrased it), the
@@ -1874,7 +1927,7 @@ async function sendMessage(text, isHidden = false) {
     } else if (enterSupportFeedback) {
       chatChoiceMode = 'murky-feedback';
       renderChatChoices();
-    } else {
+    } else if (!skipImprovementQuestion) {
       maybeShowRatingButtons(displayText);
     }
 
@@ -1893,6 +1946,7 @@ async function sendMessage(text, isHidden = false) {
     }
     saveSession();
   }
+  if (autoAnswer) sendMessage(autoAnswer, true);
 }
 
 function handleChatSend() {
