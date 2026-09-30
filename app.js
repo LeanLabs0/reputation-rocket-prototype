@@ -200,12 +200,16 @@ let negativeFlagData = null;
  * Which tap-to-answer button set the chat is showing:
  * 'stars' (the 1 to 5 rating question; hides the text box)
  * | 'murky' (the 4-star choice; hides the text box)
- * | 'murky-feedback' (private support note after choosing 5; text box stays)
+ * | 'murky-feedback' (support question at the end of the 4 -> 5 review flow; text box stays)
  * | null.
  */
 let chatChoiceMode = null;
-/** 4-star "murky middle" outcome for this session: { chose: 5 | 3, feedback } or null. */
+/** 4-star "murky middle" outcome for this session: { chose: 5 | 3, feedback, supportHandled } or null. */
 let murkyMiddle = null;
+/** Tapped 5 on the star buttons (not via the 4-star choice). */
+let ratedDirectFive = false;
+/** Direct-5 path already auto-answered the closing improvements question. */
+let directFiveImproveSkipped = false;
 let isWaitingForAgent = false;
 let lastAgentMessage = '';
 let notificationsSent = {};
@@ -1473,7 +1477,8 @@ function normalizeMurkyMiddle(value) {
   const feedback = typeof value.feedback === 'string'
     ? value.feedback.slice(0, MURKY_FEEDBACK_MAX_CHARS)
     : '';
-  return { chose, feedback };
+  const supportHandled = value.supportHandled === true || (chose === 5 && Boolean(feedback));
+  return { chose, feedback, supportHandled };
 }
 
 const MURKY_MIDDLE_MESSAGE =
@@ -1502,7 +1507,35 @@ const MURKY_FEEDBACK_MAX_CHARS = 2000;
 
 /** The review flow's closing improvements question (Q5), in any phrasing the agent uses. */
 function isImprovementQuestion(text) {
-  return /\bremove friction\b|\bimprove the experience\b|put "no" if nothing/i.test(String(text || ''));
+  const t = String(text || '');
+  return (
+    /\bremove friction\b/i.test(t)
+    || /\bimprove the experience\b/i.test(t)
+    || /put ["']?no["']? if nothing/i.test(t)
+    || /\banything we could improve\b/i.test(t)
+    || /\banything we could do better\b/i.test(t)
+    || /\bwhere could we improve\b/i.test(t)
+    || /\bwhat could (?:we |be )(?:improve|better)/i.test(t)
+  );
+}
+
+function murkySupportAlreadyHandled() {
+  const state = normalizeMurkyMiddle(murkyMiddle);
+  return !!(state && state.supportHandled);
+}
+
+function markMurkySupportHandled(feedback) {
+  const kept = keptMurkySupportFeedback(
+    feedback == null ? (murkyMiddle && murkyMiddle.feedback) : feedback,
+  );
+  murkyMiddle = { chose: 5, feedback: kept, supportHandled: true };
+}
+
+/** Rating-button or 4-star-choice labels — the turn before the first review question. */
+function isRatingOrChoiceAnswer(text) {
+  const t = String(text || '');
+  if (t === MURKY_CHOICE_LABELS[5] || t === MURKY_CHOICE_LABELS[3]) return true;
+  return /^[1-5] stars?$/.test(t);
 }
 
 function isMurkyFiveSession() {
@@ -1530,7 +1563,8 @@ function lastCustomerAnswer() {
 
 /** Tapped 5 on the star buttons (not via the 4-star choice). */
 function isDirectFiveSession() {
-  return isRatingButtonsEnabled() && !normalizeMurkyMiddle(murkyMiddle) && firstCustomerAnswer() === '5 stars';
+  if (!isRatingButtonsEnabled() || normalizeMurkyMiddle(murkyMiddle)) return false;
+  return ratedDirectFive || firstCustomerAnswer() === '5 stars';
 }
 
 /** Drop the agent's leading acknowledgment; keep from the first question on. */
@@ -1615,6 +1649,7 @@ function handleRatingTap(n) {
   const label = `${n} star${n === 1 ? '' : 's'}`;
   addChatBubble('user', label);
   chatHistory.push({ role: 'user', content: label });
+  if (n === 5) ratedDirectFive = true;
 
   if (n === 4 && isMurkyMiddleEnabled()) {
     addChatBubble('agent', MURKY_MIDDLE_MESSAGE);
@@ -1639,7 +1674,7 @@ function handleMurkyChoice(choice) {
   const label = MURKY_CHOICE_LABELS[choice];
   addChatBubble('user', label);
   chatHistory.push({ role: 'user', content: label });
-  murkyMiddle = { chose: choice, feedback: '' };
+  murkyMiddle = { chose: choice, feedback: '', supportHandled: false };
   saveSession();
   sendMessage(String(choice), true);
 }
@@ -1661,7 +1696,7 @@ function handleMurkyFeedback(text) {
   renderChatChoices();
 
   const kept = keptMurkySupportFeedback(feedback);
-  murkyMiddle = { chose: 5, feedback: kept };
+  markMurkySupportHandled(kept);
   saveSession();
 
   if (feedback) {
@@ -1855,35 +1890,52 @@ async function sendMessage(text, isHidden = false) {
       .replace(/<drafts>[\s\S]*?<\/drafts>/g, '')
       .trim();
 
+    // Route negative when the agent flags it (covers the sentiment override:
+    // high rating + negative text) OR when the decimal rating is below the 4.1
+    // cutoff. Computed before the 4 -> 5 / direct-5 intercepts so those
+    // paths cannot hide a question and then also jump to the negative screen.
+    const ratingBelowCutoff = agentRating != null && agentRating < RATING_POSITIVE_CUTOFF;
+    const routingNegative = !!(negativeFlagData || ratingBelowCutoff);
+    const priorAgentText = latestAgentText();
+    const justAfterRating = isRatingOrChoiceAnswer(lastCustomerAnswer());
+
     // 4 -> 5 path: the closing improvements question becomes the support
-    // question (Tonya, 9/30), with a "Nothing to add" button.
+    // question (Tonya, 9/30), with a "Nothing to add" button. Never treat
+    // the first reply after choosing 5 as that closing question.
     const enterSupportFeedback = !draftsParsed
-      && !negativeFlagData
+      && !routingNegative
       && isMurkyFiveSession()
-      && isImprovementQuestion(displayText);
+      && isImprovementQuestion(displayText)
+      && !justAfterRating
+      && !murkySupportAlreadyHandled();
     if (enterSupportFeedback) displayText = MURKY_IMPROVE_QUESTION;
 
     // First question after choosing 5 on the 4-star prompt.
     if (
       !draftsParsed
-      && !negativeFlagData
+      && !routingNegative
       && isMurkyFiveSession()
       && lastCustomerAnswer() === MURKY_CHOICE_LABELS[5]
       && displayText.includes('?')
+      && !enterSupportFeedback
     ) {
       displayText = `${MURKY_REVIEW_INTRO} ${questionPart(displayText)}`;
     }
 
     // Jonathan, 9/30: someone who tapped 5 and just praised the team should
     // not be asked "where could we improve?". Answer it for them, unseen, so
-    // the review flow finishes exactly as a "no" answer does today.
+    // the review flow finishes exactly as a "no" answer does today. Once only,
+    // so a re-asked question cannot loop hidden "no"s.
     const skipImprovementQuestion = !draftsParsed
-      && !negativeFlagData
+      && !routingNegative
       && isDirectFiveSession()
-      && isImprovementQuestion(displayText);
+      && isImprovementQuestion(displayText)
+      && !justAfterRating
+      && !directFiveImproveSkipped;
 
     if (skipImprovementQuestion) {
       autoAnswer = 'no';
+      directFiveImproveSkipped = true;
     } else {
       showTypingIndicator(false);
       addChatBubble('agent', displayText);
@@ -1891,23 +1943,28 @@ async function sendMessage(text, isHidden = false) {
       agentMessageCount++;
     }
 
+    if (enterSupportFeedback) markMurkySupportHandled(murkyMiddle && murkyMiddle.feedback);
+
     // Safety net so 4 -> 5 feedback is never lost: if the drafts arrive and
     // the support question was never recognized (agent rephrased it), the
-    // answer that produced the drafts is that feedback.
-    if (draftsParsed && isMurkyFiveSession() && !murkyMiddle.feedback) {
+    // answer that produced the drafts is that feedback — but only when the
+    // previous agent turn actually looked like the improvements question.
+    // Otherwise a late draft after Q4 would page support with the wrong text.
+    if (
+      draftsParsed
+      && isMurkyFiveSession()
+      && !murkySupportAlreadyHandled()
+      && isImprovementQuestion(priorAgentText)
+    ) {
       const answer = keptMurkySupportFeedback(isHidden ? '' : text);
       if (answer && !/^[1-5]$/.test(answer)) {
-        murkyMiddle = { chose: 5, feedback: answer };
+        markMurkySupportHandled(answer);
         sendLifecycleNotification('support_feedback');
       }
     }
 
     // Handle transitions
-    // Route negative when the agent flags it (covers the sentiment override:
-    // high rating + negative text) OR when the decimal rating is below the 4.1
-    // cutoff. The agent flag always wins; the cutoff is a decimal-aware safety net.
-    const ratingBelowCutoff = agentRating != null && agentRating < RATING_POSITIVE_CUTOFF;
-    if (negativeFlagData || ratingBelowCutoff) {
+    if (routingNegative) {
       if (!negativeFlagData) {
         // Routed negative on rating alone — synthesize a minimal flag so the
         // negative screen + Slack notification still have rating context.
@@ -4454,6 +4511,8 @@ function saveSession() {
         draftLooksGood,
         chatChoiceMode,
         murkyMiddle,
+        ratedDirectFive,
+        directFiveImproveSkipped,
         leadIdentity: {
           name: PARAMS.name,
           firstName: PARAMS.firstName,
@@ -4514,6 +4573,8 @@ function restoreSession() {
       chatChoiceMode = null;
     }
     murkyMiddle = normalizeMurkyMiddle(data.murkyMiddle);
+    ratedDirectFive = data.ratedDirectFive === true || firstCustomerAnswer() === '5 stars';
+    directFiveImproveSkipped = data.directFiveImproveSkipped === true;
 
     applyLeadIdentityFromStorage(data.leadIdentity);
 

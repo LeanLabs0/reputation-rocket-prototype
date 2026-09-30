@@ -161,6 +161,16 @@ test('support feedback Slack alert shows the feedback, the rating note and the c
   assert.doesNotMatch(message.blocks[0].text.text, /—/);
 });
 
+test('support feedback Slack still builds when the customer left no extra transcript', () => {
+  const message = notifyModule.buildSlackMessage({
+    event: 'support_feedback',
+    client: 'Acme',
+    rating_note: 'Rated 4, chose 5 after the 4-star prompt',
+  });
+  assert.equal(message.blocks[0].text.text, 'Feedback for support, Acme');
+  assert.doesNotMatch(JSON.stringify(message), /Session completed|Marked submitted/);
+});
+
 test('support feedback email carries the feedback and never the completed copy', () => {
   const email = notifyModule.buildSupportFeedbackEmailSubjectAndText({
     event: 'support_feedback',
