@@ -5,14 +5,18 @@ const path = require('node:path');
 const {
   MURKY_FEEDBACK_PROMPT,
   MURKY_FEEDBACK_THANKS,
+  DRAFT_NEXT_MESSAGE,
+  DRAFT_REQUEST_REPLY,
   looksLikeFrictionQuestion,
+  looksLikeSkipPraise,
+  looksLikeTypedSkip,
   onFourStarChoice,
   onAgentMessage,
+  onUserReviewAnswer,
   onImprovementAnswer,
   murkyNotifyFields,
   applyImprovementToDrafts,
   normalizeMurkyMiddle,
-  FRICTION_SKIP_REPLY,
 } = require('../lib/murky-middle');
 
 function session(overrides) {
@@ -54,8 +58,8 @@ test('during 5-star review questions, a normal agent question continues the revi
   assert.equal(result.sendToAssistant, undefined);
 });
 
-test('the friction / improve-the-experience question is skipped on the 4-then-5 path', () => {
-  const text = 'Perfect endorsement! Is there any area where we could remove friction or improve the experience? (Put "no" if nothing else comes to mind)';
+test('the friction question after praise is skipped on the 4-then-5 path', () => {
+  const text = 'Is there any area where we could remove friction or improve the experience? (Put "no" if nothing else comes to mind)';
   assert.equal(looksLikeFrictionQuestion(text), true);
 
   const result = onAgentMessage(
@@ -64,21 +68,43 @@ test('the friction / improve-the-experience question is skipped on the 4-then-5 
   );
   assert.equal(result.skipFriction, true);
   assert.equal(result.hideAgentMessage, true);
-  assert.equal(result.sendToAssistant, FRICTION_SKIP_REPLY);
-  assert.equal(result.showSupportAsk, false);
-  assert.equal(result.phase, 'review');
+  assert.equal(result.sendToAssistant, DRAFT_REQUEST_REPLY);
+  assert.doesNotMatch(result.sendToAssistant, /^(no|nothing to add)$/i);
+  assert.equal(result.showDraftLine, true);
+  assert.equal(result.draftLine, DRAFT_NEXT_MESSAGE);
+  assert.equal(result.showSupportAsk, true);
+  assert.equal(result.prompt, MURKY_FEEDBACK_PROMPT);
+  assert.equal(result.phase, 'improve');
 });
 
-test('after review drafts are ready on the 4-then-5 path, ask Tonya\'s improvement question before showing drafts', () => {
+test('praise then friction does not invite criticism next', () => {
+  const result = onAgentMessage(
+    session({ chose: 5, phase: 'review' }),
+    {
+      text: 'Perfect endorsement! Is there any area where we could remove friction or improve the experience? (Put "no" if nothing else comes to mind)',
+      hasDrafts: false,
+    },
+  );
+  assert.equal(result.hideAgentMessage, true);
+  assert.equal(result.showDraftLine, true);
+  assert.equal(result.showSupportAsk, true);
+  assert.doesNotMatch(`${result.draftLine} ${result.prompt}`, /remove friction/i);
+});
+
+test('after review drafts are ready on the 4-then-5 path, say we will draft then ask Tonya\'s sentence', () => {
   const result = onAgentMessage(
     session({ chose: 5, phase: 'review', feedbackAsked: false }),
     { text: "I've put together a draft review for each platform.", hasDrafts: true },
   );
   assert.equal(result.phase, 'improve');
+  assert.equal(result.showDraftLine, true);
+  assert.equal(result.draftLine, DRAFT_NEXT_MESSAGE);
   assert.equal(result.showSupportAsk, true);
   assert.equal(result.showDrafts, false);
   assert.equal(result.prompt, MURKY_FEEDBACK_PROMPT);
   assert.match(MURKY_FEEDBACK_PROMPT, /Thank you! Before you go, is there anything we could improve or do better\? We'll share your feedback with our support team\./);
+  assert.doesNotMatch(DRAFT_NEXT_MESSAGE, /—/);
+  assert.match(DRAFT_NEXT_MESSAGE, /^We'll draft your review now\.$/);
 });
 
 test('direct 5-star (never tapped 4) still shows drafts and does not inject the support ask', () => {
@@ -114,6 +140,102 @@ test('empty / nothing-to-add improvement answer does not fire a support alert', 
   assert.equal(result.notifyEvent, null);
   assert.equal(result.showDrafts, true);
   assert.equal(result.thanks, null);
+  assert.doesNotMatch(JSON.stringify(result), /wonderful to hear/i);
+});
+
+test('skip praise is not treated as a happy answer to an empty note', () => {
+  assert.equal(looksLikeSkipPraise("That's wonderful to hear!"), true);
+  const result = onAgentMessage(
+    session({ chose: 5, phase: 'improve', awaitingDrafts: true, draftLineShown: true }),
+    { text: "That's wonderful to hear! What was your primary goal when you started working with eimmigration?", hasDrafts: false },
+  );
+  assert.equal(result.hideAgentMessage, true);
+  assert.equal(result.showSupportAsk, false);
+  assert.equal(result.showDrafts, false);
+});
+
+test('standalone skip praise during 4-then-5 review is hidden', () => {
+  const result = onAgentMessage(
+    session({ chose: 5, phase: 'review' }),
+    { text: "That's wonderful to hear!", hasDrafts: false },
+  );
+  assert.equal(result.hideAgentMessage, true);
+  assert.equal(result.showSupportAsk, false);
+  assert.equal(result.skipFriction, false);
+});
+
+test('direct 5 hides praise-only bubbles but keeps a real next review question', () => {
+  const praiseOnly = onAgentMessage(
+    session({ chose: null, phase: 'idle' }),
+    { text: "That's wonderful to hear!", hasDrafts: false },
+  );
+  assert.equal(praiseOnly.hideAgentMessage, true);
+
+  const withQuestion = onAgentMessage(
+    session({ chose: null, phase: 'idle' }),
+    { text: "That's wonderful to hear! What was your primary goal when you started working with eimmigration?", hasDrafts: false },
+  );
+  assert.equal(withQuestion.hideAgentMessage, false);
+});
+
+test('after they skip private feedback, later agent questions stay hidden until drafts', () => {
+  const result = onAgentMessage(
+    session({ chose: 5, phase: 'done', feedbackAsked: true, awaitingDrafts: true }),
+    { text: "That's wonderful to hear! What else stood out?", hasDrafts: false },
+  );
+  assert.equal(result.hideAgentMessage, true);
+  assert.equal(result.showDrafts, false);
+});
+
+test('a typed skip after the leaked friction question is not sent as a happy review answer', () => {
+  assert.equal(looksLikeTypedSkip('Nothing to add'), true);
+  const friction = 'Is there any area where we could remove friction or improve the experience? (Put "no" if nothing else comes to mind)';
+  const result = onUserReviewAnswer(
+    session({ chose: 5, phase: 'review' }),
+    { text: 'nothing to add', lastAgentText: friction },
+  );
+  assert.equal(result.skipFriction, true);
+  assert.equal(result.sendToAssistant, DRAFT_REQUEST_REPLY);
+  assert.doesNotMatch(result.sendToAssistant, /^(no|nothing to add)$/i);
+  assert.equal(result.showDraftLine, true);
+  assert.equal(result.draftLine, DRAFT_NEXT_MESSAGE);
+  assert.equal(result.showSupportAsk, true);
+  assert.equal(result.prompt, MURKY_FEEDBACK_PROMPT);
+});
+
+test('a real review answer is still sent to the assistant', () => {
+  const result = onUserReviewAnswer(
+    session({ chose: 5, phase: 'review' }),
+    {
+      text: 'you guys are great',
+      lastAgentText: 'What would you tell another business owner considering eimmigration?',
+    },
+  );
+  assert.equal(result.skipFriction, undefined);
+  assert.equal(result.sendToAssistant, 'you guys are great');
+});
+
+test('drafts that arrive during the 4-then-5 support ask stay hidden until they answer', () => {
+  const result = onAgentMessage(
+    session({ chose: 5, phase: 'improve', feedbackAsked: false, draftLineShown: true, awaitingDrafts: true }),
+    { text: "That's wonderful to hear! I've put together a draft.", hasDrafts: true },
+  );
+  assert.equal(result.hideAgentMessage, true);
+  assert.equal(result.showSupportAsk, false);
+  assert.equal(result.showDrafts, false);
+  assert.equal(result.showDraftLine, false);
+});
+
+test('direct 5-star says we will draft then shows drafts, with no private support ask', () => {
+  const result = onAgentMessage(
+    session({ chose: null, phase: 'idle' }),
+    { text: "I've put together a draft review for each platform.", hasDrafts: true },
+  );
+  assert.equal(result.showDraftLine, true);
+  assert.equal(result.draftLine, DRAFT_NEXT_MESSAGE);
+  assert.equal(result.showDrafts, true);
+  assert.equal(result.showSupportAsk, false);
+  assert.equal(result.skipFriction, false);
 });
 
 test('murky notify fields put 4-then-5 improvement notes on the same support payload as a 3-star alert', () => {
@@ -161,10 +283,14 @@ test('app.js wires the shared module and dropped the old pre-review prompt', () 
   const src = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
   assert.match(src, /MurkyMiddle\.onFourStarChoice/);
   assert.match(src, /MurkyMiddle\.onAgentMessage/);
+  assert.match(src, /MurkyMiddle\.onUserReviewAnswer/);
+  assert.match(src, /applyMurkyUiDecision/);
   assert.match(src, /sendPostReviewSupportAlert/);
   assert.match(src, /sendLifecycleNotification\('negative'\)/);
   assert.doesNotMatch(src, /we'll draft your 5-star review next/i);
   assert.doesNotMatch(src, /remove friction or improve the experience/);
+  assert.doesNotMatch(src, /FRICTION_SKIP_REPLY/);
+  assert.match(src, /function handleMurkyFeedback\(text\) \{\n  \/\/ Allowed while the hidden draft request is in flight/);
 });
 
 test('eImmigration demo loads the murky-middle module before app.js', () => {
@@ -176,4 +302,18 @@ test('eImmigration demo loads the murky-middle module before app.js', () => {
   const appIdx = html.indexOf('/app.js');
   assert.ok(libIdx > 0);
   assert.ok(appIdx > libIdx);
+});
+
+test('live eImmigration and other clients do not turn on the demo murky flags', () => {
+  const live = fs.readFileSync(
+    path.join(__dirname, '..', 'pages/clients/eimmigration/config.js'),
+    'utf8',
+  );
+  assert.doesNotMatch(live, /murkyMiddle:\s*true/);
+  assert.doesNotMatch(live, /ratingButtons:\s*true/);
+  const other = fs.readFileSync(
+    path.join(__dirname, '..', 'pages/clients/fatherhood/demo/config.js'),
+    'utf8',
+  );
+  assert.doesNotMatch(other, /murkyMiddle:\s*true/);
 });

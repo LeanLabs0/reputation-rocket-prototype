@@ -206,7 +206,7 @@ let negativeFlagData = null;
 let chatChoiceMode = null;
 /** 4-star "murky middle" outcome for this session: { chose, feedback, feedbackAsked, phase } or null. */
 let murkyMiddle = null;
-/** Hidden follow-up (skip the agent's friction question) queued after the current turn. */
+/** Hidden follow-up (request drafts; never send "no" / "nothing to add") queued after the current turn. */
 let pendingHiddenReply = null;
 /** Old in-flight PR #13 sessions that still need "5" sent after a reload. */
 let pendingRestoreRating = null;
@@ -1489,9 +1489,53 @@ function normalizeMurkyMiddle(value) {
 function ensurePostReviewSupportPrompt() {
   if (chatChoiceMode !== 'murky-feedback') return;
   if (!murkyMiddle || murkyMiddle.chose !== 5 || murkyMiddle.feedbackAsked) return;
-  if (latestAgentText() === MurkyMiddle.MURKY_FEEDBACK_PROMPT) return;
-  addChatBubble('agent', MurkyMiddle.MURKY_FEEDBACK_PROMPT);
-  chatHistory.push({ role: 'agent', content: MurkyMiddle.MURKY_FEEDBACK_PROMPT });
+  const agentTexts = chatHistory
+    .filter((m) => m && m.role === 'agent')
+    .map((m) => String(m.content || ''));
+  if (!agentTexts.includes(MurkyMiddle.DRAFT_NEXT_MESSAGE)) {
+    addChatBubble('agent', MurkyMiddle.DRAFT_NEXT_MESSAGE);
+    chatHistory.push({ role: 'agent', content: MurkyMiddle.DRAFT_NEXT_MESSAGE });
+    murkyMiddle.draftLineShown = true;
+  }
+  if (latestAgentText() !== MurkyMiddle.MURKY_FEEDBACK_PROMPT) {
+    addChatBubble('agent', MurkyMiddle.MURKY_FEEDBACK_PROMPT);
+    chatHistory.push({ role: 'agent', content: MurkyMiddle.MURKY_FEEDBACK_PROMPT });
+  }
+}
+
+function showDraftsIfReady() {
+  const fromDrafts = Object.keys(drafts).some((k) => drafts[k] != null && String(drafts[k]).trim());
+  const fromLegacy = !!(reviewDraft && String(reviewDraft).trim());
+  if (!fromDrafts && !fromLegacy) return false;
+  renderChatDraftPrompt();
+  setChatDraftPromptVisible(true);
+  return true;
+}
+
+function applyMurkyUiDecision(decision) {
+  if (!decision) return;
+  if (murkyMiddle) {
+    murkyMiddle = {
+      ...murkyMiddle,
+      phase: decision.phase || murkyMiddle.phase,
+      awaitingDrafts: decision.awaitingDrafts != null ? decision.awaitingDrafts : murkyMiddle.awaitingDrafts,
+      draftLineShown: !!(decision.draftLineShown || murkyMiddle.draftLineShown),
+    };
+  }
+  if (decision.showDraftLine && decision.draftLine) {
+    addChatBubble('agent', decision.draftLine);
+    chatHistory.push({ role: 'agent', content: decision.draftLine });
+    if (murkyMiddle) murkyMiddle.draftLineShown = true;
+  }
+  if (decision.showSupportAsk && decision.prompt) {
+    addChatBubble('agent', decision.prompt);
+    chatHistory.push({ role: 'agent', content: decision.prompt });
+    chatChoiceMode = 'murky-feedback';
+    renderChatChoices();
+    $('#chat-input')?.focus();
+  } else if (decision.showDrafts) {
+    showDraftsIfReady();
+  }
 }
 
 function ratingStarIcon() {
@@ -1600,6 +1644,8 @@ function handleMurkyChoice(choice) {
     feedback: '',
     feedbackAsked: false,
     phase: decision.phase,
+    draftLineShown: false,
+    awaitingDrafts: false,
   };
 
   saveSession();
@@ -1608,7 +1654,9 @@ function handleMurkyChoice(choice) {
 
 /** Private support note after the 5-star review questions. Empty = nothing to add. */
 function handleMurkyFeedback(text) {
-  if (isWaitingForAgent || chatChoiceMode !== 'murky-feedback') return;
+  // Allowed while the hidden draft request is in flight. This answer never
+  // goes to the assistant, so waiting on drafts must not block the skip.
+  if (chatChoiceMode !== 'murky-feedback') return;
   const decision = MurkyMiddle.onImprovementAnswer(murkyMiddle, text);
 
   chatChoiceMode = null;
@@ -1626,6 +1674,8 @@ function handleMurkyFeedback(text) {
     feedback: decision.feedback,
     feedbackAsked: true,
     phase: 'done',
+    draftLineShown: !!(murkyMiddle && murkyMiddle.draftLineShown),
+    awaitingDrafts: false,
   };
 
   if (decision.thanks) {
@@ -1643,8 +1693,10 @@ function handleMurkyFeedback(text) {
     sendPostReviewSupportAlert();
   }
 
-  renderChatDraftPrompt();
-  setChatDraftPromptVisible(true);
+  if (decision.showDrafts && !showDraftsIfReady() && murkyMiddle) {
+    murkyMiddle.awaitingDrafts = true;
+    saveSession();
+  }
 }
 
 /** Same /api/notify `negative` payload a 3-or-below session uses. Does not open the negative screen. */
@@ -1722,6 +1774,25 @@ function syncChatComposerState() {
 
 async function sendMessage(text, isHidden = false) {
   if (isWaitingForAgent) return;
+
+  if (!isHidden && isMurkyMiddleEnabled() && murkyMiddle) {
+    const intercept = MurkyMiddle.onUserReviewAnswer(murkyMiddle, {
+      text,
+      lastAgentText: latestAgentText(),
+    });
+    if (intercept && intercept.skipFriction) {
+      addChatBubble('user', text);
+      chatHistory.push({ role: 'user', content: text });
+      const chatInput = $('#chat-input');
+      if (chatInput) chatInput.value = '';
+      applyMurkyUiDecision(intercept);
+      saveSession();
+      if (intercept.sendToAssistant) {
+        await sendMessage(intercept.sendToAssistant, true);
+      }
+      return;
+    }
+  }
 
   if (!isHidden) {
     addChatBubble('user', text);
@@ -1821,55 +1892,51 @@ async function sendMessage(text, isHidden = false) {
 
     showTypingIndicator(false);
 
-    const mmState = murkyMiddle || { chose: null, phase: 'idle', feedbackAsked: false };
+    const mmState = murkyMiddle || { chose: null, phase: 'idle', feedbackAsked: false, draftLineShown: false };
     const mmDecision = (typeof MurkyMiddle !== 'undefined' && isMurkyMiddleEnabled())
       ? MurkyMiddle.onAgentMessage(mmState, { text: displayText, hasDrafts: draftsParsed })
-      : { skipFriction: false, showSupportAsk: false, showDrafts: false };
+      : { skipFriction: false, showSupportAsk: false, showDrafts: false, hideAgentMessage: false };
 
-    if (mmDecision.skipFriction) {
-      pendingHiddenReply = mmDecision.sendToAssistant;
-    } else {
+    if (draftsParsed && murkyMiddle && murkyMiddle.feedback) {
+      drafts = MurkyMiddle.applyImprovementToDrafts(drafts, murkyMiddle.feedback);
+    }
+
+    if (!mmDecision.hideAgentMessage && displayText) {
       addChatBubble('agent', displayText);
       chatHistory.push({ role: 'agent', content: displayText });
       agentMessageCount++;
+    }
 
-      // Handle transitions
-      // Route negative when the agent flags it (covers the sentiment override:
-      // high rating + negative text) OR when the decimal rating is below the 4.1
-      // cutoff. The agent flag always wins; the cutoff is a decimal-aware safety net.
-      const ratingBelowCutoff = agentRating != null && agentRating < RATING_POSITIVE_CUTOFF;
-      if (negativeFlagData || ratingBelowCutoff) {
-        if (!negativeFlagData) {
-          // Routed negative on rating alone — synthesize a minimal flag so the
-          // negative screen + Slack notification still have rating context.
-          negativeFlagData = { rating: agentRating, severity: 'low' };
-        }
-        // Negative path: show empathy message, then transition after delay
-        setTimeout(() => transitionTo('negative'), 2500);
-      } else if (mmDecision.showSupportAsk) {
-        if (mmDecision.phase) {
-          murkyMiddle = {
-            ...(murkyMiddle || { chose: 5, feedback: '', feedbackAsked: false }),
-            phase: mmDecision.phase,
-          };
-        }
-        addChatBubble('agent', mmDecision.prompt);
-        chatHistory.push({ role: 'agent', content: mmDecision.prompt });
-        chatChoiceMode = 'murky-feedback';
-        renderChatChoices();
-        $('#chat-input')?.focus();
-      } else if (draftsParsed) {
-        renderChatDraftPrompt();
-        setChatDraftPromptVisible(true);
-      } else if (detectDraft(displayText)) {
-        // Backwards-compat fallback: legacy single-draft text
-        reviewDraft = extractDraft(displayText);
-        draftLooksGood = {};
-        renderChatDraftPrompt();
-        setChatDraftPromptVisible(true);
-      } else {
-        maybeShowRatingButtons(displayText);
+    // Handle transitions
+    // Route negative when the agent flags it (covers the sentiment override:
+    // high rating + negative text) OR when the decimal rating is below the 4.1
+    // cutoff. The agent flag always wins; the cutoff is a decimal-aware safety net.
+    const ratingBelowCutoff = agentRating != null && agentRating < RATING_POSITIVE_CUTOFF;
+    if (negativeFlagData || ratingBelowCutoff) {
+      if (!negativeFlagData) {
+        // Routed negative on rating alone — synthesize a minimal flag so the
+        // negative screen + Slack notification still have rating context.
+        negativeFlagData = { rating: agentRating, severity: 'low' };
       }
+      // Negative path: show empathy message, then transition after delay
+      setTimeout(() => transitionTo('negative'), 2500);
+    } else {
+      applyMurkyUiDecision(mmDecision);
+      if (!mmDecision.showSupportAsk && !mmDecision.showDraftLine && !mmDecision.showDrafts) {
+        if (draftsParsed && chatChoiceMode !== 'murky-feedback') {
+          showDraftsIfReady();
+        } else if (!mmDecision.hideAgentMessage && detectDraft(displayText)) {
+          reviewDraft = extractDraft(displayText);
+          draftLooksGood = {};
+          showDraftsIfReady();
+        } else if (!mmDecision.hideAgentMessage) {
+          maybeShowRatingButtons(displayText);
+        }
+      }
+    }
+
+    if (mmDecision.sendToAssistant) {
+      pendingHiddenReply = mmDecision.sendToAssistant;
     }
 
   } catch (err) {
