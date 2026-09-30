@@ -26,7 +26,7 @@ function getSlackBotConfig(clientSlug, event, settings) {
   const token = (process.env[`SLACK_BOT_TOKEN_${suffix}`] || process.env.SLACK_BOT_TOKEN || '').trim();
   const channel = String((settings && settings.slackChannel) || '').trim();
   const threadTs = String(
-    event === 'negative'
+    slackThreadKindForEvent(event) === 'negative'
       ? (settings && settings.slackThreadNegative)
       : (settings && settings.slackThreadPositive),
   ).trim();
@@ -34,7 +34,17 @@ function getSlackBotConfig(clientSlug, event, settings) {
   return { token, channel, threadTs };
 }
 
-const ALLOWED_EVENTS = new Set(['completed', 'negative']);
+/**
+ * support_feedback: a customer who first rated 4, chose to leave a 5-star
+ * review, and answered "anything we could improve?". Sent the moment they
+ * answer (not at the end of the session) to the client's support flow, the
+ * same Slack thread and inbox as negative feedback.
+ */
+const ALLOWED_EVENTS = new Set(['completed', 'negative', 'support_feedback']);
+
+function slackThreadKindForEvent(event) {
+  return event === 'negative' || event === 'support_feedback' ? 'negative' : 'positive';
+}
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -256,6 +266,41 @@ function buildSlackMessage(payload) {
     };
   }
 
+  if (payload.event === 'support_feedback') {
+    const receivedAt = formatReceivedAt(payload.received_at || payload.ts);
+    return {
+      text: `${mentionPrefix}Reputation Rocket - Feedback for support - ${payload.client || 'Unknown'} (${receivedAt})`,
+      blocks: [
+        {
+          type: 'header',
+          text: {
+            type: 'plain_text',
+            text: `Feedback for support, ${payload.client || 'Unknown client'}`,
+          },
+        },
+        ...mentionBlock,
+        {
+          type: 'section',
+          fields: [
+            { type: 'mrkdwn', text: `*Portal:*\n${payload.provider || '—'}` },
+            { type: 'mrkdwn', text: `*Customer company:*\n${payload.client || 'Unknown'}` },
+            { type: 'mrkdwn', text: `*Respondent:*\n${formatRespondent(payload)}` },
+            { type: 'mrkdwn', text: `*Date received:*\n${receivedAt}` },
+          ],
+        },
+        ...ratingChoiceBlocks(payload),
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `*What happened:*\n${SUPPORT_FEEDBACK_CONTEXT}`,
+          },
+        },
+        ...formatTranscriptBlocks(payload.transcript),
+      ],
+    };
+  }
+
   const posted = Array.isArray(payload.posted) && payload.posted.length
     ? payload.posted.join(', ')
     : 'None marked submitted';
@@ -302,6 +347,10 @@ function buildSlackMessage(payload) {
 }
 
 const RATING_CHOICE_MAX_CHARS = 2500;
+
+const SUPPORT_FEEDBACK_CONTEXT =
+  'The customer first rated 4 stars, then chose to leave a 5-star review and shared this so your team ' +
+  'can improve. Please follow up on it. They were told it would reach your support team.';
 
 function clipText(value, max) {
   const text = String(value || '').trim();
@@ -541,6 +590,28 @@ function buildCompletedEmailSubjectAndText(payload) {
   return { subject, text };
 }
 
+function buildSupportFeedbackEmailSubjectAndText(payload) {
+  const receivedAt = formatReceivedAt(payload.received_at || payload.ts);
+  const subject = `[Reputation Rocket] Feedback for support, ${payload.client || 'Unknown'}, ${receivedAt}`;
+  const text = [
+    `Feedback for support, ${payload.client || 'Unknown client'}`,
+    '',
+    `Portal: ${payload.provider || '—'}`,
+    `Customer company: ${payload.client || 'Unknown'}`,
+    `Respondent: ${formatRespondent(payload)}`,
+    `Date received: ${receivedAt}`,
+    ...ratingChoiceLines(payload),
+    '',
+    `What happened: ${SUPPORT_FEEDBACK_CONTEXT}`,
+    '',
+    'Survey responses / summary:',
+    formatTranscriptText(payload.transcript),
+    '',
+    `Session: ${payload.session_id || '—'}`,
+  ].join('\n');
+  return { subject, text };
+}
+
 /**
  * Resend.com. Recipients come from config.js notifyEmails (server-read, not the browser).
  */
@@ -555,7 +626,9 @@ async function sendNotifyEmail(payload, to) {
 
     const { subject, text } = payload.event === 'negative'
       ? buildNegativeEmailSubjectAndText(payload)
-      : buildCompletedEmailSubjectAndText(payload);
+      : payload.event === 'support_feedback'
+        ? buildSupportFeedbackEmailSubjectAndText(payload)
+        : buildCompletedEmailSubjectAndText(payload);
 
     const upstream = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -587,3 +660,6 @@ async function sendNotifyEmail(payload, to) {
 module.exports.buildSlackMessage = buildSlackMessage;
 module.exports.buildCompletedEmailSubjectAndText = buildCompletedEmailSubjectAndText;
 module.exports.buildNegativeEmailSubjectAndText = buildNegativeEmailSubjectAndText;
+module.exports.buildSupportFeedbackEmailSubjectAndText = buildSupportFeedbackEmailSubjectAndText;
+module.exports.slackThreadKindForEvent = slackThreadKindForEvent;
+module.exports.ALLOWED_EVENTS = ALLOWED_EVENTS;
