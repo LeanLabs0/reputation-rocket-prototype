@@ -70,6 +70,20 @@ test('rating and 4-star choice labels are recognized so the first review questio
   assert.equal(isRatingOrChoiceAnswer('The onboarding was smooth'), false);
 });
 
+test('Lean Labs uses the shared star-rating and 4-star chat switches', () => {
+  const configSrc = fs.readFileSync(
+    path.join(__dirname, '../pages/clients/lean-labs/config.js'),
+    'utf8',
+  );
+  const sandbox = { window: {} };
+  vm.runInNewContext(configSrc, sandbox, { timeout: 1000 });
+  const config = sandbox.window.CLIENT_CONFIG;
+  assert.equal(config.clientSlug, 'lean-labs');
+  assert.equal(config.ratingButtons, true);
+  assert.equal(config.murkyMiddle, true);
+  assert.equal(config.providerName, 'Lean Labs');
+});
+
 test('questionPart drops the leading acknowledgment and keeps the question', () => {
   assert.equal(
     questionPart("That's wonderful to hear! What's the best part of working with us?"),

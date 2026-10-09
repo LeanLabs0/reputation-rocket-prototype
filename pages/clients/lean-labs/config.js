@@ -1,6 +1,10 @@
 window.CLIENT_CONFIG = {
   clientSlug: 'lean-labs',
   providerName: 'Lean Labs',
+  // Same shared chat controls as the eimmigration walkthrough (app.js):
+  // 1–5 star buttons (Poor → Excellent) and the 4-star follow-up.
+  ratingButtons: true,
+  murkyMiddle: true,
   agentEndpoint: '/api/agent',
   notificationEndpoint: '/api/notify',
   platforms: ['hubspot', 'g2'],
