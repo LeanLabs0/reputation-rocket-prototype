@@ -1813,6 +1813,7 @@ async function sendMessage(text, isHidden = false) {
       prompt: text,
       agent: CONFIG.AGENT,
       session_id: sessionId,
+      client_slug: PARAMS.clientSlug,
       config: {
         client_name: L.client_name,
         customer_name: L.customer_name,
@@ -2561,6 +2562,7 @@ async function sendRegenerateRequest(platform) {
       prompt: `Please regenerate ONLY the ${platform} draft with a slightly different angle. Wrap the new draft in <drafts><draft platform="${platform}">...</draft></drafts>. Do not include any other platforms.`,
       agent: CONFIG.AGENT,
       session_id: sessionId,
+      client_slug: PARAMS.clientSlug,
       config: {
         client_name: L.client_name,
         customer_name: L.customer_name,

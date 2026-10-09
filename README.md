@@ -32,6 +32,7 @@ reputation-rocket-prototype/
   styles.css           # Shared UI + Lean Labs / Figma-aligned tokens
   api/
     agent.js           # POST /api/agent → Factor8 (uses FACTOR8_API_KEY)
+    health.js          # GET /api/health and /api/health?deep=1
     notify.js          # POST /api/notify → Slack and/or n8n webhook
     upload-video.js    # POST /api/upload-video → HubSpot Files API
   local-dev-server.js  # npm run dev: static + same /api/* behavior locally
@@ -143,6 +144,9 @@ Use `npm run dev` for a full local test.
 |----------|----------|
 | `FACTOR8_API_KEY` | Yes (prod) |
 | `FACTOR8_API_URL` | If necessary |
+| `SLACK_BOT_TOKEN` | Yes, for client threads and for outage alerts |
+| `SLACK_ALERT_CHANNEL` | Optional. Defaults to #ai-support |
+| `DEEP_HEALTH_TOKEN` | Optional. Locks `/api/health?deep=1` |
 | `SLACK_REPUTATION_WEBHOOK_URL` | If you do not use n8n |
 | `SLACK_REPUTATION_WEBHOOK_<CLIENT>` | If necessary |
 | `N8N_REPUTATION_WEBHOOK_URL` | If necessary |
@@ -160,6 +164,41 @@ Use `npm run dev` for a full local test.
 Set the Slack channel ID and the thread IDs for each client in `config.js`.
 Use `slackChannel`, `slackThreadPositive`, and `slackThreadNegative`.
 Keep only the bot token in the environment.
+
+## Error alerts
+
+Chat failures post to **#ai-support** with the Slack bot this app already uses.
+The bot token is `SLACK_BOT_TOKEN` (already set on the Vercel project).
+You do not create a new incoming webhook for this.
+`SLACK_ALERT_CHANNEL` can override the channel.
+Leave it unset to use #ai-support (`C09BD2WUQ4B`).
+The Reputation Rocket bot must be in that channel.
+
+The message has the portal slug and name, the agent, the session id, the upstream status, a short upstream detail, the time, and the environment (`VERCEL_ENV`).
+It does not include the customer name, the customer email, the review text, or the API key.
+
+The same error posts at most once every 15 minutes.
+The key is the status plus the detail, not the session and not the client.
+One warm server remembers that key in memory.
+On Vercel, the existing KV store (`KV_REST_API_URL` and `KV_REST_API_TOKEN`) shares the 15 minutes across servers.
+If KV is down, each server can post once per 15 minutes, so a cold start can send a few copies, not one message per visitor.
+A different error can alert on its own.
+The client named in the message is the first request in that window.
+
+`/api/health` stays the free check (Factor8 can list agents).
+`/api/health?deep=1` runs one real chat turn and returns a non-200 status when that turn fails.
+It also posts to #ai-support.
+A result is reused for 8 minutes so a loop cannot call the model on every hit.
+That cache is shared through KV when KV is configured.
+Do not add `?deep=1` to the normal page, and do not add it to the existing 10-minute aeo-tools check unless you want a model call each time.
+
+If you set `DEEP_HEALTH_TOKEN`, the deep check requires `Authorization: Bearer <token>` or `?token=<token>`.
+Without that variable, `?deep=1` is open, same as `/api/health`.
+
+There is no Vercel cron for the deep check.
+A cron every 10–15 minutes would spend a model call on a timer, and a Hobby plan only allows a daily cron (a faster cron can fail the deploy).
+Point the existing monitor at `/api/health?deep=1` instead.
+The route itself alerts Slack when the turn fails.
 
 If a client has `notifyEmails` in `config.js` and you set `RESEND_API_KEY`, `/api/notify` sends email to that list.
 The email is sent for `completed` and for `negative`.
@@ -228,7 +267,8 @@ For the full list, refer to `app.js` and HANDOFF.
 | `app.js` | State machine, Factor8 calls, review popups, overlays, session (no theming) |
 | `styles.css` | Shared layout and default `--ll-*` theme tokens. Each client `styles.css` changes them. |
 | `config.js`, `pages/clients/*/config.js` | `CLIENT_CONFIG` data (endpoints, links, IDs). No visual theme. |
-| `api/agent.js`, `api/notify.js`, `api/upload-video.js` | Vercel and local-dev serverless handlers |
+| `api/agent.js`, `api/health.js`, `api/notify.js`, `api/upload-video.js` | Vercel and local-dev serverless handlers |
+| `lib/slack-alert.js` | Outage alerts to #ai-support |
 | `local-dev-server.js` | `npm run dev` |
 | `.env.local.example` | Template for local secrets (not committed) |
 | `VERCEL_N8N_SETUP.md` | Deploy, environment, n8n workflow, limitations |
