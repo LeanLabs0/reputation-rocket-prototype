@@ -971,6 +971,7 @@ a:hover { text-decoration: underline; }
 
 .chat-input-bar {
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
   padding: 24px;
   background: var(--ll-dark);
@@ -1000,6 +1001,57 @@ a:hover { text-decoration: underline; }
 }
 .chat-input-bar input::placeholder { color: var(--ll-muted); }
 .chat-input-bar input:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.chat-mic-btn {
+  width: 54px;
+  height: 54px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ll-heading);
+  border: 1px solid var(--ll-border);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: border-color var(--transition), color var(--transition);
+}
+.chat-mic-btn:hover { border-color: var(--ll-purple); }
+.chat-mic-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.chat-mic-btn svg { width: 20px; height: 20px; }
+.chat-mic-btn.is-recording {
+  border-color: #e11d48;
+  color: #e11d48;
+  animation: chatMicPulse 1.2s ease-in-out infinite;
+}
+.chat-mic-bars {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  height: 18px;
+}
+.chat-mic-btn.is-recording svg { display: none; }
+.chat-mic-btn.is-recording .chat-mic-bars { display: flex; }
+.chat-mic-bar {
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  background: currentColor;
+  transform: scaleY(0.25);
+  transform-origin: center;
+}
+@keyframes chatMicPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(225, 29, 72, 0.45); }
+  50% { box-shadow: 0 0 0 6px rgba(225, 29, 72, 0); }
+}
+.chat-mic-status {
+  flex: 1 0 100%;
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--ll-muted);
+}
+.chat-mic-status[hidden] { display: none; }
 
 .chat-send-btn {
   width: 54px;

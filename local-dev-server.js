@@ -101,6 +101,9 @@ const server = http.createServer(async (req, res) => {
       req.query = Object.fromEntries(url.searchParams.entries());
       return await callApiHandler(requireFresh('./api/handoff'), req, res);
     }
+    if (url.pathname === '/api/transcribe') {
+      return await callApiHandlerRaw(requireFresh('./api/transcribe'), req, res);
+    }
 
     return serveStatic(url.pathname, res);
   } catch (error) {
