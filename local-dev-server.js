@@ -47,55 +47,59 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (url.pathname === '/api/agent') {
-      return callApiHandler(agentHandler, req, res);
+      return await callApiHandler(agentHandler, req, res);
     }
 
     if (url.pathname === '/api/health') {
-      return callApiHandler(healthHandler, req, res);
+      return await callApiHandler(healthHandler, req, res);
     }
 
     if (url.pathname === '/api/notify') {
-      return callApiHandler(notifyHandler, req, res);
+      return await callApiHandler(notifyHandler, req, res);
     }
 
     if (url.pathname === '/api/upload-video') {
-      return callApiHandlerRaw(uploadVideoHandler, req, res);
+      return await callApiHandlerRaw(uploadVideoHandler, req, res);
     }
 
     if (url.pathname === '/api/hubspot-contact') {
-      return callApiHandler(hubspotContactHandler, req, res);
+      return await callApiHandler(hubspotContactHandler, req, res);
     }
 
     if (url.pathname === '/api/configure/login') {
-      return callApiHandler(configureLoginHandler, req, res);
+      return await callApiHandler(configureLoginHandler, req, res);
     }
     if (url.pathname === '/api/configure/logout') {
-      return callApiHandler(configureLogoutHandler, req, res);
+      return await callApiHandler(configureLogoutHandler, req, res);
     }
     if (url.pathname === '/api/configure/status') {
-      return callApiHandler(requireFresh('./api/configure/status'), req, res);
+      return await callApiHandler(requireFresh('./api/configure/status'), req, res);
     }
     if (url.pathname === '/api/configure/oauth-start') {
-      return callApiHandler(configureOauthStartHandler, req, res);
+      return await callApiHandler(configureOauthStartHandler, req, res);
     }
     if (url.pathname === '/api/configure/oauth-callback') {
-      return callApiHandler(configureOauthCallbackHandler, req, res);
+      return await callApiHandler(configureOauthCallbackHandler, req, res);
     }
     if (url.pathname === '/api/configure/provision') {
-      return callApiHandler(configureProvisionHandler, req, res);
+      return await callApiHandler(configureProvisionHandler, req, res);
     }
     if (url.pathname === '/api/configure/create-client') {
-      return callApiHandler(configureCreateClientHandler, req, res);
+      return await callApiHandler(configureCreateClientHandler, req, res);
     }
     if (url.pathname === '/api/configure/update-settings') {
-      return callApiHandler(requireFresh('./api/configure/update-settings'), req, res);
+      return await callApiHandler(requireFresh('./api/configure/update-settings'), req, res);
     }
     if (url.pathname === '/api/configure/delete-client') {
-      return callApiHandler(configureDeleteClientHandler, req, res);
+      return await callApiHandler(configureDeleteClientHandler, req, res);
     }
     if (url.pathname === '/api/client-config') {
       req.query = Object.fromEntries(url.searchParams.entries());
-      return callApiHandler(requireFresh('./api/client-config'), req, res);
+      return await callApiHandler(requireFresh('./api/client-config'), req, res);
+    }
+    if (url.pathname === '/api/handoff') {
+      req.query = Object.fromEntries(url.searchParams.entries());
+      return await callApiHandler(requireFresh('./api/handoff'), req, res);
     }
 
     return serveStatic(url.pathname, res);
@@ -257,13 +261,14 @@ function serveStatic(rawPathname, res) {
   res.writeHead(200, {
     'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
     'X-Content-Type-Options': 'nosniff',
+    'Cache-Control': 'no-cache',
   });
   fs.createReadStream(filePath).pipe(res);
 }
 
 function readJsonBody(req) {
   return new Promise((resolve, reject) => {
-    if (req.method !== 'POST') return resolve({});
+    if (req.method !== 'POST' && req.method !== 'PUT') return resolve({});
 
     let body = '';
     req.on('data', chunk => {

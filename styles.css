@@ -306,6 +306,101 @@ a:hover { text-decoration: underline; }
   filter: brightness(0.97);
 }
 
+/* ── Live-call guest handoff ─────────────────────────────── */
+.guest-handoff-bar {
+  width: min(736px, calc(100% - 48px));
+  margin: 0 auto 20px;
+  padding: 12px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  align-items: flex-end;
+  justify-content: space-between;
+  background: var(--ll-dark-alt);
+  border: 1px solid var(--ll-border);
+  border-radius: var(--radius-lg);
+}
+
+.guest-handoff-bar__title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ll-heading);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.guest-handoff-bar__status {
+  margin-top: 4px;
+  font-size: 0.8125rem;
+  color: var(--ll-muted);
+  max-width: 280px;
+}
+
+.guest-handoff-bar__fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.guest-handoff-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ll-muted);
+}
+
+.guest-handoff-field input {
+  width: 180px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--ll-border);
+  background: var(--ll-dark);
+  color: var(--ll-heading);
+  font-family: var(--font-family);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.guest-handoff-field input:focus {
+  outline: none;
+  border-color: var(--ll-muted);
+}
+
+.guest-handoff-field input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.guest-handoff-bar.is-locked .guest-handoff-bar__status {
+  color: var(--ll-success);
+}
+
+.handoff-unavailable {
+  margin-bottom: 16px;
+  color: var(--ll-heading);
+  font-size: 0.9375rem;
+}
+
+@media (max-width: 720px) {
+  .guest-handoff-bar {
+    width: calc(100% - 24px);
+  }
+  .guest-handoff-field {
+    flex: 1 1 140px;
+  }
+  .guest-handoff-field input {
+    width: 100%;
+  }
+}
+
 /* ── Progress (card on gradient) ──────────────────────────── */
 .progress-shell {
   padding: 0 24px 64px;

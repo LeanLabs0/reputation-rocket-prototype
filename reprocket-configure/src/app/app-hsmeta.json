@@ -12,18 +12,22 @@
         "https://reputationrocket.ai/api/configure/oauth-callback"
       ],
       "requiredScopes": [
-        "oauth",
-        "files",
-        "crm.objects.contacts.read",
-        "crm.objects.contacts.write",
         "crm.schemas.contacts.write",
-        "forms"
+        "forms",
+        "oauth",
+        "crm.objects.contacts.write",
+        "crm.objects.contacts.read",
+        "files.read",
+        "files.write",
+        "files.delete"
       ],
       "optionalScopes": [],
       "conditionallyRequiredScopes": []
     },
     "permittedUrls": {
-      "fetch": ["https://api.hubapi.com"],
+      "fetch": [
+        "https://api.hubapi.com"
+      ],
       "iframe": [],
       "img": []
     },

@@ -218,6 +218,15 @@ let hubspotIncompleteSent = false;
 let uploadedVideoMeta = null;
 /** Per-platform: user tapped "Looks good" for that draft (required before Approve all). */
 let draftLooksGood = {};
+/** HubSpot form rows for this visit, kept with the handoff snapshot. */
+let leadFields = [];
+/** Live-call handoff. `guest` is the operator; `client` is the resume link. */
+let handoffToken = '';
+let handoffRole = '';
+let handoffLocked = false;
+let handoffSaveTimer = null;
+let handoffPollTimer = null;
+let handoffWriteChain = Promise.resolve();
 let videoRecorder = null;
 let videoStream = null;
 let videoRecordingStream = null;
@@ -290,6 +299,7 @@ const $$ = (sel) => document.querySelectorAll(sel);
 document.addEventListener('DOMContentLoaded', async () => {
   await hydratePortalSettingsFromStore();
 
+  try {
   applyCurrentYearTokens();
   applyVideoStepVisibility();
 
@@ -448,7 +458,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   window.addEventListener('beforeunload', onBeforeUnloadReviewPost);
 
-  if (restoreSession()) return;
+    const handoffBoot = await bootHandoff();
+    if (handoffBoot === 'client') return;
+    const restored = restoreSession();
+    if (handoffRole === 'guest') {
+      fillGuestBar();
+      if (!restored) saveSession();
+    }
+  } catch (err) {
+    console.error('[Reputation Rocket] Session restore failed:', err);
+  }
 });
 
 // ── State Machine ───────────────────────────────────────────
@@ -1243,9 +1262,18 @@ async function submitLeadFieldsToHubSpotApi(rows) {
 }
 
 function finishLeadCapture(onSuccess, values) {
-  applyHubSpotSubmissionToParams(values || scrapeLeadFieldsFromProxy());
+  const rows = values || scrapeLeadFieldsFromProxy();
+  leadFields = Array.isArray(rows) ? rows.map((row) => ({
+    name: String(row && row.name || ''),
+    value: rowValueToString(row && row.value),
+  })).filter((row) => row.name && row.value) : [];
+  applyHubSpotSubmissionToParams(leadFields);
   saveSession();
   hideHubSpotLeadModal();
+  if (handoffRole === 'guest' && !handoffLocked) {
+    const who = [PARAMS.name, PARAMS.email].filter((part) => part && part !== 'there').join(' · ');
+    if (who) setGuestStatus(`Details saved for ${who}.`);
+  }
   if (typeof onSuccess === 'function') onSuccess();
 }
 
@@ -1378,6 +1406,14 @@ function setStartButtonBusy(busy) {
 
 async function startExperience() {
   if (hubspotLeadFlowBusy) return;
+
+  // Guest sessions still collect the full HubSpot form, even when the URL
+  // already has a name and email. Those two fields are not the whole form.
+  if (handoffRole === 'guest' && hasHubSpotLeadFormConfigured()) {
+    hubspotLeadFlowBusy = true;
+    openHubSpotLeadModalAndMountForm(beginSessionAfterLeadCapture);
+    return;
+  }
 
   if (hasHubSpotLeadFormConfigured() && hasLeadCaptureFromUrl()) {
     hubspotLeadFlowBusy = 'submitting';
@@ -4254,6 +4290,7 @@ async function patchHubSpotContact(properties, { attempts = 5, delayMs = 700, ro
 }
 
 function markHubSpotContactIncomplete() {
+  if (isGuestOperatorSession()) return;
   if (hubspotCompleteSent || hubspotIncompleteSent) return;
 
   const completeProperty = String(CLIENT_CONFIG.hubspotCompleteProperty || '').trim();
@@ -4278,6 +4315,7 @@ function markHubSpotContactIncomplete() {
 }
 
 async function markHubSpotContactComplete(outcome) {
+  if (isGuestOperatorSession()) return;
   if (hubspotCompleteSent) return;
 
   const completeProperty = String(CLIENT_CONFIG.hubspotCompleteProperty || '').trim();
@@ -4305,6 +4343,7 @@ async function markHubSpotContactComplete(outcome) {
 }
 
 function maybeRedirectToThankYou() {
+  if (isGuestOperatorSession()) return;
   if (!PARAMS.thankYouUrl) return;
   if (!isAllowedRedirectUrl(PARAMS.thankYouUrl)) {
     console.warn('[Reputation Rocket] Blocked unapproved thank_you_url:', PARAMS.thankYouUrl);
@@ -4385,6 +4424,7 @@ function initNegativeScreen() {
 }
 
 async function sendLifecycleNotification(event) {
+  if (isGuestOperatorSession()) return;
   if (!CONFIG.NOTIFY_URL || notificationsSent[event]) return;
 
   const lead = getNotifyLeadSnapshot();
@@ -4481,61 +4521,66 @@ function platformDisplayName(platform) {
 }
 
 // ── Session Persistence ─────────────────────────────────────
-function saveSession() {
-  try {
-    sessionStorage.setItem(
-      getSessionStorageKey(),
-      JSON.stringify({
-        clientSlug: PARAMS.clientSlug,
-        sessionId,
-        machineId,
-        currentState,
-        chatHistory,
-        agentMessageCount,
-        reviewDraft,
-        drafts,
-        activeDraftPlatform,
-        currentPlatformIndex,
-        starRating,
-        agentRating,
-        platformsPosted,
-        platformPostedAt,
-        reviewFormOpened,
-        platformFieldsCopied,
-        negativeFlagData,
-        lastAgentMessage,
-        notificationsSent,
-        hubspotCompleteSent,
-        hubspotIncompleteSent,
-        uploadedVideoMeta,
-        draftLooksGood,
-        chatChoiceMode,
-        murkyMiddle,
-        ratedDirectFive,
-        directFiveImproveSkipped,
-        leadIdentity: {
-          name: PARAMS.name,
-          firstName: PARAMS.firstName,
-          email: PARAMS.email,
-          visitorCompany: PARAMS.visitorCompany,
-        },
-      }),
-    );
-  } catch (_) { /* quota exceeded — ignore */ }
+function isGuestOperatorSession() {
+  return handoffRole === 'guest';
 }
 
-function restoreSession() {
-  try {
-    const saved = sessionStorage.getItem(getSessionStorageKey());
-    if (!saved) return false;
+function buildSessionSnapshot() {
+  return {
+    clientSlug: PARAMS.clientSlug,
+    sessionId,
+    machineId,
+    currentState,
+    chatHistory,
+    agentMessageCount,
+    reviewDraft,
+    drafts,
+    activeDraftPlatform,
+    currentPlatformIndex,
+    starRating,
+    agentRating,
+    platformsPosted,
+    platformPostedAt,
+    reviewFormOpened,
+    platformFieldsCopied,
+    negativeFlagData,
+    lastAgentMessage,
+    notificationsSent,
+    hubspotCompleteSent,
+    hubspotIncompleteSent,
+    uploadedVideoMeta,
+    draftLooksGood,
+    chatChoiceMode,
+    murkyMiddle,
+    ratedDirectFive,
+    directFiveImproveSkipped,
+    leadIdentity: {
+      name: PARAMS.name,
+      firstName: PARAMS.firstName,
+      email: PARAMS.email,
+      visitorCompany: PARAMS.visitorCompany,
+    },
+    leadFields,
+    savedAt: new Date().toISOString(),
+  };
+}
 
-    const data = JSON.parse(saved);
+function saveSession() {
+  try {
+    sessionStorage.setItem(getSessionStorageKey(), JSON.stringify(buildSessionSnapshot()));
+  } catch (_) { /* quota exceeded — ignore */ }
+  queueHandoffSync();
+}
+
+function applySavedSession(data) {
+  try {
+    if (!data || typeof data !== 'object') return false;
     if (data.clientSlug !== PARAMS.clientSlug) return false;
 
-    // Only restore if same session (user didn't get a new link)
-    if (!data.sessionId) return false;
+    const resumeState = data.currentState || 'welcome';
+    if (resumeState !== 'welcome' && !data.sessionId) return false;
 
-    sessionId = data.sessionId;
+    sessionId = data.sessionId || '';
     machineId = data.machineId || '';
     chatHistory = data.chatHistory || [];
     agentMessageCount = data.agentMessageCount || 0;
@@ -4577,17 +4622,279 @@ function restoreSession() {
     directFiveImproveSkipped = data.directFiveImproveSkipped === true;
 
     applyLeadIdentityFromStorage(data.leadIdentity);
+    leadFields = Array.isArray(data.leadFields) ? data.leadFields : [];
+    if (leadFields.length) applyHubSpotSubmissionToParams(leadFields);
 
     chatHistory.forEach(msg => addChatBubble(msg.role, msg.content));
 
-    let resumeState = data.currentState || 'welcome';
-    if (resumeState === 'video' && !isVideoStepEnabled()) resumeState = 'complete';
-    transitionTo(resumeState);
+    let nextState = resumeState;
+    if (nextState === 'video' && !isVideoStepEnabled()) nextState = 'complete';
+    transitionTo(nextState);
     return true;
   } catch (_) {
     return false;
   }
 }
+
+function restoreSession() {
+  try {
+    const saved = sessionStorage.getItem(getSessionStorageKey());
+    if (!saved) return false;
+    return applySavedSession(JSON.parse(saved));
+  } catch (_) {
+    return false;
+  }
+}
+
+function guestTokenStorageKey() {
+  const slug = String(PARAMS.clientSlug || 'default').trim() || 'default';
+  return `rr_guest_token_${slug}`;
+}
+
+function createHandoffToken() {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 1) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function readOrCreateGuestToken() {
+  const key = guestTokenStorageKey();
+  try {
+    const existing = sessionStorage.getItem(key);
+    if (existing && /^[A-Za-z0-9_-]{22,128}$/.test(existing)) return existing;
+  } catch (_) { /* ignore */ }
+  const next = createHandoffToken();
+  try { sessionStorage.setItem(key, next); } catch (_) { /* ignore */ }
+  return next;
+}
+
+function canSyncHandoff() {
+  if (!handoffToken || (handoffRole !== 'guest' && handoffRole !== 'client')) return false;
+  if (handoffRole === 'guest' && handoffLocked) return false;
+  return true;
+}
+
+function queueHandoffSync() {
+  if (!canSyncHandoff()) return;
+  if (handoffSaveTimer) clearTimeout(handoffSaveTimer);
+  handoffSaveTimer = setTimeout(() => {
+    handoffSaveTimer = null;
+    handoffWriteChain = handoffWriteChain.then(() => pushHandoffSnapshot()).catch(() => {});
+  }, 400);
+}
+
+async function flushHandoffSync() {
+  if (handoffSaveTimer) {
+    clearTimeout(handoffSaveTimer);
+    handoffSaveTimer = null;
+  }
+  handoffWriteChain = handoffWriteChain.then(() => pushHandoffSnapshot()).catch(() => false);
+  return handoffWriteChain;
+}
+
+async function pushHandoffSnapshot() {
+  if (!canSyncHandoff()) return false;
+  try {
+    const res = await fetch('/api/handoff', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      cache: 'no-store',
+      body: JSON.stringify({
+        token: handoffToken,
+        clientSlug: PARAMS.clientSlug,
+        role: handoffRole,
+        snapshot: buildSessionSnapshot(),
+      }),
+    });
+    if (res.status === 409 && handoffRole === 'guest') {
+      lockGuestHandoff();
+      return false;
+    }
+    return res.ok;
+  } catch (_) {
+    return false;
+  }
+}
+
+function setGuestStatus(text) {
+  const el = document.getElementById('guest-handoff-status');
+  if (el) el.textContent = text;
+}
+
+function fillGuestBar() {
+  if (handoffLocked) return;
+  const who = [PARAMS.name, PARAMS.email].filter((part) => part && part !== 'there').join(' · ');
+  if (who) setGuestStatus(`Details saved for ${who}.`);
+}
+
+function lockGuestHandoff() {
+  if (handoffLocked) return;
+  handoffLocked = true;
+  if (handoffPollTimer) {
+    clearInterval(handoffPollTimer);
+    handoffPollTimer = null;
+  }
+  const bar = document.getElementById('guest-handoff-bar');
+  if (bar) bar.classList.add('is-locked');
+  setGuestStatus('Handed off. This browser will not overwrite the client.');
+}
+
+function mountGuestBar() {
+  if (document.getElementById('guest-handoff-bar')) return;
+  const bar = document.createElement('div');
+  bar.id = 'guest-handoff-bar';
+  bar.className = 'guest-handoff-bar';
+  bar.setAttribute('role', 'region');
+  bar.setAttribute('aria-label', 'Live session handoff');
+  bar.innerHTML = `
+    <div class="guest-handoff-bar__copy">
+      <p class="guest-handoff-bar__title">Live session</p>
+      <p id="guest-handoff-status" class="guest-handoff-bar__status" aria-live="polite">Begin the session and fill in the client's details.</p>
+    </div>
+    <div class="guest-handoff-bar__fields">
+      <button type="button" id="guest-handoff-copy" class="btn btn-primary btn-sm">Copy client link</button>
+    </div>
+  `;
+  const shell = document.querySelector('.progress-shell');
+  if (shell && shell.parentNode) shell.parentNode.insertBefore(bar, shell);
+  else document.body.prepend(bar);
+
+  document.getElementById('guest-handoff-copy')?.addEventListener('click', copyGuestHandoffLink);
+  fillGuestBar();
+}
+
+async function copyGuestHandoffLink() {
+  const url = new URL(window.location.pathname, window.location.origin);
+  url.searchParams.set('handoff', handoffToken);
+  const copied = await copyToClipboard(url.toString());
+  const saved = await flushHandoffSync();
+  if (!copied) {
+    setGuestStatus(saved
+      ? 'Saved, but the link could not be copied.'
+      : 'Could not copy the link.');
+    return;
+  }
+  if (handoffLocked) {
+    setGuestStatus('Handed off. Link copied.');
+    return;
+  }
+  setGuestStatus(saved
+    ? 'Link copied.'
+    : 'Link copied, but the save did not go through. Copy again in a moment.');
+}
+
+async function pollHandoffClaim() {
+  if (handoffRole !== 'guest' || handoffLocked || !handoffToken) return;
+  try {
+    const res = await fetch(
+      `/api/handoff?token=${encodeURIComponent(handoffToken)}&clientSlug=${encodeURIComponent(PARAMS.clientSlug)}`,
+      { cache: 'no-store' },
+    );
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.claimed) lockGuestHandoff();
+  } catch (_) { /* keep polling */ }
+}
+
+function startHandoffPoll() {
+  if (handoffPollTimer) clearInterval(handoffPollTimer);
+  handoffPollTimer = setInterval(pollHandoffClaim, 8000);
+}
+
+function preferLocalHandoffSnapshot(serverSnapshot) {
+  if (!serverSnapshot || typeof serverSnapshot !== 'object') return null;
+  try {
+    const localRaw = sessionStorage.getItem(getSessionStorageKey());
+    if (!localRaw) return serverSnapshot;
+    const local = JSON.parse(localRaw);
+    if (!local || local.clientSlug !== PARAMS.clientSlug) return serverSnapshot;
+    if ((local.sessionId || '') !== (serverSnapshot.sessionId || '')) return serverSnapshot;
+    const localTime = Date.parse(local.savedAt || '') || 0;
+    const serverTime = Date.parse(serverSnapshot.savedAt || '') || 0;
+    if (localTime > serverTime) return local;
+  } catch (_) { /* use the server copy */ }
+  return serverSnapshot;
+}
+
+function showHandoffUnavailable() {
+  const url = new URL(window.location.href);
+  if (url.searchParams.has('handoff')) {
+    url.searchParams.delete('handoff');
+    window.history.replaceState({}, '', url.toString());
+  }
+  const host = document.querySelector('#screen-welcome .screen-content');
+  if (!host || document.getElementById('handoff-unavailable')) return;
+  const note = document.createElement('p');
+  note.id = 'handoff-unavailable';
+  note.className = 'handoff-unavailable';
+  note.setAttribute('role', 'alert');
+  note.textContent = 'This resume link has expired or is no longer available. You can start from the beginning.';
+  host.insertBefore(note, host.firstChild);
+}
+
+async function bootHandoff() {
+  const params = new URLSearchParams(window.location.search);
+  const token = (params.get('handoff') || '').trim();
+  if (token) {
+    try {
+      const res = await fetch(
+        `/api/handoff?token=${encodeURIComponent(token)}&clientSlug=${encodeURIComponent(PARAMS.clientSlug)}&claim=1`,
+        { cache: 'no-store' },
+      );
+      if (!res.ok) {
+        showHandoffUnavailable();
+        return '';
+      }
+      const data = await res.json();
+      handoffToken = token;
+      handoffRole = 'client';
+      const snapshot = preferLocalHandoffSnapshot(data.snapshot);
+      if (!snapshot || !applySavedSession(snapshot)) {
+        handoffToken = '';
+        handoffRole = '';
+        showHandoffUnavailable();
+        return '';
+      }
+      return 'client';
+    } catch (_) {
+      showHandoffUnavailable();
+      return '';
+    }
+  }
+
+  if (params.get('guest') === 'true') {
+    handoffRole = 'guest';
+    handoffToken = readOrCreateGuestToken();
+    mountGuestBar();
+    startHandoffPoll();
+    return 'guest';
+  }
+
+  return '';
+}
+
+window.addEventListener('pagehide', () => {
+  if (!canSyncHandoff()) return;
+  if (handoffSaveTimer) {
+    clearTimeout(handoffSaveTimer);
+    handoffSaveTimer = null;
+  }
+  try {
+    fetch('/api/handoff', {
+      method: 'PUT',
+      keepalive: true,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token: handoffToken,
+        clientSlug: PARAMS.clientSlug,
+        role: handoffRole,
+        snapshot: buildSessionSnapshot(),
+      }),
+    });
+  } catch (_) { /* the next visit will retry */ }
+});
 
 window.rrReset = () => {
   allowPageUnload = true;
@@ -4595,5 +4902,16 @@ window.rrReset = () => {
   try {
     sessionStorage.removeItem(getSessionStorageKey());
   } catch (_) {}
+  if (handoffRole === 'guest') {
+    try { sessionStorage.removeItem(guestTokenStorageKey()); } catch (_) {}
+    window.location.reload();
+    return;
+  }
+  if (new URLSearchParams(window.location.search).has('handoff')) {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('handoff');
+    window.location.replace(url.toString());
+    return;
+  }
   window.location.reload();
 };
