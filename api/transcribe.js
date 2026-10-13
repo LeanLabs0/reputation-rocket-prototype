@@ -9,9 +9,17 @@ const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
 // The browser records Opus at 32 kbps, so 4 MB is roughly 15 minutes of speech.
 const MAX_BYTES = 4 * 1024 * 1024;
 // Spelling hints so names and review sites come back right.
-const VOCAB_PROMPT = 'A client answering review interview questions for Lean Labs. '
-  + 'Words that may come up: Lean Labs, Reputation Rocket, Greentec, eImmigration, '
+const VOCAB_PROMPT = 'A customer answering review interview questions. '
+  + 'Words that may come up: Reputation Rocket, Greentec, eImmigration, PropertyRadar, '
   + 'HubSpot, G2, Gartner, Capterra, Trustpilot, Google reviews.';
+// The browser sends the client name and the question on screen. Cap it so a long
+// agent turn can't crowd out the vocab hints.
+const MAX_CONTEXT_CHARS = 600;
+
+function transcribePrompt(context) {
+  const extra = String(context || '').replace(/\s+/g, ' ').trim().slice(0, MAX_CONTEXT_CHARS);
+  return extra ? `${VOCAB_PROMPT} ${extra}` : VOCAB_PROMPT;
+}
 
 function transcribeModel() {
   return String(process.env.OPENAI_TRANSCRIBE_MODEL || '').trim() || DEFAULT_MODEL;
@@ -66,7 +74,7 @@ function parseMultipart(req) {
   });
 }
 
-async function transcribeAudio({ buffer, filename }) {
+async function transcribeAudio({ buffer, filename, context }) {
   const apiKey = String(process.env.OPENAI_API_KEY || '').trim();
   if (!apiKey) throw fail(503, 'missing_openai_key');
   if (!buffer || !buffer.length) throw fail(400, 'bad_audio');
@@ -75,7 +83,7 @@ async function transcribeAudio({ buffer, filename }) {
   const body = new FormData();
   body.append('model', transcribeModel());
   body.append('language', 'en');
-  body.append('prompt', VOCAB_PROMPT);
+  body.append('prompt', transcribePrompt(context));
   body.append('response_format', 'json');
   body.append('file', new Blob([buffer]), filename || 'answer.webm');
 
@@ -114,14 +122,19 @@ async function handler(req, res) {
 
   let uploadedPath = '';
   try {
-    const { files } = await parseMultipart(req);
+    const { fields, files } = await parseMultipart(req);
     const file = firstFile(files.audio);
     if (!file || !file.filepath) throw fail(400, 'bad_audio');
     uploadedPath = file.filepath;
     const ext = extensionFor(file);
     if (!ext) throw fail(400, 'bad_audio');
     const buffer = await fs.readFile(file.filepath);
-    const text = await transcribeAudio({ buffer, filename: `answer.${ext}` });
+    const context = firstFile(fields && fields.context);
+    const text = await transcribeAudio({
+      buffer,
+      filename: `answer.${ext}`,
+      context: typeof context === 'string' ? context : '',
+    });
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json({ text });
   } catch (err) {
@@ -138,5 +151,6 @@ module.exports = handler;
 module.exports.transcribeAudio = transcribeAudio;
 module.exports.MODEL = DEFAULT_MODEL;
 module.exports.MAX_BYTES = MAX_BYTES;
+module.exports.MAX_CONTEXT_CHARS = MAX_CONTEXT_CHARS;
 module.exports.transcribeModel = transcribeModel;
 module.exports.transcribeUrl = transcribeUrl;

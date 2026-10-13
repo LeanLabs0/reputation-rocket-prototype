@@ -51,6 +51,20 @@ test('transcription uses gpt-4o-transcribe and returns only the text', async () 
   assert.equal(handler.MODEL, 'gpt-4o-transcribe');
 });
 
+test('the question context is added to the prompt, capped in length', async () => {
+  stubFetch(async () => ({ ok: true, status: 200, json: async () => ({ text: 'ok' }) }));
+  await handler.transcribeAudio({
+    buffer: Buffer.from('audio'),
+    filename: 'answer.webm',
+    context: 'A customer is answering a review interview about Greentec. ' + 'x'.repeat(5000),
+  });
+  const prompt = calls[0].init.body.get('prompt');
+  assert.match(prompt, /Reputation Rocket/);
+  assert.match(prompt, /about Greentec/);
+  assert.doesNotMatch(prompt, /Lean Labs/);
+  assert.ok(prompt.length < 1000);
+});
+
 test('a missing key never calls OpenAI', async () => {
   delete process.env.OPENAI_API_KEY;
   stubFetch(async () => { throw new Error('should not fetch'); });
