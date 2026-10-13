@@ -147,10 +147,14 @@
         </div>
       </div>
       <div class="chat-input-bar">
-        <input id="chat-input" type="text" placeholder="Type your answer..." autocomplete="off">
-        <button id="chat-send" class="chat-send-btn" disabled aria-label="Send message">
-          <svg viewBox="0 0 24 24"><path d="M12 19V5M12 5l-7 7M12 5l7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
+        <div class="chat-composer">
+          <textarea id="chat-input" rows="1" placeholder="Type your answer..." autocomplete="off"></textarea>
+          <div class="chat-composer-actions">
+            <button id="chat-send" class="chat-send-btn" disabled aria-label="Send message">
+              <svg viewBox="0 0 24 24"><path d="M12 19V5M12 5l-7 7M12 5l7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
