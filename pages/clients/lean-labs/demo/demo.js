@@ -61,10 +61,10 @@
       body: 'Every review starts here. Click <strong>Begin</strong> to kick off the guided flow — go ahead, we’ll follow along.',
     },
     chat: {
-      target: '.chat-input-bar',
+      target: '#chat-choice-bar, .chat-input-bar',
       count: 'Step 2 of 6',
       title: 'Quick chat',
-      body: 'A friendly AI assistant asks a few questions about your experience. Answer naturally and hit send. These replies are powered by the real assistant.',
+      body: 'A friendly AI assistant asks a few questions about your experience. Tap a star rating to start, then answer naturally. Type, or tap the mic to talk. These replies are powered by the real assistant.',
     },
     draft: {
       target: '.draft-card',
@@ -238,17 +238,25 @@
     });
   }
 
+  // Prefer the first visible match, so the chat step points at the star buttons
+  // when they're showing and at the text box otherwise.
+  function findTarget(selector) {
+    if (!selector) return null;
+    const all = [...document.querySelectorAll(selector)];
+    return all.find((el) => el.offsetParent !== null) || all[0] || null;
+  }
+
   function showStep(state, force) {
     const step = STEPS[state];
     if (!step) return;
     if (!force && shownSteps.has(state)) return;
     shownSteps.add(state);
 
-    const target = step.target ? document.querySelector(step.target) : null;
+    const target = findTarget(step.target);
     if (!target) {
       // Target not in DOM yet (e.g. grid still rendering) — retry shortly.
       requestAnimationFrame(() => {
-        const t2 = step.target ? document.querySelector(step.target) : null;
+        const t2 = findTarget(step.target);
         if (!t2) return;
         ensureRoot();
         root.hidden = false;

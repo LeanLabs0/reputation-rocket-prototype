@@ -9,6 +9,10 @@
 window.CLIENT_CONFIG = {
   clientSlug: 'demo',
   providerName: 'Acme Co',
+  // Match the live Lean Labs instance (/lean-labs/ and ?guest=true): 1-5 star
+  // buttons under the first question and the 4-star follow-up.
+  ratingButtons: true,
+  murkyMiddle: true,
   agentEndpoint: '/api/agent',
   notificationEndpoint: '/api/notify',
   platforms: ['google', 'g2', 'trustpilot'],
