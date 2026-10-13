@@ -34,8 +34,10 @@
     const url = typeof input === 'string' ? input : (input && input.url) || '';
 
     // /api/agent is intentionally NOT intercepted — the demo talks to the real
-    // Reputation Rocket agent. We only stub the side-effecting endpoints so the
-    // demo never posts to Slack or uploads a real video.
+    // Reputation Rocket agent. /api/transcribe is also left alone so the
+    // microphone works the same way it does on the live page. We only stub the
+    // side-effecting endpoints so the demo never posts to Slack or uploads a
+    // real video (including the 4-star support note).
     if (url.indexOf('/api/notify') !== -1) {
       return jsonResponse({ ok: true, delivered_to: 'demo' }, 200);
     }
@@ -61,10 +63,10 @@
       body: 'Every review starts here. Click <strong>Begin</strong> to kick off the guided flow — go ahead, we’ll follow along.',
     },
     chat: {
-      target: '.chat-input-bar',
+      target: '#screen-chat .chat-container',
       count: 'Step 2 of 6',
       title: 'Quick chat',
-      body: 'A friendly AI assistant asks a few questions about your experience. Answer naturally and hit send. These replies are powered by the real assistant.',
+      body: 'A friendly AI assistant asks a few questions about your experience. On the first one, <strong>tap a star from 1 to 5</strong>. After that, type your answer or use the microphone. These replies are powered by the real assistant.',
     },
     draft: {
       target: '.draft-card',
@@ -238,17 +240,57 @@
     });
   }
 
+  // Star buttons replace the text box, so a spotlight stuck on `.chat-input-bar`
+  // would cover the 1–5 buttons. Follow whichever composer is actually on screen.
+  function pickChatTourTarget() {
+    const choice = document.getElementById('chat-choice-bar');
+    const input = document.querySelector('#screen-chat .chat-input-bar');
+    const container = document.querySelector('#screen-chat .chat-container');
+    const choiceOpen = !!(choice && !choice.hidden);
+    const inputOpen = !!(input && !input.hidden);
+    if (choiceOpen && inputOpen) return container || choice;
+    if (choiceOpen) return choice;
+    if (inputOpen) return input;
+    return container || input || choice;
+  }
+
+  function resolveStepTarget(state, step) {
+    if (state === 'chat') return pickChatTourTarget();
+    return step.target ? document.querySelector(step.target) : null;
+  }
+
+  function refreshChatTour() {
+    if (!tourActive || introPending || !shownSteps.has('chat')) return;
+    if (!root || root.hidden || currentActiveState() !== 'chat') return;
+    const target = pickChatTourTarget();
+    if (!target) return;
+    currentTarget = target;
+    positionTo(target);
+  }
+
+  function watchChatTour() {
+    const screen = document.getElementById('screen-chat');
+    if (!screen) return;
+    const observer = new MutationObserver(() => refreshChatTour());
+    observer.observe(screen, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['hidden'],
+    });
+  }
+
   function showStep(state, force) {
     const step = STEPS[state];
     if (!step) return;
     if (!force && shownSteps.has(state)) return;
     shownSteps.add(state);
 
-    const target = step.target ? document.querySelector(step.target) : null;
+    const target = resolveStepTarget(state, step);
     if (!target) {
       // Target not in DOM yet (e.g. grid still rendering) — retry shortly.
       requestAnimationFrame(() => {
-        const t2 = step.target ? document.querySelector(step.target) : null;
+        const t2 = resolveStepTarget(state, step);
         if (!t2) return;
         ensureRoot();
         root.hidden = false;
@@ -317,6 +359,7 @@
 
   function initTour() {
     watchScreens();
+    watchChatTour();
 
     const replayBtn = document.getElementById('rr-demo-replay-tour');
     if (replayBtn) replayBtn.addEventListener('click', replayFromStart);

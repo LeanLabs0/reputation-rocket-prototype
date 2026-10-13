@@ -70,18 +70,73 @@ test('rating and 4-star choice labels are recognized so the first review questio
   assert.equal(isRatingOrChoiceAnswer('The onboarding was smooth'), false);
 });
 
-test('Lean Labs uses the shared star-rating and 4-star chat switches', () => {
-  const configSrc = fs.readFileSync(
-    path.join(__dirname, '../pages/clients/lean-labs/config.js'),
-    'utf8',
-  );
+function loadClientConfig(relativePath) {
+  const configSrc = fs.readFileSync(path.join(__dirname, relativePath), 'utf8');
   const sandbox = { window: {} };
   vm.runInNewContext(configSrc, sandbox, { timeout: 1000 });
-  const config = sandbox.window.CLIENT_CONFIG;
+  return sandbox.window.CLIENT_CONFIG;
+}
+
+test('Lean Labs uses the shared star-rating and 4-star chat switches', () => {
+  const config = loadClientConfig('../pages/clients/lean-labs/config.js');
   assert.equal(config.clientSlug, 'lean-labs');
   assert.equal(config.ratingButtons, true);
   assert.equal(config.murkyMiddle, true);
   assert.equal(config.providerName, 'Lean Labs');
+});
+
+test('Lean Labs demo uses the same star switches and stays off live notification targets', () => {
+  const config = loadClientConfig('../pages/clients/lean-labs/demo/config.js');
+  assert.equal(config.clientSlug, 'demo');
+  assert.equal(config.providerName, 'Acme Co');
+  assert.equal(config.ratingButtons, true);
+  assert.equal(config.murkyMiddle, true);
+  assert.equal(config.hubspotFormId, undefined);
+  assert.equal(config.hubspotPortalId, undefined);
+  assert.equal(config.notifyEmails, undefined);
+  assert.equal(config.slackChannel, undefined);
+  assert.equal(config.supportEmail, 'hello@acme.example');
+  for (const link of Object.values(config.reviewLinks)) {
+    assert.match(String(link), /^review-sandbox\.html/);
+  }
+});
+
+test('Lean Labs demo tour follows the star buttons and leaves voice transcription live', () => {
+  const src = fs.readFileSync(
+    path.join(__dirname, '../pages/clients/lean-labs/demo/demo.js'),
+    'utf8',
+  );
+  assert.match(src, /tap a star from 1 to 5/i);
+  assert.match(src, /microphone/i);
+  assert.match(src, /function pickChatTourTarget\(/);
+  assert.match(src, /\/api\/notify/);
+  assert.match(src, /\/api\/upload-video/);
+  assert.match(src, /\/api\/transcribe is also left alone/);
+  assert.doesNotMatch(src, /indexOf\('\/api\/transcribe'\)/);
+
+  const start = src.indexOf('function pickChatTourTarget(');
+  const end = src.indexOf('function resolveStepTarget(');
+  const picker = src.slice(start, end);
+  const choice = { id: 'choice', hidden: false };
+  const input = { id: 'input', hidden: true };
+  const container = { id: 'container' };
+  const document = {
+    getElementById(id) {
+      return id === 'chat-choice-bar' ? choice : null;
+    },
+    querySelector(sel) {
+      if (sel === '#screen-chat .chat-input-bar') return input;
+      if (sel === '#screen-chat .chat-container') return container;
+      return null;
+    },
+  };
+  const sandbox = { document };
+  vm.runInNewContext(`${picker}\nthis.pickChatTourTarget = pickChatTourTarget;`, sandbox);
+  assert.equal(sandbox.pickChatTourTarget(), choice);
+  input.hidden = false;
+  assert.equal(sandbox.pickChatTourTarget(), container);
+  choice.hidden = true;
+  assert.equal(sandbox.pickChatTourTarget(), input);
 });
 
 test('questionPart drops the leading acknowledgment and keeps the question', () => {
