@@ -1,9 +1,26 @@
 const fs = require('fs/promises');
 const { formidable } = require('formidable');
 
-const MODEL = 'gpt-4o-mini-transcribe';
-const OPENAI_URL = 'https://api.openai.com/v1/audio/transcriptions';
-const MAX_BYTES = 8 * 1024 * 1024;
+// gpt-4o-transcribe is the accurate Whisper-class model. Override with
+// OPENAI_TRANSCRIBE_MODEL (e.g. gpt-4o-mini-transcribe or whisper-1).
+const DEFAULT_MODEL = 'gpt-4o-transcribe';
+const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
+// Vercel rejects request bodies over 4.5 MB before the function runs, so stay under it.
+// The browser records Opus at 32 kbps, so 4 MB is roughly 15 minutes of speech.
+const MAX_BYTES = 4 * 1024 * 1024;
+// Spelling hints so names and review sites come back right.
+const VOCAB_PROMPT = 'A client answering review interview questions for Lean Labs. '
+  + 'Words that may come up: Lean Labs, Reputation Rocket, Greentec, eImmigration, '
+  + 'HubSpot, G2, Gartner, Capterra, Trustpilot, Google reviews.';
+
+function transcribeModel() {
+  return String(process.env.OPENAI_TRANSCRIBE_MODEL || '').trim() || DEFAULT_MODEL;
+}
+
+function transcribeUrl() {
+  const base = String(process.env.OPENAI_BASE_URL || '').trim().replace(/\/+$/, '') || DEFAULT_BASE_URL;
+  return `${base}/audio/transcriptions`;
+}
 const ALLOWED_EXT = new Set(['webm', 'mp4', 'mpeg', 'mp3', 'wav', 'ogg', 'm4a', 'mpga']);
 
 function fail(status, reason) {
@@ -56,12 +73,15 @@ async function transcribeAudio({ buffer, filename }) {
   if (buffer.length > MAX_BYTES) throw fail(413, 'too_large');
 
   const body = new FormData();
-  body.append('model', MODEL);
+  body.append('model', transcribeModel());
+  body.append('language', 'en');
+  body.append('prompt', VOCAB_PROMPT);
+  body.append('response_format', 'json');
   body.append('file', new Blob([buffer]), filename || 'answer.webm');
 
   let upstream;
   try {
-    upstream = await fetch(OPENAI_URL, {
+    upstream = await fetch(transcribeUrl(), {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}` },
       body,
@@ -116,4 +136,7 @@ async function handler(req, res) {
 
 module.exports = handler;
 module.exports.transcribeAudio = transcribeAudio;
-module.exports.MODEL = MODEL;
+module.exports.MODEL = DEFAULT_MODEL;
+module.exports.MAX_BYTES = MAX_BYTES;
+module.exports.transcribeModel = transcribeModel;
+module.exports.transcribeUrl = transcribeUrl;

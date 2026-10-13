@@ -31,7 +31,7 @@ function stubFetch(impl) {
   };
 }
 
-test('transcription uses gpt-4o-mini-transcribe and returns only the text', async () => {
+test('transcription uses gpt-4o-transcribe and returns only the text', async () => {
   stubFetch(async () => ({
     ok: true,
     status: 200,
@@ -45,8 +45,10 @@ test('transcription uses gpt-4o-mini-transcribe and returns only the text', asyn
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, 'https://api.openai.com/v1/audio/transcriptions');
   assert.equal(calls[0].init.headers.Authorization, 'Bearer test-openai-key');
-  assert.equal(calls[0].init.body.get('model'), 'gpt-4o-mini-transcribe');
-  assert.equal(handler.MODEL, 'gpt-4o-mini-transcribe');
+  assert.equal(calls[0].init.body.get('model'), 'gpt-4o-transcribe');
+  assert.equal(calls[0].init.body.get('language'), 'en');
+  assert.match(calls[0].init.body.get('prompt'), /Reputation Rocket/);
+  assert.equal(handler.MODEL, 'gpt-4o-transcribe');
 });
 
 test('a missing key never calls OpenAI', async () => {
@@ -77,4 +79,27 @@ test('only POST is allowed', async () => {
   assert.equal(res.statusCode, 405);
   assert.deepEqual(res.body, { reason: 'method_not_allowed' });
   assert.equal(res.headers['Cache-Control'], 'no-store');
+});
+
+test('model and base URL can be overridden by env', async () => {
+  process.env.OPENAI_TRANSCRIBE_MODEL = 'whisper-1';
+  process.env.OPENAI_BASE_URL = 'https://example.test/v1/';
+  try {
+    stubFetch(async () => ({ ok: true, status: 200, json: async () => ({ text: 'hi' }) }));
+    await handler.transcribeAudio({ buffer: Buffer.from('audio'), filename: 'answer.webm' });
+    assert.equal(calls[0].url, 'https://example.test/v1/audio/transcriptions');
+    assert.equal(calls[0].init.body.get('model'), 'whisper-1');
+  } finally {
+    delete process.env.OPENAI_TRANSCRIBE_MODEL;
+    delete process.env.OPENAI_BASE_URL;
+  }
+});
+
+test('uploads stay under the Vercel 4.5 MB body limit', async () => {
+  assert.ok(handler.MAX_BYTES < 4.5 * 1024 * 1024);
+  stubFetch(async () => { throw new Error('should not fetch'); });
+  await assert.rejects(
+    () => handler.transcribeAudio({ buffer: Buffer.alloc(handler.MAX_BYTES + 1), filename: 'answer.webm' }),
+    (err) => err.reason === 'too_large' && err.status === 413,
+  );
 });

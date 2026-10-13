@@ -1805,7 +1805,9 @@ let chatMicRendered = '';
 let chatMicLive = false;
 let chatMicAudioContext = null;
 let chatMicWaveFrame = 0;
-const CHAT_MIC_MAX_MS = 60000;
+// Live interview answers run long. Five minutes at 32 kbps is about 1.2 MB, well under the upload cap.
+const CHAT_MIC_MAX_MS = 5 * 60 * 1000;
+const CHAT_MIC_BITS_PER_SECOND = 32000;
 
 function setChatMicStatus(message) {
   const el = document.getElementById('chat-mic-status');
@@ -2038,7 +2040,9 @@ async function startChatDictation() {
   chatMicLive = false;
   const mime = preferredChatMicMime();
   try {
-    chatMicRecorder = mime ? new MediaRecorder(chatMicStream, { mimeType: mime }) : new MediaRecorder(chatMicStream);
+    const recorderOptions = { audioBitsPerSecond: CHAT_MIC_BITS_PER_SECOND };
+    if (mime) recorderOptions.mimeType = mime;
+    chatMicRecorder = new MediaRecorder(chatMicStream, recorderOptions);
   } catch (_) {
     stopChatMicTracks();
     setChatMicStatus(chatMicMessage('blocked'));
