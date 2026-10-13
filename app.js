@@ -1794,19 +1794,21 @@ function setChatDraftPromptVisible(visible) {
 }
 
 let chatMicPhase = '';
+let chatMicSession = 0;
 let chatMicRecorder = null;
 let chatMicStream = null;
 let chatMicChunks = [];
 let chatMicTimer = null;
 let chatMicDiscard = false;
-let chatMicRecognition = null;
-let chatMicPrefix = '';
-let chatMicCommitted = '';
-let chatMicRendered = '';
-let chatMicLive = false;
 let chatMicAudioContext = null;
 let chatMicWaveFrame = 0;
-const CHAT_MIC_MAX_MS = 60000;
+// Live interview answers run long. Five minutes at 32 kbps is about 1.2 MB.
+// Phones that record MP4 often ignore the low bitrate, so those stay shorter
+// and every recording is refused before upload if it would exceed the host limit.
+const CHAT_MIC_MAX_MS = 5 * 60 * 1000;
+const CHAT_MIC_MP4_MAX_MS = 2 * 60 * 1000;
+const CHAT_MIC_BITS_PER_SECOND = 32000;
+const CHAT_MIC_MAX_BYTES = Math.floor(3.5 * 1024 * 1024);
 
 function setChatMicStatus(message) {
   const el = document.getElementById('chat-mic-status');
@@ -1861,64 +1863,12 @@ function startChatMicWave() {
   context.resume().then(draw).catch(() => {});
 }
 
-function stopChatRecognition() {
-  const recognition = chatMicRecognition;
-  chatMicRecognition = null;
-  if (!recognition) return;
-  recognition.onresult = null;
-  recognition.onerror = null;
-  recognition.onend = null;
-  try { recognition.stop(); } catch (_) { /* already stopped */ }
-}
-
-function dictatedInputValue(spoken) {
-  const prefix = chatMicPrefix.trim();
-  const text = String(spoken || '').trim();
-  if (prefix && text) return `${prefix} ${text}`;
-  return prefix || text;
-}
-
-function renderLiveTranscript(interim) {
-  const input = document.getElementById('chat-input');
-  if (!input) return;
-  const spoken = [chatMicCommitted, interim].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
-  input.value = dictatedInputValue(spoken);
-  chatMicRendered = input.value;
-  syncChatComposerState();
-}
-
-function startChatRecognition() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) return;
-  const recognition = new SpeechRecognition();
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  recognition.lang = 'en-US';
-  recognition.onresult = (event) => {
-    if (chatMicPhase !== 'recording') return;
-    let interim = '';
-    let finalChunk = '';
-    for (let i = event.resultIndex; i < event.results.length; i += 1) {
-      const piece = event.results[i][0] ? event.results[i][0].transcript : '';
-      if (event.results[i].isFinal) finalChunk += piece;
-      else interim += piece;
-    }
-    if (finalChunk) chatMicCommitted = `${chatMicCommitted} ${finalChunk}`.replace(/\s+/g, ' ').trim();
-    renderLiveTranscript(interim);
-  };
-  recognition.onerror = () => {};
-  recognition.onend = () => {
-    if (chatMicPhase === 'recording' && chatMicRecognition === recognition) {
-      try { recognition.start(); } catch (_) { /* browser ended the session */ }
-    }
-  };
-  try {
-    recognition.start();
-    chatMicRecognition = recognition;
-    chatMicLive = true;
-  } catch (_) {
-    chatMicLive = false;
-  }
+/** The client name and the question on screen, sent as transcription hints. */
+function chatMicContext() {
+  const parts = [`A customer is answering a review interview about ${clientDisplayName()}.`];
+  const question = latestAgentText().replace(/\s+/g, ' ').trim();
+  if (question) parts.push(`The question was: ${question.slice(-400)}`);
+  return parts.join(' ');
 }
 
 function preferredChatMicMime() {
@@ -1927,15 +1877,33 @@ function preferredChatMicMime() {
     .find((type) => MediaRecorder.isTypeSupported(type)) || '';
 }
 
+function chatMicLimitMs() {
+  const mime = String((chatMicRecorder && chatMicRecorder.mimeType) || '');
+  if (mime.includes('mp4')) return CHAT_MIC_MP4_MAX_MS;
+  return CHAT_MIC_MAX_MS;
+}
+
+let syncingChatComposer = false;
+
 function stopChatDictation(discard) {
+  if (chatMicPhase === 'starting') {
+    chatMicPhase = '';
+    chatMicDiscard = false;
+    if (chatMicTimer) {
+      clearTimeout(chatMicTimer);
+      chatMicTimer = null;
+    }
+    stopChatMicWave();
+    stopChatMicTracks();
+    return;
+  }
   if (chatMicPhase !== 'recording' || !chatMicRecorder) return;
   chatMicDiscard = !!discard;
-  chatMicPhase = discard ? '' : (chatMicLive && chatMicRendered.trim() ? '' : 'transcribing');
+  chatMicPhase = discard ? '' : 'transcribing';
   if (chatMicTimer) {
     clearTimeout(chatMicTimer);
     chatMicTimer = null;
   }
-  stopChatRecognition();
   stopChatMicWave();
   const button = document.getElementById('chat-mic');
   if (button) {
@@ -1944,6 +1912,7 @@ function stopChatDictation(discard) {
     if (discard || chatMicPhase !== 'transcribing') button.setAttribute('aria-label', 'Dictate your answer');
   }
   try { chatMicRecorder.stop(); } catch (_) { chatMicPhase = ''; }
+  syncChatComposerState();
 }
 
 function applyChatTranscript(text) {
@@ -1965,7 +1934,12 @@ async function transcribeChatRecording(blob) {
   const type = blob.type || 'audio/webm';
   const ext = type.includes('mp4') ? 'mp4' : 'webm';
   body.append('audio', blob, `answer.${ext}`);
-  const res = await fetch('/api/transcribe', { method: 'POST', body });
+  body.append('context', chatMicContext());
+  const res = await fetch('/api/transcribe', {
+    method: 'POST',
+    body,
+    signal: AbortSignal.timeout(70000),
+  });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.reason || 'transcribe_failed');
   return data.text || '';
@@ -1974,50 +1948,72 @@ async function transcribeChatRecording(blob) {
 async function finishChatDictation() {
   const blob = new Blob(chatMicChunks, { type: chatMicChunks[0] && chatMicChunks[0].type || 'audio/webm' });
   chatMicChunks = [];
-  const hadLiveText = chatMicLive && chatMicRendered.trim();
-  const snapshot = chatMicRendered;
   stopChatMicTracks();
   if (chatMicDiscard) {
     chatMicDiscard = false;
     chatMicPhase = '';
-    chatMicLive = false;
-    const input = document.getElementById('chat-input');
-    if (input) input.value = chatMicPrefix;
-    resizeChatInput();
+    syncChatComposerState();
+    focusChatInput();
     return;
   }
   if (!blob.size) {
     chatMicPhase = '';
-    chatMicLive = false;
-    if (!hadLiveText) setChatMicStatus(chatMicMessage('empty'));
+    setChatMicStatus(chatMicMessage('empty'));
     syncChatComposerState();
+    focusChatInput();
     return;
   }
-  if (!hadLiveText) {
-    chatMicPhase = 'transcribing';
-    setChatMicStatus('Transcribing…');
+  if (blob.size > CHAT_MIC_MAX_BYTES) {
+    chatMicPhase = '';
+    setChatMicStatus(chatMicMessage('too_large'));
+    syncChatComposerState();
+    focusChatInput();
+    return;
+  }
+  chatMicPhase = 'transcribing';
+  setChatMicStatus('Transcribing…');
+  const button = document.getElementById('chat-mic');
+  if (button) {
+    button.setAttribute('aria-busy', 'true');
+    button.setAttribute('aria-label', 'Transcribing');
   }
   syncChatComposerState();
   try {
-    const text = await transcribeChatRecording(blob);
-    const input = document.getElementById('chat-input');
-    const untouched = !input || input.value === snapshot || !hadLiveText;
-    if (text && untouched) {
-      if (hadLiveText && input) input.value = dictatedInputValue(text);
-      else applyChatTranscript(text);
-      setChatMicStatus('');
-    } else if (!text && !hadLiveText) {
-      setChatMicStatus(chatMicMessage('empty'));
-    }
+    applyChatTranscript(await transcribeChatRecording(blob));
   } catch (err) {
-    if (!hadLiveText) setChatMicStatus(chatMicMessage(err && err.message));
+    setChatMicStatus(chatMicMessage(err && err.message));
   } finally {
     chatMicPhase = '';
-    chatMicLive = false;
-    const button = document.getElementById('chat-mic');
-    if (button) button.setAttribute('aria-label', 'Dictate your answer');
+    const done = document.getElementById('chat-mic');
+    if (done) {
+      done.removeAttribute('aria-busy');
+      done.setAttribute('aria-label', 'Dictate your answer');
+    }
     syncChatComposerState();
+    focusChatInput();
   }
+}
+
+function focusChatInput() {
+  const input = document.getElementById('chat-input');
+  if (input && !input.disabled) input.focus();
+}
+
+function abortChatMicStartup(message) {
+  chatMicSession += 1;
+  stopChatMicTracks();
+  chatMicRecorder = null;
+  chatMicChunks = [];
+  chatMicPhase = '';
+  chatMicDiscard = false;
+  const button = document.getElementById('chat-mic');
+  if (button) {
+    button.classList.remove('is-recording');
+    button.removeAttribute('aria-busy');
+    button.setAttribute('aria-label', 'Dictate your answer');
+  }
+  setChatMicStatus(message || '');
+  syncChatComposerState();
 }
 
 async function startChatDictation() {
@@ -2026,42 +2022,52 @@ async function startChatDictation() {
     setChatMicStatus(chatMicMessage('blocked'));
     return;
   }
+  chatMicPhase = 'starting';
   setChatMicStatus('');
+  syncChatComposerState();
   try {
     chatMicStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch (_) {
-    setChatMicStatus(chatMicMessage('blocked'));
+    abortChatMicStartup(chatMicMessage('blocked'));
+    return;
+  }
+  if (chatMicPhase !== 'starting') {
+    stopChatMicTracks();
+    chatMicDiscard = false;
     return;
   }
   chatMicChunks = [];
-  chatMicPrefix = (document.getElementById('chat-input')?.value || '');
-  chatMicCommitted = '';
-  chatMicRendered = chatMicPrefix;
-  chatMicLive = false;
   const mime = preferredChatMicMime();
   try {
-    chatMicRecorder = mime ? new MediaRecorder(chatMicStream, { mimeType: mime }) : new MediaRecorder(chatMicStream);
+    const recorderOptions = { audioBitsPerSecond: CHAT_MIC_BITS_PER_SECOND };
+    if (mime) recorderOptions.mimeType = mime;
+    chatMicRecorder = new MediaRecorder(chatMicStream, recorderOptions);
   } catch (_) {
-    stopChatMicTracks();
-    setChatMicStatus(chatMicMessage('blocked'));
+    abortChatMicStartup(chatMicMessage('blocked'));
     return;
   }
   chatMicRecorder.addEventListener('dataavailable', (event) => {
     if (event.data && event.data.size) chatMicChunks.push(event.data);
   });
+  const session = ++chatMicSession;
   chatMicRecorder.addEventListener('stop', () => {
+    if (session !== chatMicSession) return;
     finishChatDictation();
   });
+  try {
+    chatMicRecorder.start();
+  } catch (_) {
+    abortChatMicStartup(chatMicMessage('blocked'));
+    return;
+  }
   chatMicPhase = 'recording';
-  chatMicRecorder.start();
-  startChatRecognition();
   startChatMicWave();
   const button = document.getElementById('chat-mic');
   if (button) {
     button.classList.add('is-recording');
     button.setAttribute('aria-label', 'Stop and transcribe');
   }
-  chatMicTimer = setTimeout(() => stopChatDictation(false), CHAT_MIC_MAX_MS);
+  chatMicTimer = setTimeout(() => stopChatDictation(false), chatMicLimitMs());
   syncChatComposerState();
 }
 
@@ -2099,6 +2105,16 @@ function resizeChatInput() {
 }
 
 function syncChatComposerState() {
+  if (syncingChatComposer) return;
+  syncingChatComposer = true;
+  try {
+    syncChatComposerStateNow();
+  } finally {
+    syncingChatComposer = false;
+  }
+}
+
+function syncChatComposerStateNow() {
   const inputBar = $('.chat-input-bar');
   const chatInput = $('#chat-input');
   const chatSend = $('#chat-send');
@@ -2133,9 +2149,10 @@ function syncChatComposerState() {
     return;
   }
 
-  chatInput.disabled = !!isWaitingForAgent;
-  chatSend.disabled = !chatInput.value.trim() || !!isWaitingForAgent || chatMicPhase === 'recording';
-  if (mic) mic.disabled = !!isWaitingForAgent || chatMicPhase === 'transcribing';
+  const micBusy = chatMicPhase === 'transcribing' || chatMicPhase === 'starting';
+  chatInput.disabled = !!isWaitingForAgent || micBusy;
+  chatSend.disabled = !chatInput.value.trim() || !!isWaitingForAgent || !!chatMicPhase;
+  if (mic) mic.disabled = !!isWaitingForAgent || micBusy;
   resizeChatInput();
 }
 
@@ -2359,7 +2376,9 @@ async function sendMessage(text, isHidden = false) {
 function handleChatSend() {
   const input = $('#chat-input');
   const text = input.value.trim();
-  if (!text || isWaitingForAgent) return;
+  // The send button is disabled while the mic is recording or transcribing.
+  // Enter used to skip that lock and send a partial answer, or discard the take.
+  if (!text || isWaitingForAgent || chatMicPhase) return;
   // The 4 -> 5 support question: also routes the answer to the support flow.
   if (chatChoiceMode === 'murky-feedback') {
     handleMurkyFeedback(text);
