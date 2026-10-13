@@ -9,6 +9,10 @@
 window.CLIENT_CONFIG = {
   clientSlug: 'demo',
   providerName: 'Acme Co',
+  // Same chat controls as the live Lean Labs portal (../config.js), so the demo
+  // matches what runs at a launch party: 1-5 star buttons and the 4-star follow-up.
+  ratingButtons: true,
+  murkyMiddle: true,
   agentEndpoint: '/api/agent',
   notificationEndpoint: '/api/notify',
   platforms: ['google', 'g2', 'trustpilot'],
