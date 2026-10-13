@@ -379,6 +379,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
   $('#chat-input').addEventListener('input', () => {
+    resizeChatInput();
     syncChatComposerState();
   });
   $('#chat-send').addEventListener('click', handleChatSend);
@@ -1982,6 +1983,7 @@ async function finishChatDictation() {
     chatMicLive = false;
     const input = document.getElementById('chat-input');
     if (input) input.value = chatMicPrefix;
+    resizeChatInput();
     return;
   }
   if (!blob.size) {
@@ -2089,6 +2091,13 @@ function mountChatDictation() {
   bar.appendChild(status);
 }
 
+function resizeChatInput() {
+  const input = document.getElementById('chat-input');
+  if (!input || input.tagName !== 'TEXTAREA') return;
+  input.style.height = 'auto';
+  input.style.height = `${Math.min(input.scrollHeight, 160)}px`;
+}
+
 function syncChatComposerState() {
   const inputBar = $('.chat-input-bar');
   const chatInput = $('#chat-input');
@@ -2127,6 +2136,7 @@ function syncChatComposerState() {
   chatInput.disabled = !!isWaitingForAgent;
   chatSend.disabled = !chatInput.value.trim() || !!isWaitingForAgent || chatMicPhase === 'recording';
   if (mic) mic.disabled = !!isWaitingForAgent || chatMicPhase === 'transcribing';
+  resizeChatInput();
 }
 
 async function sendMessage(text, isHidden = false) {
@@ -2140,6 +2150,7 @@ async function sendMessage(text, isHidden = false) {
 
   const chatInput = $('#chat-input');
   chatInput.value = '';
+  resizeChatInput();
   chatInput.disabled = true;
   $('#chat-send').disabled = true;
   isWaitingForAgent = true;

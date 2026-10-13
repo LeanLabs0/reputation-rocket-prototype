@@ -148,7 +148,7 @@ body {
   border-color: var(--ll-border);
 }
 
-.chat-input-bar input,
+.chat-composer,
 #draft-textarea,
 .draft-textarea,
 .video-capture-modal__select {
@@ -156,11 +156,11 @@ body {
   border-color: var(--ll-border);
   color: var(--pr-navy);
 }
-.chat-input-bar input::placeholder,
+.chat-composer textarea::placeholder,
 .draft-textarea::placeholder {
   color: var(--pr-muted);
 }
-.chat-input-bar input:focus,
+.chat-composer:focus-within,
 #draft-textarea:focus,
 .draft-textarea:focus,
 .video-capture-modal__select:focus {
