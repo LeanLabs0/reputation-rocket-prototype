@@ -413,3 +413,23 @@ a:active,
 .draft-tip .text-primary {
   color: var(--ei-purple);
 }
+
+/* Drafts-ready step is a chat message with a link (config copy.draftsReadyMessage),
+   so the old card container stays empty and out of the way. */
+.chat-draft-prompt,
+.chat-draft-prompt.visible {
+  display: none;
+}
+.chat-draft-inline__link {
+  color: var(--ei-purple);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.chat-draft-inline__link {
+  white-space: nowrap;
+}
+/* Multi-paragraph screen intros (chat, review, post) need a visible break */
+.screen-header p + p {
+  margin-top: 12px;
+}

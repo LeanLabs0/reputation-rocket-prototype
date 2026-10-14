@@ -401,7 +401,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
   }
-  $('#btn-view-draft').addEventListener('click', () => transitionTo('draft'));
+  const viewDraft = $('#btn-view-draft');
+  if (viewDraft) viewDraft.addEventListener('click', () => transitionTo('draft'));
 
   // Draft-screen stars are display-only: the draft screen is always the
   // positive path, so the rating is locked at a solid 5 and not clickable.
@@ -1790,7 +1791,50 @@ function setChatDraftPromptVisible(visible) {
   const el = $('#chat-draft-prompt');
   if (!el) return;
   el.classList.toggle('visible', !!visible);
+  syncChatDraftInlineMessage(!!visible);
   syncChatComposerState();
+}
+
+/**
+ * Clients that set CLIENT_CONFIG.copy.draftsReadyMessage get the drafts-ready
+ * step as a chat message with a "Read the drafts." link instead of the card.
+ * It is rebuilt from the drafts on reload, like the card.
+ */
+function syncChatDraftInlineMessage(visible) {
+  const message = clientCopy('draftsReadyMessage', null, '');
+  const messages = $('#chat-messages');
+  if (!message || !messages) return;
+  let row = $('#chat-draft-inline');
+  if (!visible) {
+    if (row) row.remove();
+    return;
+  }
+  if (!row) {
+    row = document.createElement('div');
+    row.id = 'chat-draft-inline';
+    row.className = 'chat-message-row agent chat-draft-inline';
+    const avatar = document.createElement('div');
+    avatar.className = 'chat-message-avatar';
+    avatar.setAttribute('aria-hidden', 'true');
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble agent';
+    const text = document.createElement('p');
+    text.textContent = `${message} `;
+    const link = document.createElement('a');
+    link.href = '#';
+    link.className = 'chat-draft-inline__link';
+    link.textContent = clientCopy('draftsReadyLink', null, 'Read the drafts.');
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      transitionTo('draft');
+    });
+    text.appendChild(link);
+    bubble.appendChild(text);
+    row.appendChild(avatar);
+    row.appendChild(bubble);
+  }
+  messages.appendChild(row);
+  messages.scrollTop = messages.scrollHeight;
 }
 
 let chatMicPhase = '';
@@ -2848,10 +2892,8 @@ function updateDraftScreenChrome() {
   }
 
   const desc = $('#draft-what-next-desc');
-  if (desc) {
-    desc.textContent = plat
-      ? `Once you approve, we'll show you step-by-step how to post this review on ${name}.`
-      : '';
+  if (desc && plat) {
+    desc.textContent = `Once you approve, we'll show you step-by-step how to post this review on ${name}.`;
   }
 
   const approveAll = $('#btn-approve-all');
@@ -3004,6 +3046,17 @@ function clientDisplayName() {
   return String(CLIENT_CONFIG.displayName || PARAMS.providerName || 'this team').trim() || 'this team';
 }
 
+/**
+ * Per-client wording override. A client config can set CLIENT_CONFIG.copy[key]
+ * to a string with {name} placeholders; anything unset keeps the shared default.
+ */
+function clientCopy(key, vars, fallback) {
+  const copy = CLIENT_CONFIG.copy;
+  const tpl = copy && Object.prototype.hasOwnProperty.call(copy, key) ? copy[key] : undefined;
+  if (typeof tpl !== 'string') return fallback;
+  return tpl.replace(/\{(\w+)\}/g, (m, k) => (vars && k in vars ? String(vars[k]) : m));
+}
+
 function truncatePostSnippet(s, max = 280) {
   const t = String(s || '')
     .trim()
@@ -3140,7 +3193,7 @@ function mountRichPasteUnpostedCard(card, plat, index1, meta) {
         Open ${escapeHtml(meta.name)} review form ${iconExternalLink()}
       </button>
     </div>
-    <p class="platform-card-foot-hint">${iconLockSmall()}<span>We copy your review for you. Takes about a minute.</span></p>`;
+    <p class="platform-card-foot-hint">${iconLockSmall()}<span>${escapeHtml(clientCopy('pasteCardHint', { platform: meta.name }, 'We copy your review for you. Takes about a minute.'))}</span></p>`;
   }
   const wrap = card.querySelector('.platform-card-logo-wrap');
   if (wrap) wrap.appendChild(createPlatformCardLogo(plat));
@@ -3271,7 +3324,11 @@ function mountRichG2UnpostedCard(card, plat, index1, meta) {
     })
     .join('');
 
-  const preHint = `Takes about 2 minutes. You may need a free ${meta.name} account, and that is normal.`;
+  const preHint = clientCopy(
+    'platformCardHint',
+    { platform: meta.name },
+    `Takes about 2 minutes. You may need a free ${meta.name} account, and that is normal.`
+  );
 
   card.innerHTML = `
     <div class="platform-card-top">
@@ -3721,8 +3778,9 @@ function updatePostContinueButton() {
     sub.hidden = false;
     sub.textContent = 'Next up: Record a quick video';
   } else {
-    sub.hidden = false;
-    sub.textContent = "You're all set. We'll wrap up on the next screen.";
+    const text = clientCopy('postFinishHint', null, "You're all set. We'll wrap up on the next screen.");
+    sub.hidden = !text;
+    sub.textContent = text;
   }
 }
 
@@ -3847,7 +3905,11 @@ function syncPostStayNudge() {
     // Acknowledge progress so the reminder never feels like it ignored the click.
     const remaining = Math.max(0, total - posted);
     titleEl.textContent = `${posted} down, ${remaining} to go 🎉`;
-    bodyEl.textContent = `Nice work! Confirm the rest so ${provider} can see your reviews.`;
+    bodyEl.textContent = clientCopy(
+      'postNudgeProgress',
+      { provider },
+      `Nice work! Confirm the rest so ${provider} can see your reviews.`
+    );
   } else {
     titleEl.textContent = 'Wait, did you post yet?';
     bodyEl.textContent =
@@ -4566,7 +4628,8 @@ function showToast() {
 // ── Screen 6: Complete ──────────────────────────────────────
 function initCompleteScreen() {
   const posted = Object.values(platformsPosted).filter(Boolean).length;
-  $('#stat-reviews').textContent = posted;
+  const statReviews = $('#stat-reviews');
+  if (statReviews) statReviews.textContent = posted;
   const videoStat = document.getElementById('stat-video-container');
   if (videoStat) {
     videoStat.style.display = uploadedVideoMeta ? '' : 'none';
