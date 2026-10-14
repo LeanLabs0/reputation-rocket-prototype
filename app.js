@@ -1818,8 +1818,13 @@ function syncChatDraftInlineMessage(visible) {
     avatar.setAttribute('aria-hidden', 'true');
     const bubble = document.createElement('div');
     bubble.className = 'chat-bubble agent';
-    const text = document.createElement('p');
-    text.textContent = `${message} `;
+    let text = null;
+    message.split(/\n\s*\n/).forEach((para) => {
+      text = document.createElement('p');
+      text.textContent = para.trim();
+      bubble.appendChild(text);
+    });
+    text.appendChild(document.createTextNode(' '));
     const link = document.createElement('a');
     link.href = '#';
     link.className = 'chat-draft-inline__link';
@@ -1829,7 +1834,6 @@ function syncChatDraftInlineMessage(visible) {
       transitionTo('draft');
     });
     text.appendChild(link);
-    bubble.appendChild(text);
     row.appendChild(avatar);
     row.appendChild(bubble);
   }
@@ -3057,6 +3061,13 @@ function clientCopy(key, vars, fallback) {
   return tpl.replace(/\{(\w+)\}/g, (m, k) => (vars && k in vars ? String(vars[k]) : m));
 }
 
+/** Per-platform hint under a post card's button, from CLIENT_CONFIG.copy.cardHints. */
+function clientCardHint(plat, fallback) {
+  const hints = CLIENT_CONFIG.copy && CLIENT_CONFIG.copy.cardHints;
+  const hint = hints && Object.prototype.hasOwnProperty.call(hints, plat) ? hints[plat] : undefined;
+  return typeof hint === 'string' ? hint : fallback;
+}
+
 function truncatePostSnippet(s, max = 280) {
   const t = String(s || '')
     .trim()
@@ -3193,7 +3204,7 @@ function mountRichPasteUnpostedCard(card, plat, index1, meta) {
         Open ${escapeHtml(meta.name)} review form ${iconExternalLink()}
       </button>
     </div>
-    <p class="platform-card-foot-hint">${iconLockSmall()}<span>${escapeHtml(clientCopy('pasteCardHint', { platform: meta.name }, 'We copy your review for you. Takes about a minute.'))}</span></p>`;
+    <p class="platform-card-foot-hint">${iconLockSmall()}<span>${escapeHtml(clientCardHint(plat, 'We copy your review for you. Takes about a minute.'))}</span></p>`;
   }
   const wrap = card.querySelector('.platform-card-logo-wrap');
   if (wrap) wrap.appendChild(createPlatformCardLogo(plat));
@@ -3324,9 +3335,8 @@ function mountRichG2UnpostedCard(card, plat, index1, meta) {
     })
     .join('');
 
-  const preHint = clientCopy(
-    'platformCardHint',
-    { platform: meta.name },
+  const preHint = clientCardHint(
+    plat,
     `Takes about 2 minutes. You may need a free ${meta.name} account, and that is normal.`
   );
 

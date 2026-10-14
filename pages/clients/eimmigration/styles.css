@@ -433,3 +433,6 @@ a:active,
 .screen-header p + p {
   margin-top: 12px;
 }
+.chat-draft-inline .chat-bubble p + p {
+  margin-top: 10px;
+}
