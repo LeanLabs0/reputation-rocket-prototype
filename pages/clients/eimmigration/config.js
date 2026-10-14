@@ -18,6 +18,19 @@ window.CLIENT_CONFIG = {
     "How did we deliver on your expectations?"
   ],
   videoCaptureEnabled: false,
+  // Wording from Viv's 10/13 feedback. Keys are read by clientCopy() and
+  // clientCardHint() in app.js; anything not set here keeps the shared default.
+  copy: {
+    draftsReadyMessage: "Thanks so much for sharing.\n\nWe turned your responses into a few reviews that you can edit or publish.",
+    draftsReadyLink: "Read the drafts.",
+    cardHints: {
+      gartner: "Takes 2 minutes. You'll need to log in to or create a free Gartner account to publish your review.",
+      g2: "Takes 2 minutes. You'll need to log in to or create a free G2 account to publish your review.",
+      trustpilot: "Takes 1 minute. You'll need to log in to or create a free Trustpilot account to publish your review."
+    },
+    postFinishHint: "",
+    postNudgeProgress: "Nice work! Publish and confirm the rest so eimmigration can see your reviews and send your reward."
+  },
   thankYouUrl: "",
   thankYouRedirectDelayMs: 120000,
   allowedRedirectHosts: ["eimmigration.com","www.eimmigration.com","get.eimmigration.com"],

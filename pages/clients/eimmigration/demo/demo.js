@@ -71,7 +71,7 @@
       body: 'Customers can add a short video testimonial. Feel free to <strong>Skip for Now</strong> to see the finish line.',
     },
     complete: {
-      target: '.stats-row',
+      target: '#screen-complete .screen-header',
       count: 'Step 6 of 6',
       title: 'All done!',
       body: 'That’s the whole flow. In a real run this is where the review gets celebrated and the team is notified. Thanks for trying the demo!',
