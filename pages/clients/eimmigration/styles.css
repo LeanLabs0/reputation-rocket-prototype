@@ -420,19 +420,18 @@ a:active,
 .chat-draft-prompt.visible {
   display: none;
 }
-.chat-draft-inline__link {
+.chat-draft-inline .chat-bubble a.chat-draft-inline__link {
   color: var(--ei-purple);
   font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-.chat-draft-inline__link {
-  white-space: nowrap;
+.chat-draft-inline .chat-bubble a.chat-draft-inline__link:focus-visible {
+  outline: 2px solid var(--ei-purple);
+  outline-offset: 2px;
+  border-radius: 2px;
 }
 /* Multi-paragraph screen intros (chat, review, post) need a visible break */
 .screen-header p + p {
   margin-top: 12px;
-}
-.chat-draft-inline .chat-bubble p + p {
-  margin-top: 10px;
 }

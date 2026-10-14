@@ -1782,16 +1782,28 @@ function murkyMiddleNotifyFields() {
   return out;
 }
 
+function draftsReadyInlineMessage() {
+  return clientCopy('draftsReadyMessage', null, '').trim();
+}
+
 function isChatDraftPromptVisible() {
+  const inline = $('#chat-draft-inline');
+  if (inline && inline.isConnected) return true;
   const el = $('#chat-draft-prompt');
   return !!(el && el.classList.contains('visible'));
 }
 
 function setChatDraftPromptVisible(visible) {
+  const show = !!visible;
+  // A configured message replaces the card. Adding .visible would turn the
+  // empty shell into a blank bar over the chat (shared CSS positions it there).
+  const useInline = !!draftsReadyInlineMessage();
   const el = $('#chat-draft-prompt');
-  if (!el) return;
-  el.classList.toggle('visible', !!visible);
-  syncChatDraftInlineMessage(!!visible);
+  if (el) {
+    el.classList.toggle('visible', show && !useInline);
+    el.hidden = useInline;
+  }
+  syncChatDraftInlineMessage(show);
   syncChatComposerState();
 }
 
@@ -1801,7 +1813,7 @@ function setChatDraftPromptVisible(visible) {
  * It is rebuilt from the drafts on reload, like the card.
  */
 function syncChatDraftInlineMessage(visible) {
-  const message = clientCopy('draftsReadyMessage', null, '');
+  const message = draftsReadyInlineMessage();
   const messages = $('#chat-messages');
   if (!message || !messages) return;
   let row = $('#chat-draft-inline');
@@ -1818,25 +1830,35 @@ function syncChatDraftInlineMessage(visible) {
     avatar.setAttribute('aria-hidden', 'true');
     const bubble = document.createElement('div');
     bubble.className = 'chat-bubble agent';
-    let text = null;
-    message.split(/\n\s*\n/).forEach((para) => {
-      text = document.createElement('p');
-      text.textContent = para.trim();
+    const paragraphs = message.split(/\n\s*\n/).map((para) => para.trim()).filter(Boolean);
+    paragraphs.forEach((para) => {
+      const text = document.createElement('p');
+      text.textContent = para;
       bubble.appendChild(text);
     });
+    const text = bubble.lastElementChild;
+    if (!text) return;
     text.appendChild(document.createTextNode(' '));
     const link = document.createElement('a');
     link.href = '#';
     link.className = 'chat-draft-inline__link';
-    link.textContent = clientCopy('draftsReadyLink', null, 'Read the drafts.');
-    link.addEventListener('click', (e) => {
+    const linkLabel = clientCopy('draftsReadyLink', null, 'Read the drafts.').trim() || 'Read the drafts.';
+    link.textContent = linkLabel;
+    const openDrafts = (e) => {
       e.preventDefault();
       transitionTo('draft');
+    };
+    link.addEventListener('click', openDrafts);
+    // Middle-click would open a useless copy of this page. The link only
+    // moves to the review screen inside this visit.
+    link.addEventListener('auxclick', (e) => {
+      if (e.button === 1) openDrafts(e);
     });
     text.appendChild(link);
     row.appendChild(avatar);
     row.appendChild(bubble);
   }
+  if (row.parentNode === messages && messages.lastElementChild === row) return;
   messages.appendChild(row);
   messages.scrollTop = messages.scrollHeight;
 }
@@ -2896,8 +2918,10 @@ function updateDraftScreenChrome() {
   }
 
   const desc = $('#draft-what-next-desc');
-  if (desc && plat) {
-    desc.textContent = `Once you approve, we'll show you step-by-step how to post this review on ${name}.`;
+  if (desc) {
+    desc.textContent = plat
+      ? `Once you approve, we'll show you step-by-step how to post this review on ${name}.`
+      : '';
   }
 
   const approveAll = $('#btn-approve-all');
@@ -3052,18 +3076,23 @@ function clientDisplayName() {
 
 /**
  * Per-client wording override. A client config can set CLIENT_CONFIG.copy[key]
- * to a string with {name} placeholders; anything unset keeps the shared default.
+ * to a string with {placeholder} tokens; anything unset keeps the shared default.
+ * Only the caller's own fields are filled in, so a token like {toString} stays put.
  */
 function clientCopy(key, vars, fallback) {
-  const copy = CLIENT_CONFIG.copy;
+  const copy = typeof CLIENT_CONFIG !== 'undefined' && CLIENT_CONFIG && CLIENT_CONFIG.copy;
   const tpl = copy && Object.prototype.hasOwnProperty.call(copy, key) ? copy[key] : undefined;
   if (typeof tpl !== 'string') return fallback;
-  return tpl.replace(/\{(\w+)\}/g, (m, k) => (vars && k in vars ? String(vars[k]) : m));
+  return tpl.replace(/\{(\w+)\}/g, (match, name) => {
+    if (!vars || !Object.prototype.hasOwnProperty.call(vars, name) || vars[name] == null) return match;
+    return String(vars[name]);
+  });
 }
 
 /** Per-platform hint under a post card's button, from CLIENT_CONFIG.copy.cardHints. */
 function clientCardHint(plat, fallback) {
-  const hints = CLIENT_CONFIG.copy && CLIENT_CONFIG.copy.cardHints;
+  const copy = typeof CLIENT_CONFIG !== 'undefined' && CLIENT_CONFIG && CLIENT_CONFIG.copy;
+  const hints = copy && copy.cardHints;
   const hint = hints && Object.prototype.hasOwnProperty.call(hints, plat) ? hints[plat] : undefined;
   return typeof hint === 'string' ? hint : fallback;
 }

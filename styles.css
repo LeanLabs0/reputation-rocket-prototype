@@ -3180,6 +3180,20 @@ a:hover { text-decoration: underline; }
   text-decoration: underline;
   word-break: break-all;
 }
+/* Drafts-ready chat message (client copy.draftsReadyMessage). Paragraphs must
+   not pick up the browser's default block margins, and the "Read the drafts."
+   link must stay one phrase instead of breaking mid-word like other chat links. */
+.chat-draft-inline .chat-bubble p {
+  margin: 0;
+}
+.chat-draft-inline .chat-bubble p + p {
+  margin-top: 10px;
+}
+.chat-draft-inline .chat-bubble a.chat-draft-inline__link {
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+}
 .chat-bubble.user a { color: rgba(255,255,255,0.9); }
 
 /* ── Error state in chat ──────────────────────────────────── */
