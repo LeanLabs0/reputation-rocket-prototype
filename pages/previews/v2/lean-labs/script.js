@@ -8,9 +8,8 @@
  *   Redesign and Migrations, Growth-Driven Design, HubSpot Projects
  * - target prompts, e.g. "Best answer engine optimization agencies with
  *   HubSpot integration", "best GDD agency for SaaS companies in HubSpot"
- * The sample customer is made up, but shaped like the client in the V1 card
- * (an industrial company that wanted AI visibility and more pipeline). The V1
- * session is real and paraphrased, with no names.
+ * The sample customer is made up. The V1 card is one real client session,
+ * paraphrased, with no names, emails, or contact details.
  */
 window.V2_PREVIEW = {
   slug: 'lean-labs',

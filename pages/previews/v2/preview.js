@@ -35,6 +35,7 @@
     active: null,
     comparePlatform: null,
     fromSample: false,
+    started: false,
   };
 
   const $ = (sel, root) => (root || document).querySelector(sel);
@@ -680,6 +681,9 @@
   }
 
   function start() {
+    // Begin is a big button. A second click would ask the first question twice.
+    if (state.started) return;
+    state.started = true;
     const vid = $('#welcome-video');
     if (vid) vid.pause();
     const m = messages();
