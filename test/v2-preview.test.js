@@ -173,7 +173,8 @@ test('same answers and seed repeat, different seeds vary', () => {
   }
 });
 
-test('V2 sample drafts carry our words, the V1 sample does not', () => {
+test('V2 sample drafts name all three slots, and each V1 sample scores only what it says', () => {
+  const expectV1 = { eimmigration: 0, 'lean-labs': 1 };
   for (const slug of BRANDS) {
     const p = loadPreview(slug);
     const ow = D.ourWordsFrom(p);
@@ -182,7 +183,14 @@ test('V2 sample drafts carry our words, the V1 sample does not', () => {
       assert.equal(D.scoreOurWords(d.text, ow).score, 3, `${slug}/${plat} should name X, Y and Z`);
     });
     if (p.v1.sampleAnswers.length) {
-      assert.equal(D.scoreOurWords(p.v1.sampleAnswers.join(' '), ow).score, 0);
+      const v1 = D.scoreOurWords(p.v1.sampleAnswers.join(' '), ow);
+      assert.equal(v1.score, expectV1[slug], `${slug}: the V1 sample names ${v1.score} of 3`);
+      if (slug === 'lean-labs') assert.equal(v1.Z.term, 'ai search');
+    }
+    if (p.v1.draftNotes && p.v1.draftNotes.length) {
+      const notes = D.scoreOurWords(p.v1.draftNotes.join(' '), ow);
+      assert.equal(notes.score, 1, `${slug}: draft notes should score the same 1 of 3`);
+      assert.equal(notes.Z.term, 'ai search');
     }
     assert.match(D.bestFor(p, p.persona), /^Best .+ for .+/);
   }
@@ -308,6 +316,34 @@ test('interview, not script: every choice can be skipped or answered in own word
       list.forEach((tpl) => assert.doesNotMatch(tpl, superlative, `${slug} template ${kind}: ${tpl}`));
     });
   }
+});
+
+test('V2 preview copy has no client or staff names, emails, or phone numbers', () => {
+  const banned = /\b(Krista|Tony|Kevin|Barber|Jonathan|Edward)\b/i;
+  const email = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+  const phone = /\b(?:\+?1[-.\s])?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b/;
+  const roots = [V2, path.join(ROOT, 'docs/v2-preview')];
+  const files = [];
+  roots.forEach((dir) => {
+    if (!fs.existsSync(dir)) return;
+    (function walk(d) {
+      fs.readdirSync(d, { withFileTypes: true }).forEach((e) => {
+        const f = path.join(d, e.name);
+        if (e.isDirectory()) walk(f);
+        else files.push(f);
+      });
+    })(dir);
+  });
+  assert.ok(files.length > 0, 'expected preview files to scan');
+  files.forEach((f) => {
+    const rel = path.relative(ROOT, f);
+    assert.doesNotMatch(path.basename(f), banned, `${rel} filename`);
+    if (/\.(jpg|jpeg|png|gif|webp)$/i.test(f)) return;
+    const text = fs.readFileSync(f, 'utf8');
+    assert.doesNotMatch(text, banned, rel);
+    assert.doesNotMatch(text, email, rel);
+    assert.doesNotMatch(text, phone, rel);
+  });
 });
 
 test('previews stay offline, unlisted and free of em dashes', () => {

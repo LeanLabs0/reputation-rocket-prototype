@@ -18,10 +18,6 @@ window.V2_PREVIEW = {
   personaLabel: 'Sample customer: a nonprofit immigration legal services team',
   bestForWho: 'teams',
 
-  welcome: {
-    title: 'V2: reviews that say what eimmigration is and who it is for',
-    body: 'Same chat, a few extra taps. We ask what the customer uses eimmigration for, who they are and what they used before, so the review they post names the category, the buyer and the problem it solved.',
-  },
   draftsReady: "Thanks so much for sharing.\n\nThese drafts are a preview of the reviews. You can read and edit them here. Nothing is published or sent.",
 
   steps: [

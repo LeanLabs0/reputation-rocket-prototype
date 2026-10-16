@@ -22,8 +22,8 @@ const BASE = process.env.BASE_URL || `http://localhost:${PORT}`;
 const LAUNCH_ARGS = process.env.CHROMIUM_ARGS ? process.env.CHROMIUM_ARGS.split(' ') : [];
 
 const BRANDS = {
-  eimmigration: { expect: ['immigration case management', 'nonprofit', 'spreadsheets'], openDrafts: '.chat-draft-inline__link' },
-  'lean-labs': { expect: ['AEO website for HubSpot', 'industrial company', 'another agency'], openDrafts: '#btn-view-draft' },
+  eimmigration: { v1: '0 of 3', expect: ['immigration case management', 'nonprofit', 'spreadsheets'], openDrafts: '.chat-draft-inline__link' },
+  'lean-labs': { v1: '1 of 3', expect: ['AEO website for HubSpot', 'industrial company', 'another agency'], openDrafts: '#btn-view-draft' },
 };
 
 function startServer() {
@@ -122,7 +122,7 @@ async function runBrand(browser, slug, viewport, tag) {
   assert.ok(log.every((r) => r.method === 'GET'), `${slug}: sent a non-GET request`);
   assert.ok(!log.some((r) => ['fetch', 'xhr', 'websocket', 'eventsource', 'ping'].includes(r.type)), `${slug}: made a data request`);
   assert.deepEqual(errors, [], `${slug}: page errors ${errors.join('; ')}`);
-  assert.equal(totals[0], '0 of 3', `${slug}: V1 score`);
+  assert.equal(totals[0], cfg.v1, `${slug}: V1 score`);
   assert.equal(totals[totals.length - 1], '3 of 3', `${slug}: V2 score`);
   cfg.expect.forEach((phrase) => assert.ok(v2Text.toLowerCase().includes(phrase.toLowerCase()), `${slug}: compare draft is missing "${phrase}"`));
   return { slug, tag, requests: log.length, draftWords: draftText.split(/\s+/).length, totals, sample: allDrafts.slice(0, 80) };

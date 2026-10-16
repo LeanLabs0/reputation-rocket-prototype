@@ -45,18 +45,6 @@ body.v2-preview .site-header { position: relative; }
   text-transform: uppercase;
 }
 
-.v2-persona {
-  margin-top: 16px;
-  font-size: 0.8125rem;
-  color: var(--ll-muted);
-}
-.v2-welcome-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  justify-content: center;
-  margin-top: 32px;
-}
 
 /* Choice bar extras (multi-select, single-select, grid) */
 .v2-choice-scroll {
@@ -252,7 +240,8 @@ body.v2-preview .site-header { position: relative; }
 }
 .v2-card p,
 .v2-card li { font-size: 0.875rem; line-height: 1.55; color: var(--ll-body); }
-.v2-card ol { margin: 0; padding-left: 20px; }
+.v2-card ol,
+.v2-card ul { margin: 0; padding-left: 20px; }
 .v2-card blockquote {
   margin: 0 0 8px;
   padding: 10px 14px;
