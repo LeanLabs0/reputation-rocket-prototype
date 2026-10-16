@@ -8,7 +8,10 @@
  *   Redesign and Migrations, Growth-Driven Design, HubSpot Projects
  * - target prompts, e.g. "Best answer engine optimization agencies with
  *   HubSpot integration", "best GDD agency for SaaS companies in HubSpot"
- * The sample customer is made up. It is not based on any real client.
+ * The sample customer is made up, but shaped like the client in the V1 card
+ * (an industrial company that wanted AI visibility and more pipeline), so V1
+ * and V2 compare like for like. The V1 session is real and paraphrased, with
+ * no names.
  */
 window.V2_PREVIEW = {
   slug: 'lean-labs',
@@ -85,7 +88,7 @@ window.V2_PREVIEW = {
       id: 'pain', type: 'multi', slot: 'Z', max: 2, min: 0, skip: true, ownWords: true,
       ask: 'What was the main problem you needed solved? Pick up to two.',
       options: [
-        { id: 'ai-answers', label: 'Not showing up in AI answers (ChatGPT, Google AI)', phrase: "not showing up in AI answers like ChatGPT and Google's AI Overviews", terms: ['ai answers'], bestAs: 'with visibility in AI answers' },
+        { id: 'ai-answers', label: 'Not showing up in AI answers (ChatGPT, Google AI)', phrase: "not showing up in AI answers like ChatGPT and Google's AI Overviews", terms: ['ai answers', 'ai search'], bestAs: 'with visibility in AI answers' },
         { id: 'pipeline', label: "Website wasn't generating pipeline", phrase: "a website that wasn't generating pipeline", terms: ['pipeline'], bestAs: 'with a website that builds pipeline' },
         { id: 'hard-update', label: 'Site was hard to update', phrase: 'a site that was hard to update', terms: ['hard to update'] },
         { id: 'no-aeo-plan', label: 'No plan for AEO', phrase: 'having no plan for AEO', terms: ['plan for aeo'] },
@@ -168,16 +171,27 @@ window.V2_PREVIEW = {
       'What would you tell another business owner considering Lean Labs?',
       'Is there any area where we could remove friction or improve the experience? (totally optional)',
     ],
-    sampleTitle: "A client's V1 drafts from the 10/14 launch",
-    sampleAnswers: [],
-    scoreCaption: 'No V1 drafts to score here yet, so this counts what the V1 questions ask about.',
-    sampleNote: "A client's two real V1 drafts (HubSpot and G2) get added here, anonymized, once they're pulled. Until then, the gap shows in the questions. V1 never asks which service they bought, who they are or what they had before.",
+    sampleTitle: 'What a real client told V1 at their 10/14 launch (paraphrased)',
+    sampleAnswers: [
+      'We wanted more qualified traffic and more form submissions, and to show up where competitors beat us in Google search and AI search.',
+      'We liked working with the team. We needed to pull out what makes us different, and it was exciting to go deep on the value we bring.',
+      "We'd recommend them. They move fast, communication was strong and updates came on time.",
+    ],
+    scoreCaption: "Scored on this client's V1 answers. Their two real V1 drafts score the same.",
+    sampleNote: 'V1 caught the goal and the praise. It never asked which service they bought, what kind of company they are or what they had before, so the drafts could not say it.',
+    draftNotes: [
+      "Both drafts lead with finding the client's differentiators, more qualified traffic and form submissions, and showing up in Google and AI search.",
+      'Both praise the speed and the communication, and name two of our team members.',
+      'The G2 draft says "no real complaints" in the dislike field. Nothing in their answers says that.',
+      'Neither draft says which service they bought, what kind of company they are or what they had before.',
+    ],
     published: null,
     stats: [
       { big: '0 of 5', text: 'V1 questions ask which service the client bought' },
       { big: '0 of 5', text: 'V1 questions ask who the client is or what they had before' },
+      { big: '"no real complaints"', text: "is in the client's V1 G2 draft, but not in anything they said" },
       { big: '"business owner"', text: 'is how V1 frames the recommendation, for every client' },
     ],
-    statsSource: "V1 question script, read from the Lean Labs portal's chat transcripts.",
+    statsSource: 'V1 question script, plus one real client session from 10/14. Drafts and answers read 10/16 and paraphrased here.',
   },
 };

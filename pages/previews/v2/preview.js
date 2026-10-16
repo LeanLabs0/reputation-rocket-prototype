@@ -584,6 +584,10 @@
       v1.sampleAnswers.forEach((a) => v1Card.appendChild(el('blockquote', { text: a })));
     }
     if (v1.sampleNote) v1Card.appendChild(el('p', { text: v1.sampleNote }));
+    if (v1.draftNotes && v1.draftNotes.length) {
+      v1Card.appendChild(el('h5', { text: 'What their V1 drafts said (paraphrased)' }));
+      v1Card.appendChild(el('ul', {}, v1.draftNotes.map((n) => el('li', { text: n }))));
+    }
     if (v1.published) {
       v1Card.appendChild(el('h5', { text: `A published V1 review (${v1.published.site})` }));
       v1Card.appendChild(el('blockquote', { text: v1.published.title }));
