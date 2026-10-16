@@ -45,18 +45,6 @@ body.v2-preview .site-header { position: relative; }
   text-transform: uppercase;
 }
 
-.v2-persona {
-  margin-top: 16px;
-  font-size: 0.8125rem;
-  color: var(--ll-muted);
-}
-.v2-welcome-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  justify-content: center;
-  margin-top: 32px;
-}
 
 /* Choice bar extras (multi-select, single-select, grid) */
 .v2-choice-scroll {

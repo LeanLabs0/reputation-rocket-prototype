@@ -662,15 +662,26 @@
   // ── Start ─────────────────────────────────────────────────────────
   function fillBrand() {
     $$('.company-name, .provider-name').forEach((n) => { n.textContent = P.company; });
-    const t = $('#v2-welcome-title');
-    if (t) t.textContent = P.welcome.title;
-    const b = $('#v2-welcome-body');
-    if (b) b.textContent = P.welcome.body;
-    const persona = $('#v2-persona');
-    if (persona) persona.textContent = `${P.personaLabel}. Every step has a "Use the sample answer" link, or answer it yourself.`;
+  }
+
+  // Same intro video as the live welcome screen: the play overlay shows the
+  // native controls and starts playback.
+  function wireWelcomeVideo() {
+    const wrap = $('.welcome-video-wrap');
+    const vid = $('#welcome-video');
+    const play = $('.welcome-video-play');
+    if (!wrap || !vid || !play) return;
+    play.addEventListener('click', () => {
+      vid.controls = true;
+      wrap.classList.add('is-playing');
+      const p = vid.play();
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    });
   }
 
   function start() {
+    const vid = $('#welcome-video');
+    if (vid) vid.pause();
     const m = messages();
     if (m) {
       m.setAttribute('role', 'log');
@@ -690,6 +701,7 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     fillBrand();
+    wireWelcomeVideo();
     wireDraftButtons();
     const begin = $('#btn-start');
     if (begin) begin.addEventListener('click', start);

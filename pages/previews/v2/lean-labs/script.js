@@ -21,10 +21,6 @@ window.V2_PREVIEW = {
   personaLabel: 'Sample customer: a marketing leader at an industrial company',
   bestForWho: 'companies',
 
-  welcome: {
-    title: 'V2: reviews that say what Lean Labs did and who it was for',
-    body: 'Same chat, a few extra taps. We ask what the client hired Lean Labs for, how each service went, who they are and what they had before, so the review names the service, the buyer and the problem we solved.',
-  },
   draftsReady: '',
 
   steps: [
