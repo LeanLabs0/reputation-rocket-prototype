@@ -22,7 +22,7 @@ window.V2_PREVIEW = {
     title: 'V2: reviews that say what eimmigration is and who it is for',
     body: 'Same chat, a few extra taps. We ask what the customer uses eimmigration for, who they are and what they used before, so the review they post names the category, the buyer and the problem it solved.',
   },
-  draftsReady: "Thanks so much for sharing.\n\nWe turned your responses into a few reviews that you can edit or publish.",
+  draftsReady: "Thanks so much for sharing.\n\nThese drafts are a preview of the reviews. You can read and edit them here. Nothing is published or sent.",
 
   steps: [
     {
@@ -40,12 +40,12 @@ window.V2_PREVIEW = {
       ],
     },
     {
-      id: 'grid', type: 'grid', perService: false,
+      id: 'grid', type: 'grid', perService: false, skip: true,
       ask: 'Quick ratings, 1 to 5. How is eimmigration on each of these?',
       dims: ['Ease of use', 'Customer support', 'Value for money'],
     },
     {
-      id: 'rating', type: 'stars',
+      id: 'rating', type: 'stars', skip: true,
       ask: 'How would you rate your overall experience working with eimmigration? (1 being poor, 5 being excellent)',
     },
     {
@@ -124,7 +124,7 @@ window.V2_PREVIEW = {
     strongOne: ['{dims} has been strong for us.'],
     strongMany: ['{dims} have been strong for us.'],
     low: ['{lowDim} could be better.'],
-    category: ["I'd call {co} {category}.", 'For us, {co} is {category}.'],
+    category: ["I'd describe {co} as {category}.", 'For us, {co} is {category}.'],
     recommendYes: ["I'd recommend {co} to other {orgPlural}.", "I'd recommend {co} to teams like ours."],
     recommendNotSure: ["I'm not sure yet whether I'd recommend {co} to other {orgPlural}.", "I'm not sure yet whether I'd recommend {co}."],
     recommendNo: ["I wouldn't recommend {co} to other {orgPlural} right now.", "I wouldn't recommend {co} right now."],

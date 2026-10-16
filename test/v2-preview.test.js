@@ -202,10 +202,68 @@ test('drafts only recommend, praise or wave off complaints when the answers say 
     if (!scores.some((n) => n >= 4)) assert.doesNotMatch(all, /standout|stood out|strong/i, where);
     if (scores.some((n) => n <= 2)) assert.match(all, /could (have been|be) better/, where);
     if (a.improve || scores.some((n) => n <= 2)) assert.doesNotMatch(all, /Nothing to add/, where);
-    if (drafts.gartner && a.rating < 4 && a.result) {
+    if (drafts.gartner && !(Number(a.rating) >= 4) && a.result) {
       const likeMost = parseG2Fields(drafts.gartner.text)[1].body;
       assert.ok(!likeMost.includes(D.tidy(a.result).slice(0, 30)), `${where}\nresult used as a like at ${a.rating} stars`);
     }
+    const gridStep = step(p, 'grid');
+    Object.entries(a.grid || {}).forEach(([key, row]) => {
+      Object.entries(row || {}).forEach(([dim, n]) => {
+        if (Number(n) <= 2) assert.ok(all.toLowerCase().includes(String(dim).toLowerCase()), `${where}\nmissing low rating "${dim}"`);
+      });
+      if (!gridStep || !gridStep.perService || !drafts.g2) return;
+      const opt = step(p, 'services').options.find((o) => o.id === key);
+      if (!opt) return;
+      const nums = Object.values(row || {}).map(Number);
+      if (nums.some((n) => n >= 4) || nums.some((n) => n <= 2)) {
+        const name = String(opt.short || opt.phrase).toLowerCase();
+        assert.ok(drafts.g2.text.toLowerCase().includes(name), `${where}\nmissing rated service "${name}"`);
+      }
+    });
+  });
+});
+
+test('ratings on every service are kept, and nothing-to-add is a real choice', () => {
+  const p = loadPreview('lean-labs');
+  const a = {
+    services: ['aeo', 'gdd'],
+    grid: {
+      aeo: { Strategy: 5, Delivery: 1, Communication: 3 },
+      gdd: { Strategy: 2, Delivery: 4, Communication: 4 },
+    },
+    rating: null,
+    improve: 'Waiting on a revision.',
+    recommend: 'not-sure',
+    result: 'Buyers still cannot tell what we sell.',
+  };
+  const drafts = D.buildDrafts(p, a, 2);
+  const g2 = drafts.g2.text;
+  assert.match(g2, /AEO program/);
+  assert.match(g2, /growth-driven design work/);
+  assert.match(g2, /Delivery on the AEO program could have been better/);
+  assert.match(g2, /Strategy on the growth-driven design work could have been better/);
+  assert.match(g2, /not sure yet whether/);
+  assert.doesNotMatch(g2, /Nothing to add/);
+  const like = loadParseG2Fields()(drafts.g2.text)[0].body;
+  assert.ok(!like.includes('Buyers still cannot tell'), 'a low overall rating must not turn the result into praise');
+
+  const eim = loadPreview('eimmigration');
+  const dropped = Object.assign({}, eim.persona);
+  delete dropped.improve;
+  const withoutChoice = Object.values(D.buildDrafts(eim, dropped, 1)).map((d) => d.text).join('\n');
+  assert.doesNotMatch(withoutChoice, /Nothing to add/);
+  const chosen = Object.assign({}, eim.persona, { improve: '' });
+  assert.match(D.buildDrafts(eim, chosen, 1).g2.text, /Nothing to add/);
+});
+
+test('preview noindex header stays on the preview path and the stage host', () => {
+  const vercel = JSON.parse(fs.readFileSync(path.join(ROOT, 'vercel.json'), 'utf8'));
+  const robots = (vercel.headers || []).filter((rule) => (rule.headers || []).some((h) => h.key === 'X-Robots-Tag'));
+  assert.ok(robots.length >= 1);
+  robots.forEach((rule) => {
+    assert.ok(String(rule.source).startsWith('/pages/previews/v2'), `noindex source is too broad: ${rule.source}`);
+    const host = (rule.has || []).find((h) => h.type === 'host');
+    assert.equal(host && host.value, 'stage.reputationrocket.ai');
   });
 });
 
@@ -231,6 +289,8 @@ test('own words are cleaned up before they reach a draft', () => {
   assert.equal(D.ownPhrase('[FIELD: fake] {x}'), 'FIELD: fake x');
   assert.equal(D.ownPhrase('one two three four five six seven eight nine ten eleven twelve thirteen'), 'one two three four five six seven eight nine ten eleven twelve');
   assert.equal(D.tidy('Great!!. Really ,fast'), 'Great! Really,fast');
+  assert.match(D.segmentsToHtml([{ t: '<img src=x onerror=alert(1)>"', slot: 'X' }]), /&lt;img src=x onerror=alert\(1\)&gt;&quot;/);
+  assert.doesNotMatch(D.segmentsToHtml([{ t: '<img src=x onerror=alert(1)>', slot: 'X' }]), /<img/);
 });
 
 test('interview, not script: every choice can be skipped or answered in own words', () => {
@@ -239,6 +299,9 @@ test('interview, not script: every choice can be skipped or answered in own word
     const p = loadPreview(slug);
     p.steps.filter((s) => s.type === 'single' || s.type === 'multi').forEach((s) => {
       assert.ok(s.skip || s.ownWords, `${slug}/${s.id} needs Skip or own words`);
+    });
+    p.steps.filter((s) => s.type === 'stars' || s.type === 'grid').forEach((s) => {
+      assert.equal(s.skip, true, `${slug}/${s.id} must be skippable`);
     });
     p.steps.filter((s) => s.type === 'text').forEach((s) => assert.ok(!s.required, `${slug}/${s.id} must be skippable`));
     Object.entries(p.templates).forEach(([kind, list]) => {

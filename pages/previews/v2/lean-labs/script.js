@@ -40,12 +40,12 @@ window.V2_PREVIEW = {
       ],
     },
     {
-      id: 'grid', type: 'grid', perService: true, maxServices: 3,
+      id: 'grid', type: 'grid', perService: true, maxServices: 3, skip: true,
       ask: 'How did Lean Labs do on the {service}? (1 being poor, 5 being excellent)',
       dims: ['Strategy', 'Delivery', 'Communication'],
     },
     {
-      id: 'rating', type: 'stars',
+      id: 'rating', type: 'stars', skip: true,
       ask: 'Overall, how would you rate your experience working with Lean Labs? (1 being poor, 5 being excellent)',
     },
     {
@@ -133,7 +133,7 @@ window.V2_PREVIEW = {
     strongOne: ['{dims} on the {service} was strong.'],
     strongMany: ['{dims} on the {service} were strong.'],
     low: ['{lowDim} on the {lowService} could have been better.', '{lowDim} could have been better.'],
-    category: ["I'd call {co} {category}.", 'For us, {co} is {category}.'],
+    category: ["I'd describe {co} as {category}.", 'For us, {co} is {category}.'],
     recommendYes: ["I'd recommend {co} to other {industryPlural}.", "I'd recommend {co} to companies like ours."],
     recommendNotSure: ["I'm not sure yet whether I'd recommend {co} to other {industryPlural}.", "I'm not sure yet whether I'd recommend {co}."],
     recommendNo: ["I wouldn't recommend {co} to other {industryPlural} right now.", "I wouldn't recommend {co} right now."],
@@ -168,7 +168,7 @@ window.V2_PREVIEW = {
       'What would you tell another business owner considering Lean Labs?',
       'Is there any area where we could remove friction or improve the experience? (totally optional)',
     ],
-    sampleTitle: "A client's V1 drafts from the 10/14 launch",
+    sampleTitle: 'V1 drafts are not on this card yet',
     sampleAnswers: [],
     scoreCaption: 'No V1 drafts to score here yet, so this counts what the V1 questions ask about.',
     sampleNote: "A client's two real V1 drafts (HubSpot and G2) get added here, anonymized, once they're pulled. Until then, the gap shows in the questions. V1 never asks which service they bought, who they are or what they had before.",

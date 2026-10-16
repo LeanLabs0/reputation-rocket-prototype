@@ -207,7 +207,7 @@
       ]
     },
     {
-      "source": "/(.*)",
+      "source": "/pages/previews/v2/:path*",
       "has": [
         {
           "type": "host",

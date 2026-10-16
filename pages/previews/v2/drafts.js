@@ -227,31 +227,57 @@
 
   // Ratings the customer actually gave. A tied top score of 4 or 5 is
   // "strong", a lone top score among several is "the standout", and a 1 or
-  // 2 is something that could be better. Unrated rows say nothing.
+  // 2 is something that could be better. Every service keeps its own highs
+  // and lows. Unrated rows say nothing.
   function gridSummary(preview, answers) {
-    const grid = answers.grid || {};
+    const grid = answers && answers.grid && typeof answers.grid === 'object' ? answers.grid : {};
     const step = stepById(preview, 'grid');
     const keys = step && step.perService ? (Array.isArray(answers.services) ? answers.services : []) : ['all'];
-    let strong = null;
+    const strongs = [];
     const low = [];
     keys.forEach((key) => {
       const dims = grid[key] || {};
       const rated = Object.keys(dims).filter((d) => Number(dims[d]) >= 1 && Number(dims[d]) <= 5);
       if (!rated.length) return;
       const top = Math.max(...rated.map((d) => Number(dims[d])));
-      if (!strong && top >= 4) {
+      if (top >= 4) {
         const tops = rated.filter((d) => Number(dims[d]) === top);
-        strong = { key, dims: tops, unique: tops.length === 1 && rated.length > 1 };
+        strongs.push({ key, dims: tops, unique: tops.length === 1 && rated.length > 1 });
       }
       rated.filter((d) => Number(dims[d]) <= 2).forEach((d) => low.push({ key, dim: d }));
     });
-    return { strong, low };
+    return { strongs, low };
+  }
+
+  function serviceSeg(preview, key) {
+    const svc = optionById(stepById(preview, 'services'), key);
+    return svc ? seg(svc.short || svc.phrase, 'X', { step: 'services', option: svc.id }) : null;
+  }
+
+  // One grid row's placeholders, without changing the shared answer values.
+  function focusGrid(base, preview, entry, kind) {
+    const vals = Object.assign({}, base);
+    if (kind === 'strong') {
+      const dims = entry.dims;
+      vals.dims = listSegments(dims.map((d, i) => seg(i === 0 ? d : d.toLowerCase())));
+      vals.dim = [seg(dims[0])];
+      vals.dimLower = [seg(dims[0].toLowerCase())];
+      vals.strongKind = entry.unique ? 'standout' : dims.length === 1 ? 'strongOne' : 'strongMany';
+      const service = serviceSeg(preview, entry.key);
+      if (service) vals.service = [service];
+      else delete vals.service;
+    } else {
+      vals.lowDim = [seg(entry.dim)];
+      const service = serviceSeg(preview, entry.key);
+      if (service) vals.lowService = [service];
+      else delete vals.lowService;
+    }
+    return vals;
   }
 
   function buildValues(preview, answers) {
     const vals = { co: [seg(preview.company)] };
     const from = (step, o) => ({ step, option: o.id });
-    const servicesStep = stepById(preview, 'services');
 
     const serviceOpts = pickedOptions(preview, 'services', answers);
     const services = serviceOpts.map((o) => seg(o.phrase, 'X', from('services', o)));
@@ -265,14 +291,14 @@
     const org = pickedOptions(preview, 'orgType', answers)[0];
     if (org) {
       vals.org = [seg(org.phrase, 'Y', from('orgType', org))];
-      vals.orgPlural = [seg(org.plural, 'Y', from('orgType', org))];
+      if (org.plural) vals.orgPlural = [seg(org.plural, 'Y', from('orgType', org))];
     }
     const role = pickedOptions(preview, 'role', answers)[0];
     if (role) vals.role = [seg(role.phrase, 'Y', from('role', role))];
     const industry = pickedOptions(preview, 'industry', answers)[0];
     if (industry) {
       vals.industry = [seg(industry.phrase, 'Y', from('industry', industry))];
-      vals.industryPlural = [seg(industry.plural, 'Y', from('industry', industry))];
+      if (industry.plural) vals.industryPlural = [seg(industry.plural, 'Y', from('industry', industry))];
     }
 
     const before = pickedOptions(preview, 'before', answers)[0];
@@ -295,21 +321,6 @@
     const otherCategory = ownPhrase(answers.categoryOther);
     if (!category && otherCategory) vals.category = [seg(otherCategory, 'R')];
 
-    const grid = gridSummary(preview, answers);
-    if (grid.strong) {
-      const dims = grid.strong.dims;
-      vals.dims = listSegments(dims.map((d, i) => seg(i === 0 ? d : d.toLowerCase())));
-      vals.dim = [seg(dims[0])];
-      vals.dimLower = [seg(dims[0].toLowerCase())];
-      const svc = optionById(servicesStep, grid.strong.key);
-      if (svc) vals.service = [seg(svc.short || svc.phrase, 'X', from('services', svc))];
-      vals.strongKind = grid.strong.unique ? 'standout' : dims.length === 1 ? 'strongOne' : 'strongMany';
-    }
-    if (grid.low.length) {
-      vals.lowDim = [seg(grid.low[0].dim)];
-      const svc = optionById(servicesStep, grid.low[0].key);
-      if (svc) vals.lowService = [seg(svc.short || svc.phrase, 'X', from('services', svc))];
-    }
     return vals;
   }
 
@@ -358,34 +369,53 @@
     return t ? [seg(t, 'R')] : null;
   }
 
+  // The improve step's skip button is labeled "Nothing to add" and stores "".
+  // A missing answer is not that choice.
+  function choseNothingToAdd(answers) {
+    return Object.prototype.hasOwnProperty.call(answers, 'improve') && !tidy(answers.improve);
+  }
+
   function buildParts(preview, answers, rand) {
-    const vals = buildValues(preview, answers);
+    const safe = answers && typeof answers === 'object' ? answers : {};
+    const vals = buildValues(preview, safe);
     const s = (kind) => sentence(kind, vals, preview, rand);
-    const resultRaw = tidy(answers.result);
-    const improveRaw = tidy(answers.improve);
-    const recommendKind = RECOMMEND_KINDS[answers.recommend];
+    const resultRaw = tidy(safe.result);
+    const improveRaw = tidy(safe.improve);
+    const recommendKind = RECOMMEND_KINDS[safe.recommend];
+    const services = s('services');
+    const grid = gridSummary(preview, safe);
+    const strongSentences = grid.strongs.map((entry) => {
+      const focused = focusGrid(vals, preview, entry, 'strong');
+      return sentence(focused.strongKind, focused, preview, rand);
+    }).filter(Boolean);
     let before = null;
     if (vals.firstSystem) before = s('firstSystem');
     else if (vals.before) before = s('before');
     else if (vals.beforeOwn) before = s('beforeOwn');
+    const who = s('who');
+    const pain = s('pain');
+    const painOwn = s('painOwn');
+    const category = s('category');
+    const recommend = recommendKind ? s(recommendKind) : null;
+    const lowSentences = grid.low.map((entry) => sentence('low', focusGrid(vals, preview, entry, 'low'), preview, rand)).filter(Boolean);
     return {
-      services: s('services'),
-      strong: vals.strongKind ? s(vals.strongKind) : null,
-      who: s('who'),
+      services,
+      strong: strongSentences.length ? joinSentences(strongSentences) : null,
+      who,
       before,
-      pain: s('pain'),
-      painOwn: s('painOwn'),
+      pain,
+      painOwn,
       resultRaw,
       result: resultRaw ? customerSentence(resultRaw, 40) : null,
-      category: s('category'),
-      recommend: recommendKind ? s(recommendKind) : null,
-      recommendIsYes: answers.recommend === 'yes',
+      category,
+      recommend,
+      recommendIsYes: safe.recommend === 'yes',
       // Only a 4 or 5 overall lets the customer's result stand in as what they like.
-      positive: Number(answers.rating) >= 4,
+      positive: Number(safe.rating) >= 4,
       improveRaw,
       improve: improveRaw ? customerSentence(improveRaw, 40) : null,
-      low: vals.lowDim ? s('low') : null,
-      nothingToAdd: s('nothingToAdd'),
+      low: lowSentences.length ? joinSentences(lowSentences) : null,
+      nothingToAdd: choseNothingToAdd(safe) ? s('nothingToAdd') : null,
       customerHeadline: resultRaw ? customerHeadline(resultRaw) : null,
       categoryHeadline: s('headlineCategory'),
       serviceHeadline: s('headlineService'),
@@ -403,9 +433,10 @@
   }
 
   // Keep a single-text draft under the platform's word limit. Praise and a
-  // "yes" go first, then our extra context; the customer's own sentences are
-  // only shortened, at a sentence or clause break, never dropped for length.
-  // A "no" or "not sure" and anything they said could be better always stay.
+  // "yes" are dropped first, then extra context. The customer's own sentences
+  // are shortened at a sentence or clause break. A "no" or "not sure" stays.
+  // A low rating stays unless the draft is still over the limit after the
+  // other cuts. G2 and Gartner do not use this trim, so those fields keep it.
   function fitToLimit(list, parts, max) {
     let out = list.filter(Boolean);
     const count = (l) => words(segmentsToText(joinSentences(l)));
@@ -449,6 +480,15 @@
     return out;
   }
 
+  // A field needs a body. Prefer real sentences, then one spare fact, and only
+  // then the company name. That last line adds no opinion.
+  function fieldBody(preferred, spare, preview) {
+    const clean = (preferred || []).filter((p) => p && p.length);
+    if (clean.length) return clean;
+    if (spare && spare.length) return [spare];
+    return [[seg(`${preview.company}.`)]];
+  }
+
   function g2(preview, parts, rand) {
     const labels = FIELDS.g2(preview.company);
     const dislike = [parts.improve, parts.low].filter(Boolean);
@@ -456,17 +496,18 @@
     let recommend = [parts.recommend, parts.category].filter(Boolean);
     if (!recommend.length) {
       // Nothing said about recommending: hand others a fact the customer gave.
-      const moved = [parts.before, parts.who, parts.pain, parts.painOwn].find((x) => x && problems.includes(x) && problems.length > 1);
+      const moved = [parts.before, parts.who, parts.pain, parts.painOwn, parts.result].find((x) => x && problems.includes(x) && problems.length > 1);
       if (moved) {
         recommend = [moved];
         problems = problems.filter((x) => x !== moved);
       }
     }
+    const likeSpare = parts.who || parts.before || (parts.positive ? parts.result : null) || parts.category;
     return fieldsDraft(labels, [
-      [parts.services, parts.strong].filter(Boolean),
-      dislike.length ? dislike : [parts.nothingToAdd],
-      problems.length ? problems : [parts.services],
-      recommend.length ? recommend : [parts.services],
+      fieldBody([parts.services, parts.strong], likeSpare, preview),
+      fieldBody(dislike.length ? dislike : [parts.nothingToAdd], null, preview),
+      fieldBody(problems, parts.services, preview),
+      fieldBody(recommend, parts.services || parts.who || parts.before, preview),
     ]);
   }
 
@@ -474,19 +515,22 @@
     const labels = FIELDS.gartner();
     const dislike = [parts.improve, parts.low].filter(Boolean);
     const resultIsLike = !parts.strong && parts.positive && parts.result;
+    const like = parts.strong || (resultIsLike ? parts.result : null) || parts.services || parts.who || parts.before || parts.category;
+    const headline = parts.categoryHeadline || parts.customerHeadline || parts.serviceHeadline || [seg(preview.company)];
     return fieldsDraft(labels, [
-      [parts.who, parts.services, parts.before, resultIsLike ? null : parts.result, parts.recommend].filter(Boolean),
-      [parts.strong || (resultIsLike ? parts.result : parts.services)],
-      dislike.length ? dislike : [parts.nothingToAdd],
-      [parts.categoryHeadline || parts.customerHeadline || parts.serviceHeadline],
+      fieldBody([parts.who, parts.services, parts.before, resultIsLike ? null : parts.result, parts.recommend], parts.services, preview),
+      fieldBody(like ? [like] : [], null, preview),
+      fieldBody(dislike.length ? dislike : [parts.nothingToAdd], null, preview),
+      [headline],
     ]);
   }
 
   function buildDrafts(preview, answers, seed) {
+    const safe = answers && typeof answers === 'object' ? answers : {};
     const out = {};
     (preview.platforms || []).forEach((platform, i) => {
       const rand = mulberry32((seed >>> 0) ^ hashString(platform) ^ (i * 2654435761));
-      const parts = buildParts(preview, answers, rand);
+      const parts = buildParts(preview, safe, rand);
       let segs;
       if (platform === 'g2') segs = g2(preview, parts, rand);
       else if (platform === 'gartner') segs = gartner(preview, parts);
@@ -540,11 +584,12 @@
     const x = (category && category.bestAs) || (service && service.bestAs) || '';
     if (!x) return '';
     const who = pickedOptions(preview, 'orgType', answers)[0] || pickedOptions(preview, 'industry', answers)[0];
+    const whoName = who && (who.plural || who.phrase);
     const before = pickedOptions(preview, 'before', answers)[0];
     const pain = pickedOptions(preview, 'pain', answers).find((o) => o.bestAs);
     let line = `Best ${x.replace(/^(an?|our|the)\s+/i, '')}`;
-    if (who) line += ` for ${who.plural}`;
-    if (before && !before.firstSystem && before.bestAs) line += `${who ? '' : ` for ${preview.bestForWho || 'teams'}`} ${before.bestAs}`;
+    if (whoName) line += ` for ${whoName}`;
+    if (before && !before.firstSystem && before.bestAs) line += `${whoName ? '' : ` for ${preview.bestForWho || 'teams'}`} ${before.bestAs}`;
     else if (pain) line += ` ${pain.bestAs}`;
     return line;
   }
