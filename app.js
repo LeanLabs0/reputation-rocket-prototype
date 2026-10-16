@@ -2695,6 +2695,7 @@ const PLATFORM_FAVICON_HOST = {
   google: 'google.com',
   trustpilot: 'trustpilot.com',
   clutch: 'clutch.co',
+  goodfirms: 'goodfirms.co',
   capterra: 'capterra.com',
   gartner: 'gartner.com',
   greatnonprofits: 'greatnonprofits.org',
@@ -3058,6 +3059,8 @@ const PLATFORM_META = {
   google:           { name: 'Google Business',  desc: 'Your most visible review',             icon: 'globe',  flow: 'paste'  },
   capterra:         { name: 'Capterra',         desc: 'Software reviews for businesses',      icon: 'star',   flow: 'paste'  },
   gartner:          { name: 'Gartner',          desc: 'Enterprise buyer reviews',             icon: 'star',   flow: 'fields' },
+  clutch:           { name: 'Clutch',           desc: 'Where buyers vet B2B service firms',   icon: 'star',   flow: 'paste'  },
+  goodfirms:        { name: 'GoodFirms',        desc: 'Reviews of IT and software service firms', icon: 'star', flow: 'paste' },
   greatnonprofits:  { name: 'GreatNonprofits',  desc: 'Where supporters share nonprofit impact', icon: 'star', flow: 'paste' },
 };
 
@@ -4950,7 +4953,7 @@ function platformDisplayName(platform) {
   const names = {
     hubspot: 'HubSpot', g2: 'G2', trustpilot: 'Trustpilot',
     clutch: 'Clutch', google: 'Google Business', capterra: 'Capterra',
-    gartner: 'Gartner', greatnonprofits: 'GreatNonprofits',
+    gartner: 'Gartner', goodfirms: 'GoodFirms', greatnonprofits: 'GreatNonprofits',
   };
   return names[platform] || platform.charAt(0).toUpperCase() + platform.slice(1);
 }
