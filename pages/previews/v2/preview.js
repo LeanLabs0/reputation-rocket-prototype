@@ -174,7 +174,8 @@
     const max = multi ? step.max || Infinity : 1;
     const grid = el('div', { class: 'v2-chip-grid', role: 'group', 'aria-label': step.ask });
     const own = el('input', { class: 'v2-own-input', type: 'text', placeholder: 'In your own words', 'aria-label': 'In your own words', maxlength: '120', hidden: true });
-    const hint = multi ? el('span', { class: 'v2-choice-hint', text: step.max ? `Pick up to ${step.max}` : 'Pick all that apply' }) : null;
+    const hintText = step.max ? `Pick up to ${step.max}` : 'Pick all that apply';
+    const hint = multi ? el('span', { class: 'v2-choice-hint', text: hintText }) : null;
     const ownOpen = () => !own.hidden;
     const ownText = () => (ownOpen() ? own.value.trim() : '');
     const used = () => picked.size + (ownOpen() ? 1 : 0);
@@ -183,6 +184,12 @@
       if (!hint) return;
       hint.textContent = `Up to ${step.max}. Unpick one first.`;
       hint.classList.add('is-flash');
+    }
+
+    function clearFlash() {
+      if (!hint) return;
+      hint.textContent = hintText;
+      hint.classList.remove('is-flash');
     }
 
     function chip(label, attrs, onClick) {
@@ -194,7 +201,9 @@
     const cont = el('button', { type: 'button', class: 'btn btn-primary btn-md', disabled: true, text: 'Continue' });
     const min = step.min == null ? 1 : step.min;
     const sync = () => {
-      cont.disabled = multi ? picked.size + (ownText() ? 1 : 0) < min : !ownText();
+      const count = picked.size + (ownText() ? 1 : 0);
+      // Continue means at least one answer. Skip is the way to leave a step blank.
+      cont.disabled = multi ? count < Math.max(min, 1) : !ownText();
     };
 
     (step.options || []).forEach((o) => {
@@ -202,7 +211,8 @@
         if (!multi) return submit([o.id], '');
         if (picked.has(o.id)) picked.delete(o.id);
         else if (used() < max) picked.add(o.id);
-        else flashLimit();
+        else return flashLimit();
+        clearFlash();
         b.setAttribute('aria-pressed', String(picked.has(o.id)));
         sync();
       }));
@@ -279,8 +289,16 @@
       });
       row.appendChild(b);
     });
+    const skip = el('button', { type: 'button', class: 'btn btn-tertiary btn-md', text: 'Skip' });
+    skip.addEventListener('click', () => {
+      state.answers[step.id] = null;
+      mode('none');
+      userSay('Skip');
+      next();
+    });
     bar.appendChild(row);
     bar.appendChild(el('div', { class: 'rating-choice-legend', 'aria-hidden': 'true', html: '<span>Poor</span><span>Excellent</span>' }));
+    bar.appendChild(actionsRow([], [skip]));
     focusFirst(bar);
   }
 
@@ -303,8 +321,9 @@
       [1, 2, 3, 4, 5].forEach((n) => {
         const b = el('button', { type: 'button', class: 'rating-choice', 'aria-pressed': 'false', 'aria-label': `${dim} ${n}`, text: String(n) });
         b.addEventListener('click', () => {
-          values[dim] = n;
-          $$('.rating-choice', scale).forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+          if (values[dim] === n) delete values[dim];
+          else values[dim] = n;
+          $$('.rating-choice', scale).forEach((x) => x.setAttribute('aria-pressed', String(values[dim] != null && x === b)));
           cont.disabled = !step.dims.some((d) => values[d]);
         });
         scale.appendChild(b);
@@ -430,17 +449,19 @@
   }
 
   // The star row above the draft shows the rating they actually gave.
+  // A skipped or missing rating stays empty. It is never filled in as 5.
   function renderDraftStars() {
-    const n = Math.min(5, Math.max(1, Number(state.answers.rating) || 5));
+    const n = Number(state.answers.rating);
+    const rated = n >= 1 && n <= 5;
     $$('#draft-stars .star').forEach((star) => {
       const v = Number(star.dataset.value);
-      star.classList.toggle('filled', v <= n);
-      star.classList.toggle('empty', v > n);
+      star.classList.toggle('filled', rated && v <= n);
+      star.classList.toggle('empty', !rated || v > n);
     });
     const row = $('#draft-stars');
     if (row) {
       row.setAttribute('role', 'img');
-      row.setAttribute('aria-label', `${n} out of 5 stars`);
+      row.setAttribute('aria-label', rated ? `${n} out of 5 stars` : 'No overall rating given');
     }
   }
 
@@ -510,7 +531,8 @@
     });
     if (all) {
       all.disabled = false;
-      all.childNodes[0].textContent = 'Compare with V1 ';
+      const label = $('.v2-approve-label', all);
+      if (label) label.textContent = 'Compare with V1';
       all.addEventListener('click', openCompare);
     }
   }

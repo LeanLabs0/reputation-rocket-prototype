@@ -9,9 +9,8 @@
  * - target prompts, e.g. "Best answer engine optimization agencies with
  *   HubSpot integration", "best GDD agency for SaaS companies in HubSpot"
  * The sample customer is made up, but shaped like the client in the V1 card
- * (an industrial company that wanted AI visibility and more pipeline), so V1
- * and V2 compare like for like. The V1 session is real and paraphrased, with
- * no names.
+ * (an industrial company that wanted AI visibility and more pipeline). The V1
+ * session is real and paraphrased, with no names.
  */
 window.V2_PREVIEW = {
   slug: 'lean-labs',
@@ -43,12 +42,12 @@ window.V2_PREVIEW = {
       ],
     },
     {
-      id: 'grid', type: 'grid', perService: true, maxServices: 3,
+      id: 'grid', type: 'grid', perService: true, maxServices: 3, skip: true,
       ask: 'How did Lean Labs do on the {service}? (1 being poor, 5 being excellent)',
       dims: ['Strategy', 'Delivery', 'Communication'],
     },
     {
-      id: 'rating', type: 'stars',
+      id: 'rating', type: 'stars', skip: true,
       ask: 'Overall, how would you rate your experience working with Lean Labs? (1 being poor, 5 being excellent)',
     },
     {
@@ -136,7 +135,7 @@ window.V2_PREVIEW = {
     strongOne: ['{dims} on the {service} was strong.'],
     strongMany: ['{dims} on the {service} were strong.'],
     low: ['{lowDim} on the {lowService} could have been better.', '{lowDim} could have been better.'],
-    category: ["I'd call {co} {category}.", 'For us, {co} is {category}.'],
+    category: ["I'd describe {co} as {category}.", 'For us, {co} is {category}.'],
     recommendYes: ["I'd recommend {co} to other {industryPlural}.", "I'd recommend {co} to companies like ours."],
     recommendNotSure: ["I'm not sure yet whether I'd recommend {co} to other {industryPlural}.", "I'm not sure yet whether I'd recommend {co}."],
     recommendNo: ["I wouldn't recommend {co} to other {industryPlural} right now.", "I wouldn't recommend {co} right now."],
