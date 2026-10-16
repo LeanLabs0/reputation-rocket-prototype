@@ -205,6 +205,21 @@
           "value": "camera=(self), microphone=(self), geolocation=()"
         }
       ]
+    },
+    {
+      "source": "/pages/previews/v2/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "stage.reputationrocket.ai"
+        }
+      ],
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     }
   ]
 }
