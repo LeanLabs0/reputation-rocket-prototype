@@ -435,3 +435,25 @@ a:active,
 .screen-header p + p {
   margin-top: 12px;
 }
+
+/* Step 1: the progress bar sits under the Get Started button, then moves back
+   to the top from Step 2 on. The body is a flex column, so order does the move. */
+body:has(#screen-welcome.active) #screen-welcome {
+  flex: 0 0 auto;
+  padding-top: 40px;
+  padding-bottom: 48px;
+}
+body:has(#screen-welcome.active) .progress-shell {
+  order: 1;
+  flex: 1 0 auto;
+  align-items: flex-start;
+}
+body:has(#screen-welcome.active) .rr-legal-footer {
+  order: 2;
+}
+@media (max-width: 640px) {
+  body:has(#screen-welcome.active) #screen-welcome {
+    padding-top: 24px;
+    padding-bottom: 32px;
+  }
+}

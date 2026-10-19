@@ -44,7 +44,7 @@
       target: '#btn-start',
       count: 'Step 1 of 6',
       title: 'Welcome',
-      body: 'Every review starts here. Click <strong>Begin</strong> to kick off the guided flow. Go ahead, we’ll follow along.',
+      body: 'Every review starts here. Click <strong>Get Started</strong> to kick off the guided flow. Go ahead, we’ll follow along.',
     },
     chat: {
       target: '.chat-container',
