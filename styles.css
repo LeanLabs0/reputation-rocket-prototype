@@ -407,6 +407,12 @@ a:hover { text-decoration: underline; }
   display: flex;
   justify-content: center;
 }
+/* Parked under the welcome CTA (CLIENT_CONFIG.progressBelowWelcome); the
+   welcome column's gap already spaces it. */
+.progress-shell.progress-shell--below-welcome {
+  width: 100%;
+  padding: 0;
+}
 
 .progress-bar {
   position: relative;

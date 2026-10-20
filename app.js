@@ -302,6 +302,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
   applyCurrentYearTokens();
   applyVideoStepVisibility();
+  placeProgressShell(currentState);
 
   try {
     sessionStorage.removeItem('rr_session');
@@ -486,6 +487,7 @@ function transitionTo(state) {
   if (screenEl) screenEl.classList.add('active');
 
   updateProgressBar(state);
+  placeProgressShell(state);
   updateNavTitle(state);
 
   switch (state) {
@@ -524,6 +526,31 @@ function updateNavTitle(state) {
   if (!el) return;
   if (el.dataset.defaultTitle == null) el.dataset.defaultTitle = el.textContent;
   el.textContent = state === 'complete' ? 'Review complete' : el.dataset.defaultTitle;
+}
+
+// Step bar under the welcome CTA (CLIENT_CONFIG.progressBelowWelcome). Before the
+// flow starts the steps have no context, so the bar previews them below the
+// button, then goes back to its spot at the top from Step 2 on. The comment node
+// marks that spot so the bar (and the guest bar) always land in the same place.
+let progressShellHome = null;
+
+function isProgressBelowWelcome() {
+  return CLIENT_CONFIG.progressBelowWelcome === true;
+}
+
+function placeProgressShell(state) {
+  if (!isProgressBelowWelcome()) return;
+  const shell = $('.progress-shell');
+  const cta = $('#screen-welcome .welcome-cta');
+  if (!shell || !cta) return;
+  if (!progressShellHome) {
+    progressShellHome = document.createComment(' progress-shell home ');
+    shell.before(progressShellHome);
+  }
+  const below = state === 'welcome';
+  if (below) cta.after(shell);
+  else progressShellHome.after(shell);
+  shell.classList.toggle('progress-shell--below-welcome', below);
 }
 
 function getProgressStateToStep() {
@@ -5192,8 +5219,9 @@ function mountGuestBar() {
       <button type="button" id="guest-handoff-copy" class="btn btn-primary btn-sm">Copy client link</button>
     </div>
   `;
-  const shell = document.querySelector('.progress-shell');
-  if (shell && shell.parentNode) shell.parentNode.insertBefore(bar, shell);
+  // Above the step bar's home spot, even while the bar sits under the welcome CTA.
+  const anchor = progressShellHome || document.querySelector('.progress-shell');
+  if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(bar, anchor);
   else document.body.prepend(bar);
 
   document.getElementById('guest-handoff-copy')?.addEventListener('click', copyGuestHandoffLink);

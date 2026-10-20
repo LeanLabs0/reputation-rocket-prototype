@@ -84,3 +84,73 @@ test('EIM live and demo pages drop the removed help boxes together', () => {
     assert.match(html, /id="btn-approve"[^>]*>Looks Good<svg[^>]*aria-hidden="true"/);
   }
 });
+
+test('EIM live and demo welcome pages carry the Step 1 notes together', () => {
+  const live = fs.readFileSync(path.join(__dirname, '../pages/clients/eimmigration/index.html'), 'utf8');
+  const demo = fs.readFileSync(path.join(__dirname, '../pages/clients/eimmigration/demo/index.html'), 'utf8');
+  const welcome = (html) => html.slice(html.indexOf('id="screen-welcome"'), html.indexOf('id="screen-chat"'));
+  for (const html of [live, demo]) {
+    const step1 = welcome(html);
+    assert.match(step1, /<p>Please answer a couple of questions about how it's going with our software and team\.<\/p>/);
+    assert.match(step1, /publish them on Gartner, G2, and Trustpilot\.<\/p>/);
+    assert.match(step1, /<strong>Heads up:<\/strong> The hardest part is logging into the review sites\. We'll walk you through every step\. Once you publish your reviews, we'll send your reward\.<\/p>/);
+    assert.match(step1, /id="btn-start"[^>]*>Get Started<svg/);
+    assert.equal(step1.includes('welcome-video-host'), false);
+    assert.equal(step1.includes('welcome-note'), false);
+    assert.equal(step1.includes('Takes about 3 minutes'), false);
+  }
+  assert.equal(welcome(demo), welcome(live));
+});
+
+test('EIM live and demo configs drop the welcome video and park the step bar', () => {
+  for (const rel of ['pages/clients/eimmigration/config.js', 'pages/clients/eimmigration/demo/config.js']) {
+    const cfg = loadConfig(rel);
+    assert.equal(cfg.progressBelowWelcome, true);
+    assert.equal('welcomeVideoUrl' in cfg, false);
+    assert.equal('welcomeVideoPoster' in cfg, false);
+  }
+});
+
+function loadProgressShell(config) {
+  const calls = [];
+  const classes = {};
+  const shell = {
+    before: (node) => calls.push(['home marked', node.label]),
+    classList: { toggle: (name, on) => { classes[name] = on; } },
+  };
+  const cta = { after: (node) => calls.push(['under cta', node === shell]) };
+  const sandbox = {
+    CLIENT_CONFIG: config,
+    progressShellHome: null,
+    $: (sel) => ({ '.progress-shell': shell, '#screen-welcome .welcome-cta': cta })[sel] || null,
+    document: {
+      createComment: (label) => ({ label, after: (node) => calls.push(['back home', node === shell]) }),
+    },
+  };
+  vm.runInNewContext(
+    extractFunction('isProgressBelowWelcome') + extractFunction('placeProgressShell'),
+    sandbox
+  );
+  return { place: sandbox.placeProgressShell, calls, classes };
+}
+
+test('placeProgressShell parks the step bar under the welcome CTA and brings it back', () => {
+  const { place, calls, classes } = loadProgressShell({ progressBelowWelcome: true });
+  place('welcome');
+  assert.deepEqual(calls, [['home marked', ' progress-shell home '], ['under cta', true]]);
+  assert.equal(classes['progress-shell--below-welcome'], true);
+  place('chat');
+  assert.deepEqual(calls.at(-1), ['back home', true]);
+  assert.equal(classes['progress-shell--below-welcome'], false);
+  place('welcome');
+  assert.deepEqual(calls.at(-1), ['under cta', true]);
+  assert.equal(calls.filter(([what]) => what === 'home marked').length, 1);
+});
+
+test('placeProgressShell leaves the step bar alone for other clients', () => {
+  const { place, calls, classes } = loadProgressShell({});
+  place('welcome');
+  place('chat');
+  assert.deepEqual(calls, []);
+  assert.deepEqual(classes, {});
+});

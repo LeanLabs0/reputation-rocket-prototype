@@ -228,11 +228,6 @@ body {
   max-width: 992px;
 }
 
-.welcome-media {
-  width: 100%;
-  max-width: 720px
-}
-
 .welcome-callout {
   background: white;
 }
