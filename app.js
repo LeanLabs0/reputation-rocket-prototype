@@ -479,6 +479,10 @@ function transitionTo(state) {
   clearPendingReviewOverlay();
   hideReviewCompleteOverlay();
 
+  // Move the step bar before the welcome screen loses .active. On Step 1 the
+  // bar lives inside that screen, and a hidden screen would hide the bar with it.
+  placeProgressShell(state);
+
   $$('.screen').forEach(s => s.classList.remove('active'));
 
   currentState = state;
@@ -487,7 +491,6 @@ function transitionTo(state) {
   if (screenEl) screenEl.classList.add('active');
 
   updateProgressBar(state);
-  placeProgressShell(state);
   updateNavTitle(state);
 
   switch (state) {
@@ -530,12 +533,29 @@ function updateNavTitle(state) {
 
 // Step bar under the welcome CTA (CLIENT_CONFIG.progressBelowWelcome). Before the
 // flow starts the steps have no context, so the bar previews them below the
-// button, then goes back to its spot at the top from Step 2 on. The comment node
-// marks that spot so the bar (and the guest bar) always land in the same place.
+// button, then goes back to its spot at the top from Step 2 on. #progress-shell-home
+// marks that spot. EIM puts the bar under the button in the HTML so it does not
+// jump down after the settings request. Clients that only set the flag get a
+// comment marker on the first run. The guest handoff bar uses the same spot.
 let progressShellHome = null;
 
 function isProgressBelowWelcome() {
   return CLIENT_CONFIG.progressBelowWelcome === true;
+}
+
+function guestBarAnchor() {
+  return progressShellHome
+    || document.getElementById('progress-shell-home')
+    || document.querySelector('.progress-shell');
+}
+
+function isParkedAfter(node, anchor) {
+  if (!node || !anchor) return false;
+  let prev = node.previousSibling;
+  while (prev && prev.nodeType === 3 && !String(prev.textContent || '').trim()) {
+    prev = prev.previousSibling;
+  }
+  return prev === anchor;
 }
 
 function placeProgressShell(state) {
@@ -544,12 +564,15 @@ function placeProgressShell(state) {
   const cta = $('#screen-welcome .welcome-cta');
   if (!shell || !cta) return;
   if (!progressShellHome) {
-    progressShellHome = document.createComment(' progress-shell home ');
-    shell.before(progressShellHome);
+    progressShellHome = document.getElementById('progress-shell-home');
+    if (!progressShellHome) {
+      progressShellHome = document.createComment(' progress-shell home ');
+      shell.before(progressShellHome);
+    }
   }
   const below = state === 'welcome';
-  if (below) cta.after(shell);
-  else progressShellHome.after(shell);
+  const anchor = below ? cta : progressShellHome;
+  if (!isParkedAfter(shell, anchor)) anchor.after(shell);
   shell.classList.toggle('progress-shell--below-welcome', below);
 }
 
@@ -5220,7 +5243,7 @@ function mountGuestBar() {
     </div>
   `;
   // Above the step bar's home spot, even while the bar sits under the welcome CTA.
-  const anchor = progressShellHome || document.querySelector('.progress-shell');
+  const anchor = guestBarAnchor();
   if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(bar, anchor);
   else document.body.prepend(bar);
 

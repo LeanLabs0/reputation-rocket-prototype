@@ -408,10 +408,15 @@ a:hover { text-decoration: underline; }
   justify-content: center;
 }
 /* Parked under the welcome CTA (CLIENT_CONFIG.progressBelowWelcome); the
-   welcome column's gap already spaces it. */
+   welcome column's gap already spaces it. min-width: 0 lets the five steps
+   shrink inside the welcome column on a narrow screen. */
 .progress-shell.progress-shell--below-welcome {
   width: 100%;
+  min-width: 0;
   padding: 0;
+}
+#progress-shell-home {
+  display: none;
 }
 
 .progress-bar {

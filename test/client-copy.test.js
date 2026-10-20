@@ -98,8 +98,30 @@ test('EIM live and demo welcome pages carry the Step 1 notes together', () => {
     assert.equal(step1.includes('welcome-video-host'), false);
     assert.equal(step1.includes('welcome-note'), false);
     assert.equal(step1.includes('Takes about 3 minutes'), false);
+    assert.match(step1, /class="progress-shell progress-shell--below-welcome"/);
+    const ctaAt = step1.indexOf('class="welcome-cta"');
+    const shellAt = step1.indexOf('class="progress-shell progress-shell--below-welcome"');
+    assert.equal(ctaAt > -1 && shellAt > ctaAt, true);
   }
   assert.equal(welcome(demo), welcome(live));
+  for (const html of [live, demo]) {
+    const homeAt = html.indexOf('id="progress-shell-home"');
+    const screenAt = html.indexOf('id="screen-welcome"');
+    assert.equal(homeAt > -1 && homeAt < screenAt, true);
+    assert.equal(html.split('class="progress-shell ').length, 2);
+  }
+});
+
+test('other client welcome pages keep the top step bar and the video', () => {
+  const html = fs.readFileSync(path.join(__dirname, '../pages/clients/lean-labs/index.html'), 'utf8');
+  const welcome = html.slice(html.indexOf('id="screen-welcome"'), html.indexOf('id="screen-chat"'));
+  assert.equal(html.includes('id="progress-shell-home"'), false);
+  assert.equal(welcome.includes('progress-shell'), false);
+  assert.equal(welcome.includes('welcome-video-host'), true);
+  assert.match(welcome, /id="btn-start"[^>]*>Begin<svg/);
+  const shellAt = html.indexOf('class="progress-shell"');
+  const screenAt = html.indexOf('id="screen-welcome"');
+  assert.equal(shellAt > -1 && shellAt < screenAt, true);
 });
 
 test('EIM live and demo configs drop the welcome video and park the step bar', () => {
@@ -111,46 +133,151 @@ test('EIM live and demo configs drop the welcome video and park the step bar', (
   }
 });
 
-function loadProgressShell(config) {
-  const calls = [];
+function loadProgressShell(config, { marker = false, shellAfter = 'page' } = {}) {
+  const moves = [];
   const classes = {};
+  const TEXT = 3;
+  const ELEMENT = 1;
+  const COMMENT = 8;
+
+  function link(parent, children) {
+    parent.childNodes = children;
+    children.forEach((node, i) => {
+      node.parentNode = parent;
+      node.previousSibling = children[i - 1] || null;
+      node.nextSibling = children[i + 1] || null;
+    });
+  }
+
+  function after(anchor, node) {
+    const parent = anchor.parentNode;
+    const kids = parent.childNodes.filter((child) => child !== node);
+    const at = kids.indexOf(anchor);
+    kids.splice(at + 1, 0, node);
+    link(parent, kids);
+    moves.push(anchor.label);
+  }
+
+  const page = { label: 'page' };
+  const welcome = { label: 'welcome' };
   const shell = {
-    before: (node) => calls.push(['home marked', node.label]),
+    label: 'shell',
+    nodeType: ELEMENT,
     classList: { toggle: (name, on) => { classes[name] = on; } },
   };
-  const cta = { after: (node) => calls.push(['under cta', node === shell]) };
+  shell.before = (node) => {
+    const kids = page.childNodes.filter((child) => child !== node);
+    const at = kids.indexOf(shell);
+    kids.splice(at, 0, node);
+    link(page, kids);
+    moves.push('marked ' + node.label);
+  };
+  const cta = { label: 'cta', nodeType: ELEMENT, after(node) { after(cta, node); } };
+  const home = {
+    label: 'home',
+    nodeType: ELEMENT,
+    id: 'progress-shell-home',
+    after(node) { after(home, node); },
+  };
+  const gap = { label: 'gap', nodeType: TEXT, textContent: '\n    ' };
+
+  if (shellAfter === 'cta') link(welcome, [cta, gap, shell]);
+  else link(welcome, [cta]);
+  link(page, marker ? [home] : []);
+  if (shellAfter !== 'cta') link(page, page.childNodes.concat([shell]));
+
   const sandbox = {
     CLIENT_CONFIG: config,
     progressShellHome: null,
     $: (sel) => ({ '.progress-shell': shell, '#screen-welcome .welcome-cta': cta })[sel] || null,
     document: {
-      createComment: (label) => ({ label, after: (node) => calls.push(['back home', node === shell]) }),
+      getElementById: (id) => (marker && id === 'progress-shell-home' ? home : null),
+      createComment(label) {
+        const comment = { label, nodeType: COMMENT, textContent: label };
+        comment.after = (node) => after(comment, node);
+        return comment;
+      },
     },
   };
+
   vm.runInNewContext(
-    extractFunction('isProgressBelowWelcome') + extractFunction('placeProgressShell'),
+    extractFunction('isProgressBelowWelcome')
+      + extractFunction('isParkedAfter')
+      + extractFunction('placeProgressShell'),
     sandbox
   );
-  return { place: sandbox.placeProgressShell, calls, classes };
+  return { place: sandbox.placeProgressShell, moves, classes, shell, home, page, welcome };
 }
 
-test('placeProgressShell parks the step bar under the welcome CTA and brings it back', () => {
-  const { place, calls, classes } = loadProgressShell({ progressBelowWelcome: true });
+test('placeProgressShell keeps a bar that already sits under the welcome button', () => {
+  const { place, moves, classes, shell, welcome } = loadProgressShell(
+    { progressBelowWelcome: true },
+    { marker: true, shellAfter: 'cta' }
+  );
   place('welcome');
-  assert.deepEqual(calls, [['home marked', ' progress-shell home '], ['under cta', true]]);
+  assert.deepEqual(moves, []);
   assert.equal(classes['progress-shell--below-welcome'], true);
+  assert.equal(shell.parentNode, welcome);
   place('chat');
-  assert.deepEqual(calls.at(-1), ['back home', true]);
+  assert.deepEqual(moves, ['home']);
+  assert.equal(classes['progress-shell--below-welcome'], false);
+  assert.equal(shell.previousSibling.label, 'home');
+  place('welcome');
+  assert.deepEqual(moves, ['home', 'cta']);
+  assert.equal(shell.parentNode, welcome);
+  assert.equal(classes['progress-shell--below-welcome'], true);
+});
+
+test('placeProgressShell marks home once when the page has no marker', () => {
+  const { place, moves, classes, shell } = loadProgressShell({ progressBelowWelcome: true });
+  place('welcome');
+  assert.deepEqual(moves, ['marked  progress-shell home ', 'cta']);
+  assert.equal(classes['progress-shell--below-welcome'], true);
+  assert.equal(shell.previousSibling.label, 'cta');
+  place('chat');
+  assert.equal(moves.at(-1), ' progress-shell home ');
   assert.equal(classes['progress-shell--below-welcome'], false);
   place('welcome');
-  assert.deepEqual(calls.at(-1), ['under cta', true]);
-  assert.equal(calls.filter(([what]) => what === 'home marked').length, 1);
+  assert.equal(moves.filter((move) => String(move).startsWith('marked')).length, 1);
 });
 
 test('placeProgressShell leaves the step bar alone for other clients', () => {
-  const { place, calls, classes } = loadProgressShell({});
+  const { place, moves, classes, shell, page } = loadProgressShell({});
   place('welcome');
   place('chat');
-  assert.deepEqual(calls, []);
+  assert.deepEqual(moves, []);
   assert.deepEqual(classes, {});
+  assert.equal(shell.parentNode, page);
+});
+
+test('guestBarAnchor prefers the home spot over the step bar itself', () => {
+  const home = { id: 'home' };
+  const marker = { id: 'marker' };
+  const shell = { id: 'shell' };
+  const source = extractFunction('guestBarAnchor');
+  const withHome = { progressShellHome: home, document: { getElementById() { return marker; }, querySelector() { return shell; } } };
+  vm.runInNewContext(source, withHome);
+  assert.equal(withHome.guestBarAnchor(), home);
+  const withMarker = { progressShellHome: null, document: { getElementById(id) { return id === 'progress-shell-home' ? marker : null; }, querySelector() { return shell; } } };
+  vm.runInNewContext(source, withMarker);
+  assert.equal(withMarker.guestBarAnchor(), marker);
+  const withShell = { progressShellHome: null, document: { getElementById() { return null; }, querySelector() { return shell; } } };
+  vm.runInNewContext(source, withShell);
+  assert.equal(withShell.guestBarAnchor(), shell);
+});
+
+test('portal save keeps the step-bar flag and does not add it to other clients', () => {
+  const { preserveOptInClientConfig } = require('../lib/client-config-file');
+  const kept = preserveOptInClientConfig(
+    { progressBelowWelcome: true, ratingButtons: true, murkyMiddle: true },
+    { platforms: ['g2'] }
+  );
+  assert.equal(kept.progressBelowWelcome, true);
+  assert.equal(kept.ratingButtons, true);
+  assert.equal(kept.murkyMiddle, true);
+  assert.deepEqual(kept.platforms, ['g2']);
+
+  const plain = preserveOptInClientConfig({ providerName: 'Acme', progressBelowWelcome: false }, { platforms: ['g2'] });
+  assert.equal('progressBelowWelcome' in plain, false);
+  assert.equal('ratingButtons' in plain, false);
 });
