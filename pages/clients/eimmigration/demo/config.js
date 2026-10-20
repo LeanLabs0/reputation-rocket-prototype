@@ -37,8 +37,9 @@ window.CLIENT_CONFIG = {
     g2: 'review-sandbox.html?platform=g2&company=eimmigration',
     trustpilot: 'review-sandbox.html?platform=trustpilot&company=eimmigration',
   },
-  welcomeVideoUrl: '/assets/video/Reputation Rocket Intro.mp4',
-  welcomeVideoPoster: '/assets/image/7c248b618a126294316f6a.gif',
+  // Viv's 10/16 Step 1 notes: no welcome video, and the step bar sits under
+  // the Get Started button until the chat starts. Same as the live config.
+  progressBelowWelcome: true,
   interviewQuestions: [
     'Why did you choose eimmigration?',
     'What were you hoping to achieve?',
