@@ -34,16 +34,19 @@ window.V2_PREVIEW = {
   // Get Started until the chat starts.
   progressBelowWelcome: true,
 
-  // Under 5 stars: offer to work on it first, then keep going, so every
-  // rating gets the same questions and the review links. Whether the live
-  // flow should stop here instead is an open decision (see note).
+  // Under 5 stars (decided 10/22): the customer finishes the chat so the team
+  // knows what to fix, but gets no drafts or review links. The review is
+  // saved and eimmigration reaches out first. The chat ends on the live
+  // "Thank you for your honesty" screen.
   lowRating: {
-    ask: "Thanks for being honest. We'll save your review, and we'd really like to reach out and figure out what we need to solve to get you all the way to 5 stars. Is that OK?",
+    below: 5,
+    gate: true,
+    ask: "Thanks for being honest. Before anything gets posted, we'll save your review. We'd really like to reach out and figure out what we need to solve to get you all the way to 5 stars. Is that OK?",
     options: [
-      { id: 'yes', label: 'Yes, reach out to me', reply: "Thank you. Someone from eimmigration will reach out. Let's finish your review in the meantime." },
-      { id: 'no', label: 'No thanks', reply: "No problem. Let's finish your review." },
+      { id: 'yes', label: 'Yes, reach out to me', reply: 'Thank you. A few more questions so we know where to start.' },
+      { id: 'no', label: 'No thanks', reply: 'No problem. A few more questions so the team knows what to fix.' },
     ],
-    note: '(Preview note) Open decision: the live flow could stop here for ratings under 5. This preview keeps going, so every customer answers the same questions and gets the review links. Trustpilot asks companies to invite all customers or none, and other review sites have similar rules.',
+    saved: "Thanks for sharing. We saved your review, and someone from eimmigration will reach out before anything gets posted.",
   },
 
   steps: [
