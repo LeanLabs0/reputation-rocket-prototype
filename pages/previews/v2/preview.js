@@ -58,7 +58,32 @@
   // ── Screens and progress ──────────────────────────────────────────
   const STEP_OF = { welcome: 1, chat: 2, draft: 3, compare: 4 };
 
+  // Step bar under the welcome button (P.progressBelowWelcome), like the live
+  // portal: it previews the steps on Step 1, then goes back to the top.
+  // Move it before the welcome screen hides, or it would hide with it.
+  function isParkedAfter(node, anchor) {
+    if (!node || !anchor) return false;
+    let prev = node.previousSibling;
+    while (prev && prev.nodeType === 3 && !String(prev.textContent || '').trim()) prev = prev.previousSibling;
+    return prev === anchor;
+  }
+
+  function placeProgress(name) {
+    if (!P.progressBelowWelcome) return;
+    const shell = $('.progress-shell');
+    const cta = $('#screen-welcome .welcome-cta');
+    const home = $('#progress-shell-home');
+    if (!shell || !cta || !home) return;
+    const below = name === 'welcome';
+    const anchor = below ? cta : home;
+    // Moving a bar that is already in place restarts its layout. The welcome
+    // page puts it under the button, so the first show must leave it there.
+    if (!isParkedAfter(shell, anchor)) anchor.after(shell);
+    shell.classList.toggle('progress-shell--below-welcome', below);
+  }
+
   function show(name) {
+    placeProgress(name);
     $$('.screen').forEach((s) => s.classList.toggle('active', s.id === `screen-${name}`));
     const active = STEP_OF[name] || 1;
     $$('.progress-step').forEach((step) => {
@@ -78,9 +103,30 @@
   // ── Chat ──────────────────────────────────────────────────────────
   const messages = () => $('#chat-messages');
 
+  // The chat uses smooth scrolling for the finger. Programmatic jumps have
+  // to be instant: a smooth scroll to the bottom and a second smooth scroll
+  // back to the question land on whichever animation finishes last, which
+  // hides the question the choices belong to.
+  function setScrollTop(node, top) {
+    if (!node) return;
+    const previous = node.style.scrollBehavior;
+    node.style.scrollBehavior = 'auto';
+    node.scrollTop = top;
+    node.style.scrollBehavior = previous;
+  }
+
   function scrollChat() {
     const m = messages();
-    if (m) m.scrollTop = m.scrollHeight;
+    if (m) setScrollTop(m, m.scrollHeight);
+  }
+
+  function appendAgentRow(bubble) {
+    const row = el('div', { class: 'chat-message-row agent' }, [el('div', { class: 'chat-message-avatar', 'aria-hidden': 'true' }), bubble]);
+    // Choices sit in this same scroller. A live region on the whole scroller
+    // would announce every chip again each time a score is tapped.
+    if (P.inlineChoices) row.setAttribute('role', 'status');
+    messages().appendChild(row);
+    return row;
   }
 
   async function agentSay(text) {
@@ -93,7 +139,7 @@
       if (i > 0) bubble.appendChild(el('br'));
       bubble.appendChild(document.createTextNode(line));
     });
-    messages().appendChild(el('div', { class: 'chat-message-row agent' }, [el('div', { class: 'chat-message-avatar', 'aria-hidden': 'true' }), bubble]));
+    appendAgentRow(bubble);
     scrollChat();
   }
 
@@ -102,22 +148,53 @@
     scrollChat();
   }
 
+  // With P.inlineChoices the choices sit inside the chat, right under the
+  // question, and scroll with it. Otherwise they sit in a bar under the chat.
   function choiceBar() {
     let bar = $('#chat-choice-bar');
     if (!bar) {
-      bar = el('div', { id: 'chat-choice-bar', class: 'chat-choice-bar' });
-      const input = $('.chat-input-bar');
-      input.parentNode.insertBefore(bar, input);
+      bar = el('div', { id: 'chat-choice-bar', class: `chat-choice-bar${P.inlineChoices ? ' is-inline' : ''}` });
+      if (P.inlineChoices) bar.setAttribute('aria-live', 'off');
+      if (P.inlineChoices) messages().appendChild(bar);
+      else {
+        const input = $('.chat-input-bar');
+        input.parentNode.insertBefore(bar, input);
+      }
     }
     return bar;
   }
 
   function mode(which) {
-    const bar = choiceBar();
     const input = $('.chat-input-bar');
-    bar.hidden = which !== 'choices';
-    if (which !== 'choices') bar.innerHTML = '';
     input.hidden = which !== 'text';
+    if (P.inlineChoices) {
+      const old = $('#chat-choice-bar');
+      if (old && which !== 'choices') old.remove();
+      if (which === 'choices') choiceBar();
+    } else {
+      const bar = choiceBar();
+      bar.hidden = which !== 'choices';
+      if (which !== 'choices') bar.innerHTML = '';
+    }
+    // The chat shrinks once the text box shows, so scroll after layout.
+    // Without this the last answer can end up half hidden under the box.
+    // Inline choices scroll in reveal(), which keeps the question in view
+    // instead of jumping to the bottom of a tall list.
+    if (!(P.inlineChoices && which === 'choices')) requestAnimationFrame(scrollChat);
+  }
+
+  // Show the new question and its choices together. When both don't fit,
+  // keep the question in view; the choices are a scroll away.
+  function reveal(bar) {
+    if (!P.inlineChoices) return requestAnimationFrame(scrollChat);
+    requestAnimationFrame(() => {
+      const m = messages();
+      const row = bar.previousElementSibling;
+      const base = m.getBoundingClientRect().top - m.scrollTop;
+      const top = (row || bar).getBoundingClientRect().top - base - 12;
+      const bottom = bar.getBoundingClientRect().bottom - base + 20 - m.clientHeight;
+      setScrollTop(m, Math.max(0, Math.min(top, bottom)));
+    });
   }
 
   // Keyboard users land on the new question's first control.
@@ -156,11 +233,16 @@
       state.answers.grid = {};
       return runGridQueue(step);
     }
+    // A grid built from earlier picks has nothing to rate when nothing was picked.
+    const dims = step.type === 'grid' ? D.gridDims(P, step, state.answers) : null;
+    if (dims && !dims.length) return runStep(i + 1);
+    // A filtered step with no options left for these picks is skipped too.
+    if ((step.type === 'multi' || step.type === 'single') && !step.ownWords && !D.visibleOptions(P, step, state.answers).length) return runStep(i + 1);
     await agentSay(step.ask);
     if (step.type === 'multi') renderChoices(step, true);
     else if (step.type === 'single') renderChoices(step, false);
     else if (step.type === 'stars') renderStars(step);
-    else if (step.type === 'grid') renderGrid(step, 'all');
+    else if (step.type === 'grid') renderGrid(step, 'all', null, dims);
     else if (step.type === 'text') renderText(step);
   }
 
@@ -207,7 +289,7 @@
       cont.disabled = multi ? count < Math.max(min, 1) : !ownText();
     };
 
-    (step.options || []).forEach((o) => {
+    D.visibleOptions(P, step, state.answers).forEach((o) => {
       grid.appendChild(chip(o.label, { 'data-option': o.id }, (b) => {
         if (!multi) return submit([o.id], '');
         if (picked.has(o.id)) picked.delete(o.id);
@@ -249,7 +331,12 @@
 
     const left = [];
     if (hint) left.push(hint);
-    const sample = sampleFor(step);
+    let sample = sampleFor(step);
+    // On a filtered step the sample only offers options that are on screen.
+    if (step.filterBy && sample != null) {
+      const shown = new Set(D.visibleOptions(P, step, state.answers).map((o) => o.id));
+      sample = [].concat(sample).filter((id) => shown.has(id));
+    }
     if (sample != null && sample !== '' && !(Array.isArray(sample) && !sample.length)) {
       const sb = el('button', { type: 'button', class: 'v2-sample-btn', text: 'Use the sample answer' });
       sb.addEventListener('click', () => submit(Array.isArray(sample) ? sample : [sample], ''));
@@ -268,6 +355,7 @@
     bar.appendChild(el('div', { class: 'v2-choice-scroll' }, [grid, own]));
     bar.appendChild(actionsRow(left, right));
     sync();
+    reveal(bar);
     focusFirst(bar);
   }
 
@@ -285,6 +373,7 @@
         state.answers[step.id] = n;
         mode('none');
         userSay(`${n} star${n === 1 ? '' : 's'}`);
+        if (n < 5 && P.lowRating) return runLowRating();
         if (n < 5) await agentSay('(Preview note) The live flow sends ratings under 5 down a different path today. This preview asks the same questions at every rating and drafts with the rating you gave.');
         next();
       });
@@ -300,6 +389,32 @@
     bar.appendChild(row);
     bar.appendChild(el('div', { class: 'rating-choice-legend', 'aria-hidden': 'true', html: '<span>Poor</span><span>Excellent</span>' }));
     bar.appendChild(actionsRow([], [skip]));
+    reveal(bar);
+    focusFirst(bar);
+  }
+
+  // Under 5 stars (P.lowRating): offer to fix things first, then carry on.
+  // Every rating still gets the same questions, drafts and review links.
+  async function runLowRating() {
+    const L = P.lowRating;
+    await agentSay(L.ask);
+    mode('choices');
+    const bar = choiceBar();
+    const row = el('div', { class: 'v2-chip-grid', role: 'group', 'aria-label': L.ask });
+    L.options.forEach((o) => {
+      const b = el('button', { type: 'button', class: 'v2-chip v2-chip--single', 'aria-pressed': 'false', 'data-option': o.id }, [el('span', { class: 'v2-chip-box', 'aria-hidden': 'true' }), el('span', { text: o.label })]);
+      b.addEventListener('click', async () => {
+        state.answers.fixFirst = o.id;
+        mode('none');
+        userSay(o.label);
+        if (o.reply) await agentSay(o.reply);
+        if (L.note) await agentSay(L.note);
+        next();
+      });
+      row.appendChild(b);
+    });
+    bar.appendChild(el('div', { class: 'v2-choice-scroll' }, [row]));
+    reveal(bar);
     focusFirst(bar);
   }
 
@@ -310,14 +425,16 @@
     renderGrid(step, service, () => runGridQueue(step));
   }
 
-  // Rate what applies. Rows left blank say nothing in the draft.
-  function renderGrid(step, key, done) {
+  // Rate what applies. Rows left blank say nothing in the draft. Rows are the
+  // step's dims unless the caller passes the rows built from earlier picks.
+  function renderGrid(step, key, done, rows) {
     mode('choices');
     const bar = choiceBar();
+    const dims = rows || step.dims;
     const values = {};
     const wrap = el('div', { class: 'v2-grid' });
     const cont = el('button', { type: 'button', class: 'btn btn-primary btn-md', disabled: true, text: 'Continue' });
-    step.dims.forEach((dim) => {
+    dims.forEach((dim) => {
       const scale = el('div', { class: 'v2-scale', role: 'group', 'aria-label': dim });
       [1, 2, 3, 4, 5].forEach((n) => {
         const b = el('button', { type: 'button', class: 'rating-choice', 'aria-pressed': 'false', 'aria-label': `${dim} ${n}`, text: String(n) });
@@ -325,14 +442,14 @@
           if (values[dim] === n) delete values[dim];
           else values[dim] = n;
           $$('.rating-choice', scale).forEach((x) => x.setAttribute('aria-pressed', String(values[dim] != null && x === b)));
-          cont.disabled = !step.dims.some((d) => values[d]);
+          cont.disabled = !dims.some((d) => values[d]);
         });
         scale.appendChild(b);
       });
       wrap.appendChild(el('div', { class: 'v2-grid-row' }, [el('span', { class: 'v2-grid-label', text: dim }), scale]));
     });
     const submit = (vals) => {
-      const rated = step.dims.filter((d) => vals[d]);
+      const rated = dims.filter((d) => vals[d]);
       state.answers.grid = state.answers.grid || {};
       if (rated.length) state.answers.grid[key] = vals;
       mode('none');
@@ -343,15 +460,18 @@
     cont.addEventListener('click', () => submit(Object.assign({}, values)));
     const skip = el('button', { type: 'button', class: 'btn btn-tertiary btn-md', text: 'Skip' });
     skip.addEventListener('click', () => submit({}));
-    const sample = P.persona && P.persona.grid && P.persona.grid[key];
+    // The sample only rates rows that are on screen.
+    const full = P.persona && P.persona.grid && P.persona.grid[key];
+    const sample = full && Object.keys(full).filter((d) => dims.includes(d)).reduce((o, d) => Object.assign(o, { [d]: full[d] }), {});
     const left = [];
-    if (sample) {
+    if (sample && Object.keys(sample).length) {
       const sb = el('button', { type: 'button', class: 'v2-sample-btn', text: 'Use the sample answer' });
       sb.addEventListener('click', () => submit(Object.assign({}, sample)));
       left.push(sb);
     }
     bar.appendChild(el('div', { class: 'v2-choice-scroll' }, [wrap, el('p', { class: 'v2-note', text: "Rate the ones that apply. Leave any you can't judge blank." })]));
     bar.appendChild(actionsRow(left, [skip, cont]));
+    reveal(bar);
     focusFirst(bar);
   }
 
@@ -424,7 +544,9 @@
       if (typing) typing.classList.add('visible');
       await wait(700);
       if (typing) typing.classList.remove('visible');
-      messages().appendChild(el('div', { id: 'chat-draft-inline', class: 'chat-message-row agent chat-draft-inline' }, [el('div', { class: 'chat-message-avatar', 'aria-hidden': 'true' }), bubble]));
+      const row = appendAgentRow(bubble);
+      row.id = 'chat-draft-inline';
+      row.classList.add('chat-draft-inline');
       scrollChat();
       link.focus({ preventScroll: true });
     } else {
@@ -687,7 +809,7 @@
     const vid = $('#welcome-video');
     if (vid) vid.pause();
     const m = messages();
-    if (m) {
+    if (m && !P.inlineChoices) {
       m.setAttribute('role', 'log');
       m.setAttribute('aria-live', 'polite');
     }

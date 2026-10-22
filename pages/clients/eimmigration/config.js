@@ -10,8 +10,10 @@ window.CLIENT_CONFIG = {
     g2: "https://www.g2.com/products/eimmigration-by-cerenade/reviews/start",
     trustpilot: "https://www.trustpilot.com/evaluate/cerenade.com"
   },
-  welcomeVideoUrl: "/assets/video/Reputation%20Rocket%20Intro.mp4",
-  welcomeVideoPoster: "/assets/image/7c248b618a126294316f6a.gif",
+  // Viv's 10/16 Step 1 notes: no welcome video (the page has no video host, so
+  // a URL saved in /configure is ignored too), and the step bar sits under the
+  // Get Started button until the chat starts.
+  progressBelowWelcome: true,
   interviewQuestions: [
     "Why did you choose eimmigration?",
     "What were you hoping to achieve?",
