@@ -353,6 +353,37 @@ test('drafts name the picked results, and a rated result is said once', () => {
   assert.match(D.buildDrafts(p, both, 1).g2.text, /Form auto-fill and e-filing with USCIS have been strong for us/);
 });
 
+test('a rating sentence follows the result list, not the order the scores were tapped', () => {
+  const p = loadPreview('eimmigration');
+  const forward = { 'Form auto-fill': 5, 'E-filing with USCIS': 5 };
+  const backward = {};
+  backward['E-filing with USCIS'] = 5;
+  backward['Form auto-fill'] = 5;
+  const answers = (grid) => Object.assign({}, p.persona, { outcomes: ['autofill', 'efile'], grid: { all: grid } });
+  const first = D.buildDrafts(p, answers(forward), 1).g2.text;
+  assert.equal(D.buildDrafts(p, answers(backward), 1).g2.text, first);
+  assert.match(first, /Form auto-fill and e-filing with USCIS have been strong for us/);
+});
+
+test('own words that repeat a picked result are said once', () => {
+  const p = loadPreview('eimmigration');
+  const a = Object.assign({}, p.persona, {
+    outcomes: ['time'],
+    outcomesOther: 'Time saved',
+    grid: { all: { 'Time saved': 3 } },
+  });
+  const g2 = D.buildDrafts(p, a, 1).g2.text;
+  assert.match(g2, /saving our team time/);
+  assert.doesNotMatch(g2, /time saved/i);
+  const typed = Object.assign({}, p.persona, {
+    outcomes: ['time'],
+    outcomesOther: 'saving our team time',
+    grid: { all: {} },
+  });
+  const text = D.buildDrafts(p, typed, 2).g2.text.toLowerCase();
+  assert.equal(text.split('saving our team time').length - 1, 1);
+});
+
 test('preview noindex header stays on the preview path and the stage host', () => {
   const vercel = JSON.parse(fs.readFileSync(path.join(ROOT, 'vercel.json'), 'utf8'));
   const robots = (vercel.headers || []).filter((rule) => (rule.headers || []).some((h) => h.key === 'X-Robots-Tag'));

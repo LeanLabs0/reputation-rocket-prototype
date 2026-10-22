@@ -147,7 +147,7 @@ window.V2_PREVIEW = {
   templates: {
     services: ['We use {co} for {services}.', 'Our team uses {co} for {services}.', '{co} is what we use for {services}.'],
     outcomes: ['{co} has helped with {outcomes}.', 'Where we see results is {outcomes}.', 'We see the results in {outcomes}.'],
-    who:["We're {org}.", "For context, we're {org}."],
+    who: ["We're {org}.", "For context, we're {org}."],
     before: ['Before {co}, we were using {before}.', 'We switched to {co} from {before}.', 'We moved over to {co} from {before}.'],
     beforeOwn: ['Before {co}, we were using {beforeOwn}.', 'We switched to {co} from {beforeOwn}.'],
     firstSystem: ['{co} is the first system our team has used for this.'],

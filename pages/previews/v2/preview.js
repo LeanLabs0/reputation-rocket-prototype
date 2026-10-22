@@ -61,6 +61,13 @@
   // Step bar under the welcome button (P.progressBelowWelcome), like the live
   // portal: it previews the steps on Step 1, then goes back to the top.
   // Move it before the welcome screen hides, or it would hide with it.
+  function isParkedAfter(node, anchor) {
+    if (!node || !anchor) return false;
+    let prev = node.previousSibling;
+    while (prev && prev.nodeType === 3 && !String(prev.textContent || '').trim()) prev = prev.previousSibling;
+    return prev === anchor;
+  }
+
   function placeProgress(name) {
     if (!P.progressBelowWelcome) return;
     const shell = $('.progress-shell');
@@ -68,7 +75,10 @@
     const home = $('#progress-shell-home');
     if (!shell || !cta || !home) return;
     const below = name === 'welcome';
-    (below ? cta : home).after(shell);
+    const anchor = below ? cta : home;
+    // Moving a bar that is already in place restarts its layout. The welcome
+    // page puts it under the button, so the first show must leave it there.
+    if (!isParkedAfter(shell, anchor)) anchor.after(shell);
     shell.classList.toggle('progress-shell--below-welcome', below);
   }
 
@@ -93,9 +103,30 @@
   // ── Chat ──────────────────────────────────────────────────────────
   const messages = () => $('#chat-messages');
 
+  // The chat uses smooth scrolling for the finger. Programmatic jumps have
+  // to be instant: a smooth scroll to the bottom and a second smooth scroll
+  // back to the question land on whichever animation finishes last, which
+  // hides the question the choices belong to.
+  function setScrollTop(node, top) {
+    if (!node) return;
+    const previous = node.style.scrollBehavior;
+    node.style.scrollBehavior = 'auto';
+    node.scrollTop = top;
+    node.style.scrollBehavior = previous;
+  }
+
   function scrollChat() {
     const m = messages();
-    if (m) m.scrollTop = m.scrollHeight;
+    if (m) setScrollTop(m, m.scrollHeight);
+  }
+
+  function appendAgentRow(bubble) {
+    const row = el('div', { class: 'chat-message-row agent' }, [el('div', { class: 'chat-message-avatar', 'aria-hidden': 'true' }), bubble]);
+    // Choices sit in this same scroller. A live region on the whole scroller
+    // would announce every chip again each time a score is tapped.
+    if (P.inlineChoices) row.setAttribute('role', 'status');
+    messages().appendChild(row);
+    return row;
   }
 
   async function agentSay(text) {
@@ -108,7 +139,7 @@
       if (i > 0) bubble.appendChild(el('br'));
       bubble.appendChild(document.createTextNode(line));
     });
-    messages().appendChild(el('div', { class: 'chat-message-row agent' }, [el('div', { class: 'chat-message-avatar', 'aria-hidden': 'true' }), bubble]));
+    appendAgentRow(bubble);
     scrollChat();
   }
 
@@ -123,6 +154,7 @@
     let bar = $('#chat-choice-bar');
     if (!bar) {
       bar = el('div', { id: 'chat-choice-bar', class: `chat-choice-bar${P.inlineChoices ? ' is-inline' : ''}` });
+      if (P.inlineChoices) bar.setAttribute('aria-live', 'off');
       if (P.inlineChoices) messages().appendChild(bar);
       else {
         const input = $('.chat-input-bar');
@@ -144,9 +176,11 @@
       bar.hidden = which !== 'choices';
       if (which !== 'choices') bar.innerHTML = '';
     }
-    // The chat shrinks once the bar or text box shows, so scroll after layout.
+    // The chat shrinks once the text box shows, so scroll after layout.
     // Without this the last answer can end up half hidden under the box.
-    requestAnimationFrame(scrollChat);
+    // Inline choices scroll in reveal(), which keeps the question in view
+    // instead of jumping to the bottom of a tall list.
+    if (!(P.inlineChoices && which === 'choices')) requestAnimationFrame(scrollChat);
   }
 
   // Show the new question and its choices together. When both don't fit,
@@ -159,7 +193,7 @@
       const base = m.getBoundingClientRect().top - m.scrollTop;
       const top = (row || bar).getBoundingClientRect().top - base - 12;
       const bottom = bar.getBoundingClientRect().bottom - base + 20 - m.clientHeight;
-      m.scrollTop = Math.max(0, Math.min(top, bottom));
+      setScrollTop(m, Math.max(0, Math.min(top, bottom)));
     });
   }
 
@@ -510,7 +544,9 @@
       if (typing) typing.classList.add('visible');
       await wait(700);
       if (typing) typing.classList.remove('visible');
-      messages().appendChild(el('div', { id: 'chat-draft-inline', class: 'chat-message-row agent chat-draft-inline' }, [el('div', { class: 'chat-message-avatar', 'aria-hidden': 'true' }), bubble]));
+      const row = appendAgentRow(bubble);
+      row.id = 'chat-draft-inline';
+      row.classList.add('chat-draft-inline');
       scrollChat();
       link.focus({ preventScroll: true });
     } else {
@@ -773,7 +809,7 @@
     const vid = $('#welcome-video');
     if (vid) vid.pause();
     const m = messages();
-    if (m) {
+    if (m && !P.inlineChoices) {
       m.setAttribute('role', 'log');
       m.setAttribute('aria-live', 'polite');
     }

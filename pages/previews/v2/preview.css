@@ -66,6 +66,7 @@ body.v2-preview .site-header { position: relative; }
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
   min-height: 48px;
   padding: 10px 14px;
   border: 1px solid var(--ll-border);
@@ -77,6 +78,7 @@ body.v2-preview .site-header { position: relative; }
   font-weight: 600;
   line-height: 1.3;
   text-align: left;
+  overflow-wrap: break-word;
   cursor: pointer;
   transition: border-color var(--transition), background-color var(--transition), color var(--transition);
 }
@@ -157,9 +159,11 @@ body.v2-preview .site-header { position: relative; }
 
 /* Choices inside the chat (inlineChoices): the block sits right under the
    question, lined up with the agent bubble, and scrolls with the chat, so a
-   tall grid can never cover the question it answers. */
-.chat-choice-bar.is-inline {
+   tall grid can never cover the question it answers. Scoped like the rest of
+   this file so it cannot restyle a live portal. */
+body.v2-preview .chat-choice-bar.is-inline {
   flex-shrink: 0;
+  min-width: 0;
   margin-left: 60px;
   padding: 16px;
   border: 1px solid var(--ll-border);
@@ -168,9 +172,9 @@ body.v2-preview .site-header { position: relative; }
   background: var(--ll-dark-alt);
   animation: bubbleIn 0.3s ease;
 }
-.chat-choice-bar.is-inline .v2-choice-scroll { max-height: none; overflow: visible; }
-.chat-choice-bar.is-inline .v2-chip-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
-.chat-choice-bar.is-inline .v2-grid-row { grid-template-columns: 170px 1fr; }
+body.v2-preview .chat-choice-bar.is-inline .v2-choice-scroll { max-height: none; overflow: visible; }
+body.v2-preview .chat-choice-bar.is-inline .v2-chip-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+body.v2-preview .chat-choice-bar.is-inline .v2-grid-row { grid-template-columns: minmax(0, 170px) 1fr; }
 
 .v2-grid { display: grid; gap: 10px; }
 .v2-grid-row {
@@ -179,7 +183,13 @@ body.v2-preview .site-header { position: relative; }
   align-items: center;
   gap: 10px;
 }
-.v2-grid-label { font-size: 0.8125rem; font-weight: 600; color: var(--ll-heading); }
+.v2-grid-label {
+  min-width: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ll-heading);
+  overflow-wrap: break-word;
+}
 .v2-scale {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -393,11 +403,11 @@ body.v2-preview .site-header { position: relative; }
   /* The live phone chat stops at 380px; give earlier answers more room. */
   body.v2-preview .chat-messages { min-height: 360px; max-height: 62vh; }
   .v2-compare { grid-template-columns: 1fr; }
-  .v2-grid-row,
-  .chat-choice-bar.is-inline .v2-grid-row { grid-template-columns: 1fr; gap: 6px; }
-  .v2-chip-grid,
-  .chat-choice-bar.is-inline .v2-chip-grid { grid-template-columns: 1fr; }
-  .chat-choice-bar.is-inline { margin-left: 0; }
+  body.v2-preview .v2-grid-row,
+  body.v2-preview .chat-choice-bar.is-inline .v2-grid-row { grid-template-columns: 1fr; gap: 6px; }
+  body.v2-preview .v2-chip-grid,
+  body.v2-preview .chat-choice-bar.is-inline .v2-chip-grid { grid-template-columns: 1fr; }
+  body.v2-preview .chat-choice-bar.is-inline { margin-left: 0; }
   .v2-card { padding: 18px; }
 }
 

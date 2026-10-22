@@ -263,11 +263,19 @@
     const grid = answers && answers.grid && typeof answers.grid === 'object' ? answers.grid : {};
     const step = stepById(preview, 'grid');
     const keys = step && step.perService ? (Array.isArray(answers.services) ? answers.services : []) : ['all'];
+    // Row order, not the order the customer tapped the scores. A tied "strong"
+    // list then reads the same way the question was shown.
+    const dimOrder = gridDims(preview, step, answers);
+    const byRow = (a, b) => {
+      const ia = dimOrder.indexOf(a);
+      const ib = dimOrder.indexOf(b);
+      return (ia === -1 ? dimOrder.length : ia) - (ib === -1 ? dimOrder.length : ib);
+    };
     const strongs = [];
     const low = [];
     keys.forEach((key) => {
       const dims = grid[key] || {};
-      const rated = Object.keys(dims).filter((d) => Number(dims[d]) >= 1 && Number(dims[d]) <= 5);
+      const rated = Object.keys(dims).filter((d) => Number(dims[d]) >= 1 && Number(dims[d]) <= 5).sort(byRow);
       if (!rated.length) return;
       const top = Math.max(...rated.map((d) => Number(dims[d])));
       if (top >= 4) {
@@ -428,11 +436,17 @@
     // Results they picked. A result rated high or low already has its own
     // sentence, so this one only names the rest.
     const rated = new Set(grid.strongs.flatMap((e) => e.dims).concat(grid.low.map((e) => e.dim)));
-    const outcomeSegs = pickedOptions(preview, 'outcomes', safe)
+    const pickedOutcomes = pickedOptions(preview, 'outcomes', safe);
+    const outcomeSegs = pickedOutcomes
       .filter((o) => !rated.has(o.dim || o.label))
       .map((o) => seg(o.phrase));
     const ownOutcome = ownPhrase(safe.outcomesOther);
-    if (ownOutcome && !rated.has(ownDim(safe.outcomesOther))) outcomeSegs.push(seg(ownOutcome, 'R'));
+    const ownDimLabel = ownDim(safe.outcomesOther);
+    const sameWords = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
+    // A typed result that repeats a picked row (or was rated high or low)
+    // already has a sentence. Leaving it in would say that result twice.
+    const ownRepeatsPick = pickedOutcomes.some((o) => sameWords(o.dim || o.label, ownDimLabel) || sameWords(o.phrase, ownOutcome));
+    if (ownOutcome && !rated.has(ownDimLabel) && !ownRepeatsPick) outcomeSegs.push(seg(ownOutcome, 'R'));
     const outcomes = outcomeSegs.length
       ? sentence('outcomes', Object.assign({}, vals, { outcomes: listSegments(outcomeSegs) }), preview, rand)
       : null;
