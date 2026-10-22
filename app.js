@@ -302,6 +302,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
   applyCurrentYearTokens();
   applyVideoStepVisibility();
+  placeProgressShell(currentState);
 
   try {
     sessionStorage.removeItem('rr_session');
@@ -478,6 +479,10 @@ function transitionTo(state) {
   clearPendingReviewOverlay();
   hideReviewCompleteOverlay();
 
+  // Move the step bar before the welcome screen loses .active. On Step 1 the
+  // bar lives inside that screen, and a hidden screen would hide the bar with it.
+  placeProgressShell(state);
+
   $$('.screen').forEach(s => s.classList.remove('active'));
 
   currentState = state;
@@ -524,6 +529,51 @@ function updateNavTitle(state) {
   if (!el) return;
   if (el.dataset.defaultTitle == null) el.dataset.defaultTitle = el.textContent;
   el.textContent = state === 'complete' ? 'Review complete' : el.dataset.defaultTitle;
+}
+
+// Step bar under the welcome CTA (CLIENT_CONFIG.progressBelowWelcome). Before the
+// flow starts the steps have no context, so the bar previews them below the
+// button, then goes back to its spot at the top from Step 2 on. #progress-shell-home
+// marks that spot. EIM puts the bar under the button in the HTML so it does not
+// jump down after the settings request. Clients that only set the flag get a
+// comment marker on the first run. The guest handoff bar uses the same spot.
+let progressShellHome = null;
+
+function isProgressBelowWelcome() {
+  return CLIENT_CONFIG.progressBelowWelcome === true;
+}
+
+function guestBarAnchor() {
+  return progressShellHome
+    || document.getElementById('progress-shell-home')
+    || document.querySelector('.progress-shell');
+}
+
+function isParkedAfter(node, anchor) {
+  if (!node || !anchor) return false;
+  let prev = node.previousSibling;
+  while (prev && prev.nodeType === 3 && !String(prev.textContent || '').trim()) {
+    prev = prev.previousSibling;
+  }
+  return prev === anchor;
+}
+
+function placeProgressShell(state) {
+  if (!isProgressBelowWelcome()) return;
+  const shell = $('.progress-shell');
+  const cta = $('#screen-welcome .welcome-cta');
+  if (!shell || !cta) return;
+  if (!progressShellHome) {
+    progressShellHome = document.getElementById('progress-shell-home');
+    if (!progressShellHome) {
+      progressShellHome = document.createComment(' progress-shell home ');
+      shell.before(progressShellHome);
+    }
+  }
+  const below = state === 'welcome';
+  const anchor = below ? cta : progressShellHome;
+  if (!isParkedAfter(shell, anchor)) anchor.after(shell);
+  shell.classList.toggle('progress-shell--below-welcome', below);
 }
 
 function getProgressStateToStep() {
@@ -5192,8 +5242,9 @@ function mountGuestBar() {
       <button type="button" id="guest-handoff-copy" class="btn btn-primary btn-sm">Copy client link</button>
     </div>
   `;
-  const shell = document.querySelector('.progress-shell');
-  if (shell && shell.parentNode) shell.parentNode.insertBefore(bar, shell);
+  // Above the step bar's home spot, even while the bar sits under the welcome CTA.
+  const anchor = guestBarAnchor();
+  if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(bar, anchor);
   else document.body.prepend(bar);
 
   document.getElementById('guest-handoff-copy')?.addEventListener('click', copyGuestHandoffLink);
