@@ -276,10 +276,14 @@ test('eimmigration preview 2 asks who they are first and drops the colleague que
     assert.equal(s.max, undefined, `${s.id} should not cap picks`);
     assert.match(s.ask, /Pick all that apply\.$/, `${s.id} ask`);
   });
-  // A low rating gets an offer, not a dead end: both answers carry on.
+  // Under 5 stars: the offer, then the rest of the questions, then a saved
+  // review with no drafts or review links.
+  assert.equal(p.lowRating.below, 5);
+  assert.equal(p.lowRating.gate, true);
+  assert.match(p.lowRating.ask, /all the way to 5 stars/);
   assert.equal(p.lowRating.options.length, 2);
   p.lowRating.options.forEach((o) => assert.ok(o.reply, `${o.id} needs a reply`));
-  assert.match(p.lowRating.note, /invite all customers or none/);
+  assert.match(p.lowRating.saved, /saved your review/);
   // With no category step, the headline category comes from the services.
   const drafts = D.buildDrafts(p, p.persona, 1);
   const headline = 'Immigration case management software for nonprofit immigration legal teams';
@@ -298,6 +302,18 @@ test('eimmigration preview welcome matches the live portal welcome', () => {
   };
   assert.equal(welcome('pages/previews/v2/eimmigration/index.html'), welcome('pages/clients/eimmigration/index.html'));
   assert.equal(loadPreview('eimmigration').progressBelowWelcome, true);
+});
+
+test('eimmigration preview under-5 end screen uses the live portal copy', () => {
+  // Heading and message of the "Thank you for your honesty" screen, tags stripped.
+  const ending = (file) => {
+    const html = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    const start = html.indexOf('<div id="screen-negative"');
+    const end = html.indexOf('<div id="empathy-card"', start);
+    assert.ok(start >= 0 && end > start, `${file}: under-5 screen missing`);
+    return html.slice(start, end).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  };
+  assert.equal(ending('pages/previews/v2/eimmigration/index.html'), ending('pages/clients/eimmigration/index.html'));
 });
 
 test('results follow the services picked, and the grid rates those results', () => {

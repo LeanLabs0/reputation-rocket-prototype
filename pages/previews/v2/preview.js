@@ -56,7 +56,7 @@
   }
 
   // ── Screens and progress ──────────────────────────────────────────
-  const STEP_OF = { welcome: 1, chat: 2, draft: 3, compare: 4 };
+  const STEP_OF = { welcome: 1, chat: 2, draft: 3, negative: 3, compare: 4 };
 
   // Step bar under the welcome button (P.progressBelowWelcome), like the live
   // portal: it previews the steps on Step 1, then goes back to the top.
@@ -373,8 +373,8 @@
         state.answers[step.id] = n;
         mode('none');
         userSay(`${n} star${n === 1 ? '' : 's'}`);
-        if (n < 5 && P.lowRating) return runLowRating();
-        if (n < 5) await agentSay('(Preview note) The live flow sends ratings under 5 down a different path today. This preview asks the same questions at every rating and drafts with the rating you gave.');
+        if (P.lowRating && n < (P.lowRating.below || 5)) return runLowRating();
+        if (!P.lowRating && n < 5) await agentSay('(Preview note) The live flow sends ratings under 5 down a different path today. This preview asks the same questions at every rating and drafts with the rating you gave.');
         next();
       });
       row.appendChild(b);
@@ -393,8 +393,15 @@
     focusFirst(bar);
   }
 
-  // Under 5 stars (P.lowRating): offer to fix things first, then carry on.
-  // Every rating still gets the same questions, drafts and review links.
+  // Under the threshold (P.lowRating): offer to fix things first, then carry
+  // on with the questions. With gate, the chat ends without drafts or review
+  // links (see finishChat).
+  function isGated() {
+    const L = P.lowRating;
+    const n = Number(state.answers.rating);
+    return Boolean(L && L.gate && n >= 1 && n < (L.below || 5));
+  }
+
   async function runLowRating() {
     const L = P.lowRating;
     await agentSay(L.ask);
@@ -535,6 +542,14 @@
   async function finishChat() {
     mode('none');
     buildDrafts();
+    // Gated: the review is saved, not offered for posting. The drafts stay
+    // reachable from the preview-only note on the end screen.
+    if (isGated()) {
+      await agentSay(P.lowRating.saved);
+      await wait(1200);
+      show('negative');
+      return;
+    }
     if (P.draftsReady) {
       const [first, ...rest] = P.draftsReady.split('\n\n');
       const link = el('a', { href: '#', role: 'button', class: 'chat-draft-inline__link', text: 'Read the drafts.' });
@@ -592,6 +607,12 @@
     renderDraftStars();
     renderDraftTabs();
     renderDraft();
+    // Saved drafts of a gated customer are not ready to publish.
+    const head = $('#screen-draft .screen-header h3');
+    if (head) {
+      if (!head.dataset.ready) head.dataset.ready = head.textContent;
+      head.textContent = isGated() ? 'Saved reviews, not posted yet.' : head.dataset.ready;
+    }
     const whatNext = $('#draft-what-next-desc');
     if (whatNext && !whatNext.textContent.trim()) {
       whatNext.textContent = 'In the live portal, the next screen helps the customer post each review. In this preview, "Compare with V1" shows what changed.';
@@ -829,6 +850,8 @@
     fillBrand();
     wireWelcomeVideo();
     wireDraftButtons();
+    const savedDrafts = $('#btn-saved-drafts');
+    if (savedDrafts) savedDrafts.addEventListener('click', openDrafts);
     const begin = $('#btn-start');
     if (begin) begin.addEventListener('click', start);
     $$('[data-v2-restart]').forEach((b) => b.addEventListener('click', () => {
