@@ -304,6 +304,63 @@ test('eimmigration preview welcome matches the live portal welcome', () => {
   assert.equal(loadPreview('eimmigration').progressBelowWelcome, true);
 });
 
+function extractPreviewFunctions(names) {
+  const src = fs.readFileSync(path.join(V2, 'preview.js'), 'utf8');
+  const parts = names.map((name) => {
+    const start = src.indexOf(`function ${name}(`);
+    assert.notEqual(start, -1, `missing ${name}`);
+    let i = src.indexOf('{', start);
+    let depth = 0;
+    for (; i < src.length; i += 1) {
+      if (src[i] === '{') depth += 1;
+      else if (src[i] === '}') {
+        depth -= 1;
+        if (depth === 0) return src.slice(start, i + 1);
+      }
+    }
+    assert.fail(`unclosed ${name}`);
+  });
+  const sandbox = {};
+  vm.runInNewContext(parts.join('\n'), sandbox);
+  return sandbox;
+}
+
+test('under 5 stars stays off the review step, and 5 stars still reach the drafts', () => {
+  const { lowRatingBelow, ratingIsGated, previewProgress } = extractPreviewFunctions([
+    'lowRatingBelow', 'ratingIsGated', 'previewProgress',
+  ]);
+  const rule = { below: 5, gate: true };
+  assert.equal(lowRatingBelow(rule), 5);
+  assert.equal(lowRatingBelow(undefined), 5);
+  assert.equal(lowRatingBelow({ below: 4 }), 4);
+  assert.equal(lowRatingBelow({ below: 0 }), 0);
+  [1, 2, 3, 4].forEach((n) => assert.equal(ratingIsGated(n, rule), true, `${n} stars`));
+  assert.equal(ratingIsGated(5, rule), false);
+  assert.equal(ratingIsGated(null, rule), false, 'skip is not a low rating');
+  assert.equal(ratingIsGated(4, { below: 5 }), false, 'the offer alone does not hide the drafts');
+  assert.equal(ratingIsGated(4, undefined), false);
+  const steps = { welcome: 1, chat: 2, draft: 3, compare: 4 };
+  const pair = (name, n) => {
+    const mark = previewProgress(name, n, steps);
+    return [mark.done, mark.active];
+  };
+  assert.deepEqual([1, 2, 3, 4].map((n) => pair('negative', n)), [
+    [true, false],
+    [true, false],
+    [false, false],
+    [false, false],
+  ]);
+  assert.deepEqual(pair('draft', 3), [false, true]);
+  assert.deepEqual(pair('welcome', 1), [false, true]);
+  assert.equal(loadPreview('lean-labs').lowRating, undefined);
+  const engine = fs.readFileSync(path.join(V2, 'preview.js'), 'utf8');
+  assert.match(engine, /empathy\.textContent = saved/);
+  assert.doesNotMatch(engine, /empathy\.innerHTML/);
+  const draft = fs.readFileSync(path.join(V2, 'eimmigration/index.html'), 'utf8');
+  assert.match(draft, /Here are your reviews, ready to publish\./);
+  assert.match(draft, /id="btn-saved-drafts"/);
+});
+
 test('eimmigration preview under-5 end screen uses the live portal copy', () => {
   // Heading and message of the "Thank you for your honesty" screen, tags stripped.
   const ending = (file) => {

@@ -205,6 +205,10 @@ body.v2-preview .chat-choice-bar.is-inline .v2-grid-row { grid-template-columns:
   font-size: 0.75rem;
   color: var(--ll-muted);
 }
+/* A hidden supporting line must stay hidden. The header paragraph style
+   does not set display, but keep the attribute winning inside the preview. */
+body.v2-preview #screen-draft .screen-header p[hidden] { display: none !important; }
+
 /* Preview-only box on the under-5 end screen. */
 .v2-saved-note {
   display: grid;
