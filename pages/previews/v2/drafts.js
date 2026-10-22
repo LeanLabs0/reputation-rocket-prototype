@@ -225,6 +225,36 @@
     return ids.map((id) => optionById(step, id)).filter(Boolean);
   }
 
+  // The options a step shows. With filterBy, only the options tied (via
+  // `for`) to what the customer picked on that step, plus any tied to
+  // nothing. Nothing picked there shows them all.
+  function visibleOptions(preview, step, answers) {
+    const opts = (step && step.options) || [];
+    if (!step || !step.filterBy) return opts;
+    const ans = (answers || {})[step.filterBy];
+    const picked = ans == null ? [] : [].concat(ans);
+    if (!picked.length) return opts;
+    return opts.filter((o) => !o.for || o.for.some((id) => picked.includes(id)));
+  }
+
+  // A row label made from the customer's own words.
+  function ownDim(text) {
+    const t = ownPhrase(text, 6);
+    return t ? capFirst(t) : '';
+  }
+
+  // Grid rows: the step's fixed dims, or with dimsFrom one row per pick on
+  // that step (own words too), so customers rate what they said they got.
+  function gridDims(preview, step, answers) {
+    if (!step) return [];
+    if (!step.dimsFrom) return step.dims || [];
+    const safe = answers || {};
+    const rows = pickedOptions(preview, step.dimsFrom, safe).map((o) => o.dim || o.label);
+    const own = ownDim(safe[`${step.dimsFrom}Other`]);
+    if (own && !rows.includes(own)) rows.push(own);
+    return rows;
+  }
+
   // Ratings the customer actually gave. A tied top score of 4 or 5 is
   // "strong", a lone top score among several is "the standout", and a 1 or
   // 2 is something that could be better. Every service keeps its own highs
@@ -259,9 +289,9 @@
     const vals = Object.assign({}, base);
     if (kind === 'strong') {
       const dims = entry.dims;
-      vals.dims = listSegments(dims.map((d, i) => seg(i === 0 ? d : d.toLowerCase())));
+      vals.dims = listSegments(dims.map((d, i) => seg(i === 0 ? d : lowerFirst(d))));
       vals.dim = [seg(dims[0])];
-      vals.dimLower = [seg(dims[0].toLowerCase())];
+      vals.dimLower = [seg(lowerFirst(dims[0]))];
       vals.strongKind = entry.unique ? 'standout' : dims.length === 1 ? 'strongOne' : 'strongMany';
       const service = serviceSeg(preview, entry.key);
       if (service) vals.service = [service];
@@ -284,7 +314,7 @@
     const otherService = ownPhrase(answers.servicesOther);
     if (otherService) services.push(seg(otherService, 'R'));
     if (services.length) {
-      vals.services = listSegments(services.slice(0, 3));
+      vals.services = listSegments(services);
       vals.firstService = [services[0]];
     }
 
@@ -308,7 +338,7 @@
     if (!before && otherBefore) vals.beforeOwn = [seg(otherBefore, 'R')];
 
     const pains = pickedOptions(preview, 'pain', answers).map((o) => seg(o.phrase, 'Z', from('pain', o)));
-    if (pains.length) vals.pain = listSegments(pains.slice(0, 2));
+    if (pains.length) vals.pain = listSegments(pains);
     const otherPain = ownPhrase(answers.painOther);
     if (otherPain) vals.painOwn = [seg(otherPain, 'R')];
 
@@ -320,6 +350,13 @@
     }
     const otherCategory = ownPhrase(answers.categoryOther);
     if (!category && otherCategory) vals.category = [seg(otherCategory, 'R')];
+
+    // No "what would you call it" step: the first picked service that names
+    // a category gives the headline its category.
+    if (!stepById(preview, 'category')) {
+      const svc = serviceOpts.find((o) => o.bestAs);
+      if (svc) vals.categoryCap = [seg(capFirst(svc.bestAs), 'X', from('services', svc))];
+    }
 
     return vals;
   }
@@ -388,6 +425,17 @@
       const focused = focusGrid(vals, preview, entry, 'strong');
       return sentence(focused.strongKind, focused, preview, rand);
     }).filter(Boolean);
+    // Results they picked. A result rated high or low already has its own
+    // sentence, so this one only names the rest.
+    const rated = new Set(grid.strongs.flatMap((e) => e.dims).concat(grid.low.map((e) => e.dim)));
+    const outcomeSegs = pickedOptions(preview, 'outcomes', safe)
+      .filter((o) => !rated.has(o.dim || o.label))
+      .map((o) => seg(o.phrase));
+    const ownOutcome = ownPhrase(safe.outcomesOther);
+    if (ownOutcome && !rated.has(ownDim(safe.outcomesOther))) outcomeSegs.push(seg(ownOutcome, 'R'));
+    const outcomes = outcomeSegs.length
+      ? sentence('outcomes', Object.assign({}, vals, { outcomes: listSegments(outcomeSegs) }), preview, rand)
+      : null;
     let before = null;
     if (vals.firstSystem) before = s('firstSystem');
     else if (vals.before) before = s('before');
@@ -400,6 +448,7 @@
     const lowSentences = grid.low.map((entry) => sentence('low', focusGrid(vals, preview, entry, 'low'), preview, rand)).filter(Boolean);
     return {
       services,
+      outcomes,
       strong: strongSentences.length ? joinSentences(strongSentences) : null,
       who,
       before,
@@ -440,7 +489,7 @@
   function fitToLimit(list, parts, max) {
     let out = list.filter(Boolean);
     const count = (l) => words(segmentsToText(joinSentences(l)));
-    const drops = [parts.strong, parts.recommendIsYes ? parts.recommend : null, parts.painOwn, parts.pain, parts.who, parts.before, parts.low, parts.category];
+    const drops = [parts.strong, parts.recommendIsYes ? parts.recommend : null, parts.outcomes, parts.painOwn, parts.pain, parts.who, parts.before, parts.low, parts.category];
     for (const d of drops) {
       if (count(out) <= max) break;
       if (d) out = out.filter((x) => x !== d);
@@ -455,7 +504,7 @@
   }
 
   function narrativeList(parts, rand) {
-    return [parts.services, parts.strong].concat(shuffledMiddle(parts, rand), [parts.result, parts.category, parts.improve, parts.low, parts.recommend]);
+    return [parts.services, parts.outcomes, parts.strong].concat(shuffledMiddle(parts, rand), [parts.result, parts.category, parts.improve, parts.low, parts.recommend]);
   }
 
   function narrative(platform, parts, rand) {
@@ -465,7 +514,9 @@
 
   function trustpilot(parts, rand) {
     const body = joinSentences(fitToLimit(narrativeList(parts, rand), parts, LIMITS.trustpilot[1]));
-    const title = parts.customerHeadline || parts.categoryHeadline || parts.serviceHeadline;
+    // The category headline first: a title made from the customer's own
+    // answer would repeat a line the body already carries.
+    const title = parts.categoryHeadline || parts.customerHeadline || parts.serviceHeadline;
     return title ? title.concat([seg('\n')], body) : body;
   }
 
@@ -504,7 +555,7 @@
     }
     const likeSpare = parts.who || parts.before || (parts.positive ? parts.result : null) || parts.category;
     return fieldsDraft(labels, [
-      fieldBody([parts.services, parts.strong], likeSpare, preview),
+      fieldBody([parts.services, parts.outcomes, parts.strong], likeSpare, preview),
       fieldBody(dislike.length ? dislike : [parts.nothingToAdd], null, preview),
       fieldBody(problems, parts.services, preview),
       fieldBody(recommend, parts.services || parts.who || parts.before, preview),
@@ -514,12 +565,13 @@
   function gartner(preview, parts) {
     const labels = FIELDS.gartner();
     const dislike = [parts.improve, parts.low].filter(Boolean);
-    const resultIsLike = !parts.strong && parts.positive && parts.result;
-    const like = parts.strong || (resultIsLike ? parts.result : null) || parts.services || parts.who || parts.before || parts.category;
+    const resultIsLike = !parts.strong && !parts.outcomes && parts.positive && parts.result;
+    const likes = [parts.outcomes, parts.strong].filter(Boolean);
+    const like = likes.length ? likes : [(resultIsLike ? parts.result : null) || parts.services || parts.who || parts.before || parts.category].filter(Boolean);
     const headline = parts.categoryHeadline || parts.customerHeadline || parts.serviceHeadline || [seg(preview.company)];
     return fieldsDraft(labels, [
-      fieldBody([parts.who, parts.services, parts.before, resultIsLike ? null : parts.result, parts.recommend], parts.services, preview),
-      fieldBody(like ? [like] : [], null, preview),
+      fieldBody([parts.who, parts.services, parts.before, parts.pain, parts.painOwn, resultIsLike ? null : parts.result, parts.recommend], parts.services, preview),
+      fieldBody(like, null, preview),
       fieldBody(dislike.length ? dislike : [parts.nothingToAdd], null, preview),
       [headline],
     ]);
@@ -606,6 +658,8 @@
     ourWordsFrom,
     scoreOurWords,
     bestFor,
+    visibleOptions,
+    gridDims,
     FIELDS,
     LIMITS,
   };

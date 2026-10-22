@@ -50,7 +50,8 @@ function randomAnswers(preview, rand) {
   const a = {};
   const one = (list) => list[Math.floor(rand() * list.length)];
   preview.steps.forEach((s) => {
-    const ids = (s.options || []).map((o) => o.id);
+    // A filtered step only offers what the customer would see on screen.
+    const ids = D.visibleOptions(preview, s, a).map((o) => o.id);
     if (s.type === 'multi') {
       const own = s.ownWords && rand() < 0.3 ? one(OWN) : '';
       const room = (s.max || ids.length) - (own ? 1 : 0);
@@ -74,9 +75,10 @@ function randomAnswers(preview, rand) {
     }
   });
   const grid = step(preview, 'grid');
+  const dims = D.gridDims(preview, grid, a);
   const row = () => {
     const r = {};
-    grid.dims.forEach((d) => { if (rand() >= 0.2) r[d] = 1 + Math.floor(rand() * 5); });
+    dims.forEach((d) => { if (rand() >= 0.2) r[d] = 1 + Math.floor(rand() * 5); });
     return r;
   };
   a.grid = {};
@@ -262,6 +264,93 @@ test('ratings on every service are kept, and nothing-to-add is a real choice', (
   assert.doesNotMatch(withoutChoice, /Nothing to add/);
   const chosen = Object.assign({}, eim.persona, { improve: '' });
   assert.match(D.buildDrafts(eim, chosen, 1).g2.text, /Nothing to add/);
+});
+
+test('eimmigration preview 2 asks who they are first and drops the colleague question', () => {
+  const p = loadPreview('eimmigration');
+  assert.deepEqual(Array.from(p.steps, (s) => s.id), ['orgType', 'before', 'pain', 'services', 'outcomes', 'grid', 'rating', 'result', 'recommend', 'improve']);
+  assert.match(step(p, 'rating').ask, /willing to rate it 5 stars/);
+  assert.equal(p.inlineChoices, true);
+  // Multi-select questions take as many picks as the customer wants.
+  p.steps.filter((s) => s.type === 'multi').forEach((s) => {
+    assert.equal(s.max, undefined, `${s.id} should not cap picks`);
+    assert.match(s.ask, /Pick all that apply\.$/, `${s.id} ask`);
+  });
+  // A low rating gets an offer, not a dead end: both answers carry on.
+  assert.equal(p.lowRating.options.length, 2);
+  p.lowRating.options.forEach((o) => assert.ok(o.reply, `${o.id} needs a reply`));
+  assert.match(p.lowRating.note, /invite all customers or none/);
+  // With no category step, the headline category comes from the services.
+  const drafts = D.buildDrafts(p, p.persona, 1);
+  const headline = 'Immigration case management software for nonprofit immigration legal teams';
+  assert.ok(drafts.gartner.text.endsWith(headline), drafts.gartner.text);
+  assert.equal(drafts.trustpilot.text.split('\n')[0], headline);
+});
+
+test('eimmigration preview welcome matches the live portal welcome', () => {
+  // Copy from the welcome screen up to the step bar, tags stripped.
+  const welcome = (file) => {
+    const html = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    const start = html.indexOf('<div id="screen-welcome"');
+    const end = html.indexOf('<div class="progress-shell', start);
+    assert.ok(start >= 0 && end > start, `${file}: welcome screen or step bar missing`);
+    return html.slice(start, end).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  };
+  assert.equal(welcome('pages/previews/v2/eimmigration/index.html'), welcome('pages/clients/eimmigration/index.html'));
+  assert.equal(loadPreview('eimmigration').progressBelowWelcome, true);
+});
+
+test('results follow the services picked, and the grid rates those results', () => {
+  const p = loadPreview('eimmigration');
+  const outcomes = step(p, 'outcomes');
+  const shown = (services) => Array.from(D.visibleOptions(p, outcomes, { services }), (o) => o.id);
+  assert.deepEqual(shown(['reports']), ['reports', 'time']);
+  assert.ok(shown(['uscis-forms']).includes('efile'));
+  assert.ok(!shown(['uscis-forms']).includes('billing'));
+  assert.equal(shown([]).length, outcomes.options.length, 'nothing picked shows every result');
+  const serviceIds = step(p, 'services').options.map((o) => o.id);
+  outcomes.options.forEach((o) => (o.for || []).forEach((id) => assert.ok(serviceIds.includes(id), `${o.id} points at missing service ${id}`)));
+
+  const grid = step(p, 'grid');
+  assert.deepEqual(Array.from(D.gridDims(p, grid, { outcomes: ['autofill', 'time'], outcomesOther: 'fewer late nights!' })), ['Form auto-fill', 'Time saved', 'Fewer late nights']);
+  assert.deepEqual(Array.from(D.gridDims(p, grid, {})), []);
+});
+
+test('a customer who picks everything gets every pick in G2 and Gartner, and Trustpilot still fits', () => {
+  const p = loadPreview('eimmigration');
+  const ids = (id) => step(p, id).options.map((o) => o.id);
+  const a = Object.assign({}, p.persona, {
+    pain: ids('pain'),
+    services: ids('services'),
+    outcomes: ids('outcomes'),
+    servicesOther: 'we had a freelancer and then nobody at all for a long while honestly it was rough',
+    grid: {},
+    result: LONG_TEXT,
+  });
+  for (let seed = 0; seed < 20; seed += 1) {
+    const drafts = D.buildDrafts(p, a, seed);
+    for (const plat of ['g2', 'gartner']) {
+      const text = drafts[plat].text;
+      ['pain', 'services', 'outcomes'].forEach((id) => step(p, id).options.forEach((o) => {
+        assert.ok(text.includes(o.phrase), `${plat} seed ${seed}: missing ${id} "${o.phrase}"\n${text}`);
+      }));
+    }
+    assert.ok(drafts.trustpilot.words <= D.LIMITS.trustpilot[1], `trustpilot seed ${seed}: ${drafts.trustpilot.words} words`);
+  }
+});
+
+test('drafts name the picked results, and a rated result is said once', () => {
+  const p = loadPreview('eimmigration');
+  const a = Object.assign({}, p.persona, { grid: { all: { 'Form auto-fill': 5, 'Case status at a glance': 2, 'Pulling reports': 3 } } });
+  const g2 = D.buildDrafts(p, a, 4).g2.text;
+  assert.match(g2, /Form auto-fill (has been the standout for us|stands out)/);
+  assert.match(g2, /Case status at a glance could be better/);
+  assert.match(g2, /pulling reports quickly/);
+  assert.doesNotMatch(g2, /filling forms from one client profile/, 'a result rated high already has its own sentence');
+  assert.doesNotMatch(g2, /seeing every case's status/, 'a result rated low must not also read as a result');
+  // Acronyms keep their capitals when a rated result is not first in a list.
+  const both = Object.assign({}, p.persona, { outcomes: ['autofill', 'efile'], grid: { all: { 'Form auto-fill': 5, 'E-filing with USCIS': 5 } } });
+  assert.match(D.buildDrafts(p, both, 1).g2.text, /Form auto-fill and e-filing with USCIS have been strong for us/);
 });
 
 test('preview noindex header stays on the preview path and the stage host', () => {

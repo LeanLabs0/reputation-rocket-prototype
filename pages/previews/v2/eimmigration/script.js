@@ -6,8 +6,17 @@
  *   (immigration law software, case management, form management, client portal)
  * - buyer pages: Attorneys, Paralegals, Law Firms, Non-Profits, Corporations
  * - competitors: DocketWise and BlueDot (comparison post), LollyLaw (sales notes, 7/30)
+ * - results: the same /capabilities pages ("manage more cases with less
+ *   effort", "see the status of every case at a glance", "auto-populate
+ *   related forms", "errors and rejections", "file directly to government
+ *   portals", faster client intake, "keep clients informed", "simplify billing")
  * The V1 evidence is anonymized and paraphrased. No customer names, emails,
  * organizations or verbatim answers.
+ *
+ * Preview 2 (10/16 review): who the customer is comes first, then what they
+ * use it for, where they see results, and a rating for each of those
+ * results. Choices sit inside the chat. No "what would you call it" step;
+ * the headline category comes from the services they pick.
  */
 window.V2_PREVIEW = {
   slug: 'eimmigration',
@@ -20,33 +29,27 @@ window.V2_PREVIEW = {
 
   draftsReady: "Thanks so much for sharing.\n\nThese drafts are a preview of the reviews. You can read and edit them here. Nothing is published or sent.",
 
+  inlineChoices: true,
+  // Same welcome as the live portal since 10/20: the step bar sits under
+  // Get Started until the chat starts.
+  progressBelowWelcome: true,
+
+  // Under 5 stars: offer to work on it first, then keep going, so every
+  // rating gets the same questions and the review links. Whether the live
+  // flow should stop here instead is an open decision (see note).
+  lowRating: {
+    ask: "Thanks for being honest. We'll save your review, and we'd really like to reach out and figure out what we need to solve to get you all the way to 5 stars. Is that OK?",
+    options: [
+      { id: 'yes', label: 'Yes, reach out to me', reply: "Thank you. Someone from eimmigration will reach out. Let's finish your review in the meantime." },
+      { id: 'no', label: 'No thanks', reply: "No problem. Let's finish your review." },
+    ],
+    note: '(Preview note) Open decision: the live flow could stop here for ratings under 5. This preview keeps going, so every customer answers the same questions and gets the review links. Trustpilot asks companies to invite all customers or none, and other review sites have similar rules.',
+  },
+
   steps: [
     {
-      id: 'services', type: 'multi', slot: 'X', min: 1, max: 3,
-      ask: 'Thanks for helping other teams find the right immigration software. First, what does your team use eimmigration for? Pick up to three.',
-      ownWords: true,
-      options: [
-        { id: 'case-management', label: 'Immigration case management', phrase: 'immigration case management', terms: ['case management'], bestAs: 'immigration case management software' },
-        { id: 'uscis-forms', label: 'Filling and e-filing USCIS forms', phrase: 'filling and e-filing USCIS forms', terms: ['uscis forms', 'e-filing'], bestAs: 'immigration forms software' },
-        { id: 'intake', label: 'Client intake questionnaires', phrase: 'client intake questionnaires', terms: ['intake questionnaires'], bestAs: 'immigration client intake software' },
-        { id: 'deadlines', label: 'Deadlines and reminders', phrase: 'tracking deadlines and reminders', terms: [] },
-        { id: 'reports', label: 'Reports for funders or leadership', phrase: 'reports for our funders or leadership', terms: [] },
-        { id: 'portal', label: 'Client portal and messaging', phrase: 'the client portal and messaging', terms: [] },
-        { id: 'billing', label: 'Invoices and trust accounting', phrase: 'invoices and trust accounting', terms: [] },
-      ],
-    },
-    {
-      id: 'grid', type: 'grid', perService: false, skip: true,
-      ask: 'Quick ratings, 1 to 5. How is eimmigration on each of these?',
-      dims: ['Ease of use', 'Customer support', 'Value for money'],
-    },
-    {
-      id: 'rating', type: 'stars', skip: true,
-      ask: 'How would you rate your overall experience working with eimmigration? (1 being poor, 5 being excellent)',
-    },
-    {
       id: 'orgType', type: 'single', slot: 'Y', skip: true, ownWords: false,
-      ask: 'Which best describes your organization?',
+      ask: 'Thanks for helping other teams find the right immigration software. First, which best describes your organization?',
       options: [
         { id: 'nonprofit', label: 'Nonprofit immigration legal services', phrase: 'a nonprofit immigration legal services team', plural: 'nonprofit immigration legal teams', terms: ['nonprofit'] },
         { id: 'solo', label: 'Solo immigration attorney', phrase: 'a solo immigration practice', plural: 'solo immigration attorneys', terms: ['solo immigration'] },
@@ -68,8 +71,8 @@ window.V2_PREVIEW = {
       ],
     },
     {
-      id: 'pain', type: 'multi', slot: 'Z', max: 2, min: 0, skip: true, ownWords: true,
-      ask: 'What was the main problem you needed solved? Pick up to two.',
+      id: 'pain', type: 'multi', slot: 'Z', min: 0, skip: true, ownWords: true,
+      ask: 'What problems did you need solved? Pick all that apply.',
       options: [
         { id: 'retyping', label: 'Re-typing the same client information', phrase: 're-typing the same client information on every form', terms: ['re-typing'], bestAs: 'with no more re-typing client data' },
         { id: 'deadlines', label: 'Tracking deadlines and case status', phrase: 'keeping track of deadlines and case status', terms: ['case status'], bestAs: 'with deadline and case status tracking' },
@@ -79,18 +82,51 @@ window.V2_PREVIEW = {
       ],
     },
     {
+      id: 'services', type: 'multi', slot: 'X', min: 1,
+      ask: 'What does your team use eimmigration for? Pick all that apply.',
+      ownWords: true,
+      options: [
+        { id: 'case-management', label: 'Immigration case management', phrase: 'immigration case management', terms: ['case management'], bestAs: 'immigration case management software' },
+        { id: 'uscis-forms', label: 'Filling and e-filing USCIS forms', phrase: 'filling and e-filing USCIS forms', terms: ['uscis forms', 'e-filing'], bestAs: 'immigration forms software' },
+        { id: 'intake', label: 'Client intake questionnaires', phrase: 'client intake questionnaires', terms: ['intake questionnaires'], bestAs: 'immigration client intake software' },
+        { id: 'deadlines', label: 'Deadlines and reminders', phrase: 'tracking deadlines and reminders', terms: [] },
+        { id: 'reports', label: 'Reports for funders or leadership', phrase: 'reports for our funders or leadership', terms: [] },
+        { id: 'portal', label: 'Client portal and messaging', phrase: 'the client portal and messaging', terms: [] },
+        { id: 'billing', label: 'Invoices and trust accounting', phrase: 'invoices and trust accounting', terms: [] },
+      ],
+    },
+    {
+      // Only the results tied to the services they picked (plus "time
+      // saved"). `dim` is the short name the rating grid shows.
+      id: 'outcomes', type: 'multi', min: 0, skip: true, ownWords: true, filterBy: 'services',
+      ask: 'Where are you seeing results with eimmigration? Pick all that apply.',
+      options: [
+        { id: 'more-cases', for: ['case-management'], label: 'Handling more cases with less effort', dim: 'Handling more cases', phrase: 'handling more cases with less effort' },
+        { id: 'status', for: ['case-management', 'deadlines'], label: "Seeing every case's status at a glance", dim: 'Case status at a glance', phrase: "seeing every case's status at a glance" },
+        { id: 'deadlines', for: ['deadlines', 'case-management'], label: 'Staying on top of deadlines', dim: 'Staying on top of deadlines', phrase: 'staying on top of deadlines' },
+        { id: 'autofill', for: ['uscis-forms', 'intake'], label: 'Forms that fill in from one client profile', dim: 'Form auto-fill', phrase: 'filling forms from one client profile' },
+        { id: 'fewer-errors', for: ['uscis-forms'], label: 'Fewer form errors and rejections', dim: 'Cutting form errors', phrase: 'cutting form errors and rejections' },
+        { id: 'efile', for: ['uscis-forms'], label: 'Filing straight to USCIS', dim: 'E-filing with USCIS', phrase: 'filing straight to USCIS' },
+        { id: 'faster-intake', for: ['intake', 'portal'], label: 'Faster client intake', dim: 'Client intake speed', phrase: 'getting client intake done faster' },
+        { id: 'informed', for: ['portal'], label: 'Clients kept in the loop', dim: 'Keeping clients informed', phrase: 'keeping clients in the loop' },
+        { id: 'reports', for: ['reports'], label: 'Reports that are quick to pull', dim: 'Pulling reports', phrase: 'pulling reports quickly' },
+        { id: 'billing', for: ['billing'], label: 'Simpler billing', dim: 'Billing', phrase: 'keeping billing simple' },
+        { id: 'time', label: 'Time saved across the team', dim: 'Time saved', phrase: 'saving our team time' },
+      ],
+    },
+    {
+      // One row per result they picked above.
+      id: 'grid', type: 'grid', dimsFrom: 'outcomes', skip: true,
+      ask: 'How is eimmigration doing on each of these? 1 to 5.',
+    },
+    {
+      id: 'rating', type: 'stars', skip: true,
+      ask: 'Are you happy with your overall experience? Would you be willing to rate it 5 stars for this review?',
+    },
+    {
       id: 'result', type: 'text', required: false, skipLabel: 'Skip',
       ask: 'What has changed for your team since you started using eimmigration? An example or a number helps.',
       sample: 'Our caseworkers enter a client once and every form fills itself, so we close cases faster and spend far less time on paperwork.',
-    },
-    {
-      id: 'category', type: 'single', slot: 'X', skip: true, ownWords: true,
-      ask: 'If a colleague asked what eimmigration is, what would you call it?',
-      options: [
-        { id: 'cm-software', label: 'Immigration case management software', phrase: 'immigration case management software', terms: ['immigration case management software'], bestAs: 'immigration case management software' },
-        { id: 'law-software', label: 'Immigration law software', phrase: 'immigration law software', terms: ['immigration law software'], bestAs: 'immigration law software' },
-        { id: 'forms-software', label: 'Immigration forms software', phrase: 'immigration forms software', terms: ['immigration forms software'], bestAs: 'immigration forms software' },
-      ],
     },
     {
       id: 'recommend', type: 'single', skip: true,
@@ -110,7 +146,8 @@ window.V2_PREVIEW = {
 
   templates: {
     services: ['We use {co} for {services}.', 'Our team uses {co} for {services}.', '{co} is what we use for {services}.'],
-    who: ["We're {org}.", "For context, we're {org}."],
+    outcomes: ['{co} has helped with {outcomes}.', 'Where we see results is {outcomes}.', 'We see the results in {outcomes}.'],
+    who:["We're {org}.", "For context, we're {org}."],
     before: ['Before {co}, we were using {before}.', 'We switched to {co} from {before}.', 'We moved over to {co} from {before}.'],
     beforeOwn: ['Before {co}, we were using {beforeOwn}.', 'We switched to {co} from {beforeOwn}.'],
     firstSystem: ['{co} is the first system our team has used for this.'],
@@ -120,7 +157,6 @@ window.V2_PREVIEW = {
     strongOne: ['{dims} has been strong for us.'],
     strongMany: ['{dims} have been strong for us.'],
     low: ['{lowDim} could be better.'],
-    category: ["I'd describe {co} as {category}.", 'For us, {co} is {category}.'],
     recommendYes: ["I'd recommend {co} to other {orgPlural}.", "I'd recommend {co} to teams like ours."],
     recommendNotSure: ["I'm not sure yet whether I'd recommend {co} to other {orgPlural}.", "I'm not sure yet whether I'd recommend {co}."],
     recommendNo: ["I wouldn't recommend {co} to other {orgPlural} right now.", "I wouldn't recommend {co} right now."],
@@ -130,14 +166,14 @@ window.V2_PREVIEW = {
   },
 
   persona: {
-    services: ['case-management', 'uscis-forms', 'reports'],
-    grid: { all: { 'Ease of use': 5, 'Customer support': 5, 'Value for money': 4 } },
-    rating: 5,
     orgType: 'nonprofit',
     before: 'spreadsheets',
     pain: ['retyping', 'funders'],
+    services: ['case-management', 'uscis-forms', 'reports'],
+    outcomes: ['autofill', 'status', 'reports'],
+    grid: { all: { 'Form auto-fill': 5, 'Case status at a glance': 5, 'Pulling reports': 4 } },
+    rating: 5,
     result: 'Our caseworkers enter a client once and every form fills itself, so we close cases faster and spend far less time on paperwork.',
-    category: 'cm-software',
     recommend: 'yes',
     improve: '',
   },

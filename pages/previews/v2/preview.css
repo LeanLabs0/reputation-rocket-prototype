@@ -15,6 +15,10 @@
    Scoped to the preview pages so this file cannot restyle a live portal. */
 body.v2-preview .chat-bubble { overflow-wrap: anywhere; }
 
+/* Taller chat than the live portal's fixed 560px, so earlier answers stay
+   in view above the question and the text box. Grows with the window. */
+body.v2-preview .chat-container { height: clamp(560px, calc(100vh - 140px), 880px); }
+
 /* Keeps "Start over" below the sticky preview banner. */
 body.v2-preview .site-header { position: relative; }
 
@@ -150,6 +154,23 @@ body.v2-preview .site-header { position: relative; }
   cursor: pointer;
 }
 .v2-sample-btn:hover { color: var(--ll-heading); }
+
+/* Choices inside the chat (inlineChoices): the block sits right under the
+   question, lined up with the agent bubble, and scrolls with the chat, so a
+   tall grid can never cover the question it answers. */
+.chat-choice-bar.is-inline {
+  flex-shrink: 0;
+  margin-left: 60px;
+  padding: 16px;
+  border: 1px solid var(--ll-border);
+  border-radius: 16px;
+  /* Same surface as the agent bubble, in both the light and dark themes. */
+  background: var(--ll-dark-alt);
+  animation: bubbleIn 0.3s ease;
+}
+.chat-choice-bar.is-inline .v2-choice-scroll { max-height: none; overflow: visible; }
+.chat-choice-bar.is-inline .v2-chip-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+.chat-choice-bar.is-inline .v2-grid-row { grid-template-columns: 170px 1fr; }
 
 .v2-grid { display: grid; gap: 10px; }
 .v2-grid-row {
@@ -368,10 +389,15 @@ body.v2-preview .site-header { position: relative; }
 @media (max-width: 760px) {
   /* The live chat box is a fixed 560px; with the bigger choice bar it would
      hide the question on phones, so let it grow here. */
-  .chat-container { height: auto; }
+  body.v2-preview .chat-container { height: auto; }
+  /* The live phone chat stops at 380px; give earlier answers more room. */
+  body.v2-preview .chat-messages { min-height: 360px; max-height: 62vh; }
   .v2-compare { grid-template-columns: 1fr; }
-  .v2-grid-row { grid-template-columns: 1fr; gap: 6px; }
-  .v2-chip-grid { grid-template-columns: 1fr; }
+  .v2-grid-row,
+  .chat-choice-bar.is-inline .v2-grid-row { grid-template-columns: 1fr; gap: 6px; }
+  .v2-chip-grid,
+  .chat-choice-bar.is-inline .v2-chip-grid { grid-template-columns: 1fr; }
+  .chat-choice-bar.is-inline { margin-left: 0; }
   .v2-card { padding: 18px; }
 }
 
