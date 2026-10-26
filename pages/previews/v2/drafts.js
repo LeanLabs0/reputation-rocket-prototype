@@ -591,8 +591,232 @@
     ]);
   }
 
+  // ── V3: their words first ──────────────────────────────────────────
+  // 10/26 review: the taps were close to ideal, but stitching every pick into
+  // sentences read like a machine wrote it. Here the customer's own answers
+  // are the review. We add one sentence at most: who they are and up to two
+  // things they use it for, plus what they had before when their own words
+  // don't already say it. Everything else stays in their words.
+
+  // A typed answer as clean sentences. Wording is untouched; only spacing,
+  // capitals and end punctuation are fixed.
+  function customerSentences(text) {
+    const t = tidy(text);
+    if (!t) return [];
+    return t.split(/(?<=[.!?])\s+/).map((s) => asSentence(s)).filter(Boolean).map((s) => [seg(s, 'R')]);
+  }
+
+  function theirText(answers) {
+    return [answers.result, answers.advice, answers.improve].map((t) => tidy(t).toLowerCase()).join(' ');
+  }
+
+  // Word-boundary match. A short stem may continue as a plural or -ing/-ed
+  // ("form" matches "forms", "report" matches "reporting") and must not match
+  // inside a longer word ("case" does not match "caseworkers" or "lowercase").
+  const keywordRes = new Map();
+  function keywordIn(text, keyword) {
+    const raw = String(keyword || '').toLowerCase().trim();
+    if (!raw || !text) return false;
+    let re = keywordRes.get(raw);
+    if (!re) {
+      const esc = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+      re = new RegExp(`(^|[^a-z0-9])${esc}(?:s|es|ing|ed)?(?=$|[^a-z0-9])`, 'i');
+      keywordRes.set(raw, re);
+    }
+    return re.test(text);
+  }
+
+  // Loose match to rank picks: did their own words touch on it?
+  function touches(text, option) {
+    return (option.keywords || []).concat(option.terms || []).some((k) => keywordIn(text, k));
+  }
+
+  // Strict match: one of the option's scored terms is already in their words.
+  function saysTerm(text, option) {
+    return (option.terms || []).some((t) => termRegex(t).test(text));
+  }
+
+  // Up to `max` of the things they use it for. Picks their own words touch
+  // on come first, then the order they tapped them. A service they typed is
+  // their words, so it keeps a slot ahead of a second tap, unless the essay
+  // or a picked phrase already says it. The one-job short sentence keeps a
+  // tap when there is one, so the category is not the thing that gets cut.
+  function namedJobs(preview, answers, said, max) {
+    const ranked = pickedOptions(preview, 'services', answers)
+      .map((o, i) => ({ o, i, hit: touches(said, o) ? 1 : 0 }))
+      .sort((a, b) => b.hit - a.hit || a.i - b.i)
+      .map((x) => seg(x.o.phrase, 'X', { step: 'services', option: x.o.id }));
+    const own = ownPhrase(answers.servicesOther);
+    const ownNew = own
+      && !ranked.some((s) => s.t.toLowerCase() === own.toLowerCase())
+      && !keywordIn(said, own);
+    const ownSeg = ownNew ? seg(own, 'R') : null;
+    const total = ranked.length + (ownSeg ? 1 : 0);
+    if (!ownSeg) return { named: ranked.slice(0, max), total };
+    if (max <= 1) return { named: ranked.length ? ranked.slice(0, 1) : [ownSeg], total };
+    return { named: ranked.slice(0, max - 1).concat([ownSeg]), total };
+  }
+
+  // The one sentence in our words.
+  function factsSentence(preview, answers, rand, maxJobs) {
+    const said = theirText(answers);
+    const vals = { co: [seg(preview.company)] };
+    const org = pickedOptions(preview, 'orgType', answers)[0];
+    if (org) vals.org = [seg(org.phrase, 'Y', { step: 'orgType', option: org.id })];
+    const jobs = namedJobs(preview, answers, said, maxJobs);
+    if (jobs.named.length) {
+      vals.forJobs = [seg(jobs.total > jobs.named.length ? 'mainly for ' : 'for ')].concat(listSegments(jobs.named));
+    }
+    const before = pickedOptions(preview, 'before', answers)[0];
+    const beforeOwn = ownPhrase(answers.beforeOther);
+    let kind = 'facts';
+    if (before && before.firstSystem) kind = 'factsFirst';
+    else if (before && !saysTerm(said, before)) vals.before = [seg(before.phrase, 'Z', { step: 'before', option: before.id })];
+    else if (!before && beforeOwn && !keywordIn(said, beforeOwn)) vals.before = [seg(beforeOwn, 'R')];
+    return sentence(kind, vals, preview, rand) || sentence('facts', vals, preview, rand);
+  }
+
+  // A title from their own first line, never a category plus a buyer.
+  function theirTitle(preview, result, advice, rand) {
+    for (const s of [result[0], advice[0]]) {
+      if (!s) continue;
+      const clause = firstClause(segmentsToText(s), 40);
+      if (clause && words(clause) <= 10) return [seg(asSentence(clause).replace(/\.$/, ''), 'R')];
+    }
+    return sentence('titleFallback', { co: [seg(preview.company)] }, preview, rand);
+  }
+
+  // True when the title is that whole sentence, not merely its first clause.
+  // A clause title must not cause the rest of the sentence to be dropped.
+  function coversSentence(title, sentence) {
+    if (!title || !title.length || !sentence || title[0].slot !== 'R') return false;
+    const head = segmentsToText(title).replace(/[.!?]+$/, '').toLowerCase();
+    const body = segmentsToText(sentence).replace(/[.!?]+$/, '').toLowerCase();
+    return Boolean(head) && head === body;
+  }
+
+  function theirWordsParts(preview, answers, rand) {
+    const result = customerSentences(answers.result);
+    let advice = customerSentences(answers.advice);
+    const title = theirTitle(preview, result, advice, rand);
+    // A title taken from a whole sentence is not said again in the body.
+    const titleIsFirst = coversSentence(title, result[0]);
+    if (coversSentence(title, advice[0])) advice = advice.slice(1);
+    return {
+      result,
+      advice,
+      improve: customerSentences(answers.improve),
+      facts: factsSentence(preview, answers, rand, 2),
+      factsShort: factsSentence(preview, answers, rand, 1),
+      // Only a 4 or 5 lets their result stand in as what they like.
+      positive: Number(answers.rating) >= 4,
+      nothingToAdd: choseNothingToAdd(answers) ? sentence('nothingToAdd', {}, preview, rand) : null,
+      title,
+      titleIsFirst,
+    };
+  }
+
+  // One block of text under the word limit. Their advice goes first (it has
+  // its own field on G2 and Gartner), then a second job name, then the last
+  // sentences of their result. What they said could be better stays.
+  function theirWordsBody(p, max, skipFirst) {
+    const count = (l) => words(segmentsToText(joinSentences(l)));
+    let facts = p.facts;
+    let result = p.result.slice();
+    if (skipFirst) result = result.slice(1);
+    let advice = p.advice.slice();
+    let improve = p.improve.slice();
+    const build = () => [facts].concat(result, advice, improve).filter(Boolean);
+    if (count(build()) > max) advice = [];
+    if (count(build()) > max && p.factsShort) facts = p.factsShort;
+    while (count(build()) > max && result.length > 1) result = result.slice(0, -1);
+    [[() => improve, (v) => { improve = v; }], [() => result, (v) => { result = v; }]].forEach(([get, set]) => {
+      if (count(build()) <= max || !get().length) return;
+      const budget = max - count(build().filter((x) => !get().includes(x)));
+      const shorter = customerSentence(segmentsToText(joinSentences(get())), budget);
+      set(shorter ? [shorter] : []);
+    });
+    return joinSentences(build());
+  }
+
+  // Their result answer, split for the field forms: the first and last
+  // sentences usually carry the win, the ones between carry the story.
+  function resultParts(result) {
+    const n = result.length;
+    return {
+      first: result[0] || null,
+      last: n >= 2 ? result[n - 1] : null,
+      middle: n >= 3 ? result.slice(1, -1) : [],
+    };
+  }
+
+  function theirWordsDraft(preview, platform, p) {
+    const r = resultParts(p.result);
+    const dislike = p.improve.length ? p.improve : [p.nothingToAdd];
+    if (platform === 'g2') {
+      // Below 4 stars their result is not turned into a "like".
+      // The facts sentence is used once. Empty fields fall back to the
+      // company name instead of repeating it.
+      const like = p.positive ? [r.first, r.last].filter(Boolean) : [];
+      const problems = p.positive ? r.middle.slice() : p.result.slice();
+      if (like.length) problems.unshift(p.facts);
+      else like.push(p.facts);
+      return fieldsDraft(FIELDS.g2(preview.company), [
+        fieldBody(like, null, preview),
+        fieldBody(dislike, null, preview),
+        fieldBody(problems, null, preview),
+        fieldBody(p.advice, null, preview),
+      ]);
+    }
+    if (platform === 'gartner') {
+      const story = p.positive ? (p.titleIsFirst ? r.middle : [r.first].concat(r.middle)) : p.result;
+      const like = p.positive ? [r.last || r.first] : [];
+      return fieldsDraft(FIELDS.gartner(), [
+        fieldBody([p.facts].concat(story, p.advice), null, preview),
+        fieldBody(like, null, preview),
+        fieldBody(dislike, null, preview),
+        [p.title || [seg(preview.company)]],
+      ]);
+    }
+    const titled = platform === 'trustpilot' && p.title;
+    const body = theirWordsBody(p, (LIMITS[platform] || [60, 100])[1], titled && p.titleIsFirst);
+    return titled ? p.title.concat([seg('\n')], body) : body;
+  }
+
+  function theirWordsDrafts(preview, answers, seed) {
+    const out = {};
+    (preview.platforms || []).forEach((platform, i) => {
+      const rand = mulberry32((seed >>> 0) ^ hashString(platform) ^ (i * 2654435761));
+      const segs = theirWordsDraft(preview, platform, theirWordsParts(preview, answers, rand));
+      const text = segmentsToText(segs);
+      const counted = platform === 'trustpilot' && text.includes('\n') ? text.slice(text.indexOf('\n') + 1) : text;
+      out[platform] = {
+        text,
+        html: segmentsToHtml(segs),
+        segments: segs,
+        words: words(counted.replace(/\[FIELD:[^\]]*\]/g, '')),
+      };
+    });
+    return out;
+  }
+
+  // Share of a draft's words that are the customer's own (slot R), not
+  // counting the platform's field labels.
+  function theirShare(segments) {
+    let theirs = 0;
+    let all = 0;
+    (segments || []).forEach((s) => {
+      if (/^\[FIELD:/.test(s.t)) return;
+      const n = words(s.t);
+      all += n;
+      if (s.slot === 'R') theirs += n;
+    });
+    return all ? theirs / all : 0;
+  }
+
   function buildDrafts(preview, answers, seed) {
     const safe = answers && typeof answers === 'object' ? answers : {};
+    if (preview.draftStyle === 'their-words') return theirWordsDrafts(preview, safe, seed);
     const out = {};
     (preview.platforms || []).forEach((platform, i) => {
       const rand = mulberry32((seed >>> 0) ^ hashString(platform) ^ (i * 2654435761));
@@ -673,6 +897,7 @@
     scoreOurWords,
     bestFor,
     visibleOptions,
+    theirShare,
     gridDims,
     FIELDS,
     LIMITS,

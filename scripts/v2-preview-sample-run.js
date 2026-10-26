@@ -22,7 +22,7 @@ const BASE = process.env.BASE_URL || `http://localhost:${PORT}`;
 const LAUNCH_ARGS = process.env.CHROMIUM_ARGS ? process.env.CHROMIUM_ARGS.split(' ') : [];
 
 const BRANDS = {
-  eimmigration: { v1: '0 of 3', expect: ['immigration case management', 'nonprofit', 'spreadsheets'], openDrafts: '.chat-draft-inline__link' },
+  eimmigration: { v1: '0 of 3', expect: ['case management', 'nonprofit', 'spreadsheets'], openDrafts: '.chat-draft-inline__link' },
   'lean-labs': { v1: '1 of 3', expect: ['AEO website for HubSpot', 'industrial company', 'another agency'], openDrafts: '#btn-view-draft' },
 };
 

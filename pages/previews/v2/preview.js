@@ -20,6 +20,8 @@
   const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const FAST = qs.get('fast') === '1' || reduceMotion;
   const PLATFORM_NAMES = { gartner: 'Gartner', g2: 'G2', trustpilot: 'Trustpilot', hubspot: 'HubSpot', google: 'Google' };
+  // Which interview this page shows (eimmigration runs V3 since 10/26).
+  const VERSION = P.versionLabel || 'V2';
   // Letter marks instead of the live favicons, so the preview loads nothing from other hosts.
   const PLATFORM_MARKS = { gartner: 'Ga', g2: 'G2', trustpilot: 'Tp', hubspot: 'HS', google: 'G' };
 
@@ -36,6 +38,8 @@
     comparePlatform: null,
     fromSample: false,
     started: false,
+    // First half of an answer while its one follow-up is on screen.
+    partial: {},
   };
 
   const $ = (sel, root) => (root || document).querySelector(sel);
@@ -59,6 +63,28 @@
   // The honesty screen is not a numbered step. The live portal marks the chat
   // done and leaves "Your Review" unlit, because that customer is not posting.
   const STEP_OF = { welcome: 1, chat: 2, draft: 3, compare: 4 };
+
+  // A step whose skipIf matches earlier answers is not asked. V3: a yes to
+  // "publish as a 5-star rating" skips the star question. An empty rule
+  // skips nothing.
+  function stepSkipped(step, answers) {
+    const rule = step && step.skipIf;
+    if (!rule) return false;
+    const keys = Object.keys(rule);
+    if (!keys.length) return false;
+    return keys.every((k) => (answers || {})[k] === rule[k]);
+  }
+
+  // The follow-up is a second sentence, not a tail glued onto the first.
+  function joinFollowUp(first, second) {
+    let a = String(first || '').trim();
+    const b = String(second || '').trim();
+    if (!a) return b;
+    if (!b) return a;
+    a = a.replace(/[,;:]+$/, '');
+    if (!/[.!?]$/.test(a)) a += '.';
+    return `${a} ${b}`;
+  }
 
   function lowRatingBelow(lowRating) {
     if (!lowRating || lowRating.below == null) return 5;
@@ -247,6 +273,13 @@
     state.stepIndex = i;
     const step = P.steps[i];
     if (!step) return finishChat();
+    if (stepSkipped(step, state.answers)) {
+      if (step.skipValue !== undefined) state.answers[step.id] = step.skipValue;
+      // A filled-in rating still has to hit the reach-out gate. Yes maps to 5,
+      // so this does not fire on the V3 skip. A value under the threshold would.
+      if (step.type === 'stars' && ratingIsGated(state.answers[step.id], P.lowRating)) return runLowRating();
+      return runStep(i + 1);
+    }
     if (step.type === 'grid' && step.perService) {
       state.gridQueue = (state.answers.services || []).slice(0, step.maxServices || 3);
       if (!state.gridQueue.length) return runStep(i + 1);
@@ -505,23 +538,28 @@
     focusFirst(bar);
   }
 
-  function renderText(step) {
+  // followUp: one friendly nudge when the first answer is very short, so
+  // there are enough of their own words to build the review from.
+  function renderText(step, isFollowUp) {
     mode('text');
     const input = $('#chat-input');
     const send = $('#chat-send');
     input.value = '';
-    input.placeholder = step.required ? 'Type your answer...' : 'Type your answer, or skip';
+    input.placeholder = isFollowUp
+      ? 'Add one more sentence, or leave it here'
+      : (step.required ? 'Type your answer...' : 'Type your answer, or skip');
     send.disabled = true;
 
     const tools = [];
-    if (step.sample) {
+    if (step.sample && !isFollowUp) {
       const sb = el('button', { type: 'button', class: 'v2-sample-btn', text: 'Use the sample answer' });
       sb.addEventListener('click', () => { input.value = step.sample; send.disabled = false; input.focus(); });
       tools.push(sb);
     }
-    if (!step.required) {
-      const skip = el('button', { type: 'button', class: 'btn btn-tertiary btn-md', text: step.skipLabel || 'Skip' });
-      skip.addEventListener('click', () => finish('', step.skipLabel || 'Skip'));
+    const skipLabel = isFollowUp ? (step.followUp && step.followUp.skipLabel) || "That's it" : step.skipLabel || 'Skip';
+    if (!step.required || isFollowUp) {
+      const skip = el('button', { type: 'button', class: 'btn btn-tertiary btn-md', text: skipLabel });
+      skip.addEventListener('click', () => finish('', skipLabel));
       tools.push(skip);
     }
     let toolbar = $('.v2-text-tools');
@@ -545,11 +583,20 @@
       input.removeEventListener('input', onInput);
       input.removeEventListener('keydown', onKey);
       send.removeEventListener('click', onSend);
-      state.answers[step.id] = text;
       input.value = '';
       send.disabled = true;
       mode('none');
       userSay(label || text);
+      const first = state.partial[step.id];
+      const f = step.followUp;
+      const minWords = f && f.minWords == null ? 8 : f && f.minWords;
+      if (f && !isFollowUp && text && D.words(text) < minWords) {
+        state.partial[step.id] = text;
+        agentSay(f.ask).then(() => renderText(step, true));
+        return;
+      }
+      delete state.partial[step.id];
+      state.answers[step.id] = joinFollowUp(first, text);
       next();
     }
   }
@@ -709,7 +756,7 @@
     const p = state.active;
     ta.value = state.edits[p] != null ? state.edits[p] : state.drafts[p].text;
     const hint = $('#draft-copy-hint-text');
-    if (hint) hint.textContent = 'Preview only. Edits are kept while you switch tabs, and the V1 vs V2 view uses the original draft.';
+    if (hint) hint.textContent = `Preview only. Edits are kept while you switch tabs, and the V1 vs ${VERSION} view uses the original draft.`;
   }
 
   function wireDraftButtons() {
@@ -847,13 +894,13 @@
       b.addEventListener('click', () => renderV2(p));
       plats.appendChild(b);
     });
-    v2Card.appendChild(el('div', { class: 'v2-card-label', text: 'V2 preview' }));
+    v2Card.appendChild(el('div', { class: 'v2-card-label', text: `${VERSION} preview` }));
     v2Card.appendChild(el('h4', { text: state.fromSample ? P.personaLabel : 'Drafted from the answers you gave' }));
     v2Card.appendChild(scoreHost);
     v2Card.appendChild(plats);
     v2Card.appendChild(textHost);
     v2Card.appendChild(el('div', { class: 'v2-legend', html: '<span><mark class="v2-mark v2-mark--x" data-slot="X">category or service</mark></span><span><mark class="v2-mark v2-mark--y" data-slot="Y">who it is for</mark></span><span><mark class="v2-mark v2-mark--z" data-slot="Z">switched from or problem</mark></span><span>Unmarked text is the customer\'s own words or plain glue.</span>' }));
-    v2Card.appendChild(el('h5', { text: 'What V2 asks' }));
+    v2Card.appendChild(el('h5', { text: `What ${VERSION} asks` }));
     v2Card.appendChild(el('ol', {}, P.steps.map((s) => el('li', { text: askText(s) }))));
     renderV2(P.platforms.includes('g2') ? 'g2' : P.platforms[0]);
 

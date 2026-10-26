@@ -75,6 +75,7 @@ function randomAnswers(preview, rand) {
     }
   });
   const grid = step(preview, 'grid');
+  if (!grid) return a;
   const dims = D.gridDims(preview, grid, a);
   const row = () => {
     const r = {};
@@ -112,9 +113,11 @@ test('picked phrases show up and unpicked ones never do', () => {
     const drafts = D.buildDrafts(p, p.persona, 7);
     const all = Object.values(drafts).map((d) => d.text).join('\n').toLowerCase();
     const services = step(p, 'services').options;
-    services.filter((o) => p.persona.services.includes(o.id)).forEach((o) => {
-      assert.ok(all.includes(o.phrase.toLowerCase()), `${slug}: picked "${o.phrase}" missing`);
-    });
+    const picked = services.filter((o) => p.persona.services.includes(o.id));
+    const named = picked.filter((o) => all.includes(o.phrase.toLowerCase()));
+    // V3 drafts name two picks at most; V2 names every pick.
+    if (p.draftStyle === 'their-words') assert.ok(named.length >= 1 && named.length <= 2, `${slug}: named ${named.length} picks`);
+    else assert.equal(named.length, picked.length, `${slug}: a picked service is missing`);
     services.filter((o) => !p.persona.services.includes(o.id)).forEach((o) => {
       assert.ok(!all.includes(o.phrase.toLowerCase()), `${slug}: unpicked "${o.phrase}" leaked into a draft`);
     });
@@ -171,7 +174,9 @@ test('same answers and seed repeat, different seeds vary', () => {
     const plat = p.platforms[p.platforms.length - 1];
     const seen = new Set();
     for (let seed = 0; seed < 50; seed += 1) seen.add(D.buildDrafts(p, p.persona, seed)[plat].text);
-    assert.ok(seen.size >= 20, `${slug}/${plat}: only ${seen.size} different drafts in 50 seeds`);
+    // V3 is mostly the customer's own words, so only our one sentence varies.
+    const want = p.draftStyle === 'their-words' ? 2 : 20;
+    assert.ok(seen.size >= want, `${slug}/${plat}: only ${seen.size} different drafts in 50 seeds`);
   }
 });
 
@@ -203,10 +208,12 @@ test('drafts only recommend, praise or wave off complaints when the answers say 
   const parseG2Fields = loadParseG2Fields();
   eachRandomDraft(300, 21, (slug, p, a, drafts) => {
     const all = Object.values(drafts).map((d) => d.text).join('\n');
+    // Our words only: what the customer typed can say anything.
+    const ours = Object.values(drafts).map((d) => d.segments.filter((s) => s.slot !== 'R').map((s) => s.t).join('')).join('\n');
     const where = `${slug} ${JSON.stringify(a)}\n${all}`;
     const scores = gridScores(a);
-    assert.doesNotMatch(all, madeUp, where);
-    if (a.recommend !== 'yes') assert.doesNotMatch(all, /(^|[.!?]\s+|\n)I'd recommend/, where);
+    assert.doesNotMatch(ours, madeUp, where);
+    if (a.recommend !== 'yes') assert.doesNotMatch(ours, /(^|[.!?]\s+|\n)I'd recommend/, where);
     if (a.recommend === 'no') assert.match(all, /wouldn't recommend/, where);
     if (a.recommend === 'not-sure') assert.match(all, /not sure yet whether/, where);
     if (!scores.some((n) => n >= 4)) assert.doesNotMatch(all, /standout|stood out|strong/i, where);
@@ -266,29 +273,169 @@ test('ratings on every service are kept, and nothing-to-add is a real choice', (
   assert.match(D.buildDrafts(eim, chosen, 1).g2.text, /Nothing to add/);
 });
 
-test('eimmigration preview 2 asks who they are first and drops the colleague question', () => {
+test('eimmigration V3: three taps, the 5-star question, then their own words', () => {
   const p = loadPreview('eimmigration');
-  assert.deepEqual(Array.from(p.steps, (s) => s.id), ['orgType', 'before', 'pain', 'services', 'outcomes', 'grid', 'rating', 'result', 'recommend', 'improve']);
-  assert.match(step(p, 'rating').ask, /willing to rate it 5 stars/);
-  assert.equal(p.inlineChoices, true);
-  // Multi-select questions take as many picks as the customer wants.
-  p.steps.filter((s) => s.type === 'multi').forEach((s) => {
-    assert.equal(s.max, undefined, `${s.id} should not cap picks`);
-    assert.match(s.ask, /Pick all that apply\.$/, `${s.id} ask`);
-  });
-  // Under 5 stars: the offer, then the rest of the questions, then a saved
-  // review with no drafts or review links.
+  assert.equal(p.versionLabel, 'V3');
+  assert.equal(p.draftStyle, 'their-words');
+  assert.deepEqual(Array.from(p.steps, (s) => s.id), ['orgType', 'before', 'services', 'fiveStar', 'rating', 'result', 'advice', 'improve']);
+  assert.deepEqual(Array.from(p.steps.slice(0, 3), (s) => s.type), ['single', 'single', 'multi']);
+  const five = step(p, 'fiveStar');
+  assert.equal(five.ask, 'Would you be willing to publish your review as a 5-star rating?');
+  assert.deepEqual(Array.from(five.options, (o) => o.id), ['yes', 'no']);
+  const stars = step(p, 'rating');
+  assert.equal(stars.type, 'stars');
+  assert.deepEqual({ ...stars.skipIf }, { fiveStar: 'yes' });
+  assert.equal(stars.skipValue, 5);
+  ['result', 'advice', 'improve'].forEach((id) => assert.equal(step(p, id).type, 'text', id));
+  assert.equal(step(p, 'result').followUp.minWords, 8);
+  assert.ok(!step(p, 'pain') && !step(p, 'outcomes') && !step(p, 'grid') && !step(p, 'recommend'), 'V3 drops the extra tap steps');
   assert.equal(p.lowRating.below, 5);
   assert.equal(p.lowRating.gate, true);
-  assert.match(p.lowRating.ask, /all the way to 5 stars/);
-  assert.equal(p.lowRating.options.length, 2);
-  p.lowRating.options.forEach((o) => assert.ok(o.reply, `${o.id} needs a reply`));
-  assert.match(p.lowRating.saved, /saved your review/);
-  // With no category step, the headline category comes from the services.
+});
+
+test('a yes to the 5-star question skips the star question, anything else asks it', () => {
+  const { stepSkipped } = extractPreviewFunctions(['stepSkipped']);
+  const stars = step(loadPreview('eimmigration'), 'rating');
+  assert.equal(stepSkipped(stars, { fiveStar: 'yes' }), true);
+  assert.equal(stepSkipped(stars, { fiveStar: 'no' }), false);
+  assert.equal(stepSkipped(stars, { fiveStar: null }), false, 'skipping the question still shows the stars');
+  assert.equal(stepSkipped(stars, {}), false);
+  assert.equal(stepSkipped({ id: 'x' }, { fiveStar: 'yes' }), false);
+  assert.equal(stepSkipped(step(loadPreview('lean-labs'), 'rating'), { fiveStar: 'yes' }), false);
+  assert.equal(stepSkipped({ skipIf: {} }, { fiveStar: 'yes' }), false, 'an empty rule skips nothing');
+});
+
+test('every box ticked still reads like a person wrote it: two picks named at most, mostly their words', () => {
+  const p = loadPreview('eimmigration');
+  const options = step(p, 'services').options;
+  const a = Object.assign({}, p.persona, { services: options.map((o) => o.id), servicesOther: 'court filings' });
+  for (let seed = 0; seed < 20; seed += 1) {
+    const drafts = D.buildDrafts(p, a, seed);
+    for (const [plat, d] of Object.entries(drafts)) {
+      const ours = d.segments.filter((s) => s.slot !== 'R').map((s) => s.t).join('');
+      const named = options.filter((o) => ours.includes(o.phrase));
+      assert.ok(named.length <= 2, `${plat} seed ${seed} names ${named.length} picks: ${d.text}`);
+      assert.match(ours, /mainly for /, `${plat} seed ${seed} should say "mainly for" when picks are left out`);
+      assert.ok(D.theirShare(d.segments) >= 0.6, `${plat} seed ${seed}: only ${Math.round(D.theirShare(d.segments) * 100)}% their words\n${d.text}`);
+    }
+    assert.ok(drafts.trustpilot.words <= D.LIMITS.trustpilot[1], `trustpilot seed ${seed}: ${drafts.trustpilot.words} words`);
+  }
+});
+
+test('titles come from their own words, never a category plus a buyer', () => {
+  const p = loadPreview('eimmigration');
   const drafts = D.buildDrafts(p, p.persona, 1);
-  const headline = 'Immigration case management software for nonprofit immigration legal teams';
-  assert.ok(drafts.gartner.text.endsWith(headline), drafts.gartner.text);
-  assert.equal(drafts.trustpilot.text.split('\n')[0], headline);
+  const title = drafts.trustpilot.text.split('\n')[0];
+  assert.equal(title, 'No more re-typing client details');
+  assert.ok(drafts.gartner.text.endsWith(title), drafts.gartner.text);
+  assert.ok(!drafts.trustpilot.text.split('\n')[1].includes(title), 'the title is not repeated right under it');
+  const none = Object.assign({}, p.persona, { result: '', advice: '' });
+  assert.equal(D.buildDrafts(p, none, 1).trustpilot.text.split('\n')[0], 'Our experience with eimmigration');
+  const rand = D.mulberry32(41);
+  for (let i = 0; i < 100; i += 1) {
+    const d = D.buildDrafts(p, randomAnswers(p, rand), i);
+    const headline = d.gartner.text.split('\n').pop();
+    [d.trustpilot.text.split('\n')[0], headline].forEach((t) => assert.doesNotMatch(t, /software for|teams$|firms$|attorneys$/i, t));
+  }
+});
+
+test('our one sentence leaves out what they used before when their words already say it', () => {
+  const p = loadPreview('eimmigration');
+  const ours = (a) => D.buildDrafts(p, a, 2).g2.segments.filter((s) => s.slot !== 'R').map((s) => s.t).join('');
+  assert.doesNotMatch(ours(p.persona), /spreadsheets/, 'the persona already says spreadsheets');
+  assert.match(D.buildDrafts(p, p.persona, 2).g2.text, /spreadsheets/);
+  const quiet = Object.assign({}, p.persona, { result: 'Our forms fill themselves now and nobody re-types a thing.' });
+  assert.match(ours(quiet), /spreadsheets or paper files/);
+  const first = Object.assign({}, p.persona, { before: 'first' });
+  assert.match(ours(first), /first system/);
+});
+
+test('a typed service is kept, and a stem does not match inside another word', () => {
+  const p = loadPreview('eimmigration');
+  const ours = (a) => D.buildDrafts(p, a, 1).g2.segments.filter((s) => s.slot !== 'R').map((s) => s.t).join('');
+  const typed = Object.assign({}, p.persona, {
+    services: ['case-management', 'uscis-forms'],
+    servicesOther: 'court filings',
+  });
+  assert.match(D.buildDrafts(p, typed, 1).g2.text, /court filings/);
+  const repeated = Object.assign({}, p.persona, { servicesOther: 'case management' });
+  assert.equal(D.buildDrafts(p, repeated, 1).g2.text.split('case management').length - 1, D.buildDrafts(p, p.persona, 1).g2.text.split('case management').length - 1);
+
+  const talked = Object.assign({}, p.persona, {
+    services: ['case-management', 'uscis-forms', 'billing', 'portal'],
+    result: 'Billing is down to an hour and the client portal messages cut our phone calls in half.',
+    advice: 'Tell your caseworkers to start with the inbox.',
+    improve: 'The screens took a while to learn.',
+  });
+  const said = ours(talked);
+  assert.match(said, /billing/);
+  assert.match(said, /client portal/);
+  assert.doesNotMatch(said, /case management/, said);
+
+  const filed = Object.assign({}, p.persona, {
+    services: ['billing', 'uscis-forms', 'portal'],
+    result: 'We e-filed the last twenty petitions and the client portal messages are enough for us.',
+    advice: 'Start with the inbox.',
+    improve: 'Nothing major to change.',
+  });
+  const forms = ours(filed);
+  assert.match(forms, /USCIS forms/);
+  assert.doesNotMatch(forms, /\bbilling\b/);
+
+  const before = Object.assign({}, p.persona, {
+    before: null,
+    beforeOther: 'cel',
+    result: 'Excellent results on every form now.',
+    advice: 'Give it a week.',
+    improve: 'Nothing else.',
+  });
+  assert.match(D.buildDrafts(p, before, 2).g2.text, /from cel\b/);
+});
+
+test('a title keeps the rest of the sentence, and it is not repeated when it is the whole sentence', () => {
+  const p = loadPreview('eimmigration');
+  const clause = Object.assign({}, p.persona, {
+    result: 'We switched, and filing dropped from two hours to twenty minutes. Support was great.',
+    advice: 'Give the team a week to settle in.',
+    improve: 'Reporting took a while to learn.',
+  });
+  const clauseBody = D.buildDrafts(p, clause, 1).trustpilot.text.split('\n').slice(1).join('\n');
+  assert.match(clauseBody, /filing dropped from two hours to twenty minutes/);
+  assert.match(clauseBody, /Support was great/);
+
+  const one = Object.assign({}, p.persona, {
+    result: 'Forms fill themselves now.',
+    advice: 'Give the move a week and lean on support.',
+    improve: 'Reporting took a while to learn.',
+  });
+  const oneParts = D.buildDrafts(p, one, 1).trustpilot.text.split('\n');
+  assert.equal(oneParts[0], 'Forms fill themselves now');
+  assert.ok(!oneParts.slice(1).join('\n').includes('Forms fill themselves now'), oneParts.join('\n'));
+
+  const fromAdvice = Object.assign({}, p.persona, {
+    result: 'Our caseworkers enter a client once and every related form fills itself without anyone retyping the old data.',
+    advice: 'Give the move a week.',
+    improve: 'Reporting took a while to learn.',
+  });
+  const adviceDraft = D.buildDrafts(p, fromAdvice, 1).trustpilot.text;
+  assert.equal(adviceDraft.split('\n')[0], 'Give the move a week');
+  assert.ok(!adviceDraft.split('\n').slice(1).join('\n').includes('Give the move a week'), adviceDraft);
+  assert.match(adviceDraft, /caseworkers enter a client once/);
+});
+
+test('the facts sentence is not repeated to fill an empty field', () => {
+  const p = loadPreview('eimmigration');
+  const a = Object.assign({}, p.persona, { advice: '' });
+  const g2 = D.buildDrafts(p, a, 2).g2.text;
+  const marker = 'nonprofit immigration legal services team';
+  assert.equal(g2.split(marker).length - 1, 1, g2);
+});
+
+test('V3 sentences in our words never praise, recommend or rate', () => {
+  const p = loadPreview('eimmigration');
+  Object.entries(p.templates).forEach(([kind, list]) => list.forEach((tpl) => {
+    assert.doesNotMatch(tpl, /recommend|great|love|amazing|easy|5-star|stars?\b/i, `${kind}: ${tpl}`);
+  }));
 });
 
 test('eimmigration preview welcome matches the live portal welcome', () => {
@@ -356,9 +503,36 @@ test('under 5 stars stays off the review step, and 5 stars still reach the draft
   const engine = fs.readFileSync(path.join(V2, 'preview.js'), 'utf8');
   assert.match(engine, /empathy\.textContent = saved/);
   assert.doesNotMatch(engine, /empathy\.innerHTML/);
+  const finish = engine.slice(engine.indexOf('async function finishChat'), engine.indexOf('function renderDraftStars'));
+  const gate = finish.indexOf("if (isGated() && $('#screen-negative'))");
+  const link = finish.indexOf('chat-draft-inline__link');
+  assert.ok(gate !== -1 && link > gate, 'a gated visit returns before the review link is offered');
+  assert.ok(finish.indexOf('return;', gate) < link);
   const draft = fs.readFileSync(path.join(V2, 'eimmigration/index.html'), 'utf8');
   assert.match(draft, /Here are your reviews, ready to publish\./);
   assert.match(draft, /id="btn-saved-drafts"/);
+});
+
+test('Lean Labs stays on the V2 interview', () => {
+  const p = loadPreview('lean-labs');
+  assert.equal(p.versionLabel, undefined);
+  assert.equal(p.draftStyle, undefined);
+  assert.notEqual(p.draftStyle, 'their-words');
+  const html = fs.readFileSync(path.join(V2, 'lean-labs/index.html'), 'utf8');
+  assert.match(html, /V2 preview \| Lean Labs/);
+  assert.match(html, /Jump to V1 vs V2/);
+  assert.doesNotMatch(html, /V3/);
+  const engine = fs.readFileSync(path.join(V2, 'preview.js'), 'utf8');
+  assert.match(engine, /const VERSION = P\.versionLabel \|\| 'V2'/);
+});
+
+test('a short answer and its follow-up stay two sentences', () => {
+  const { joinFollowUp } = extractPreviewFunctions(['joinFollowUp']);
+  assert.equal(joinFollowUp('Forms are faster now', 'We file in 20 minutes.'), 'Forms are faster now. We file in 20 minutes.');
+  assert.equal(joinFollowUp('Forms are faster now.', 'We file in 20 minutes.'), 'Forms are faster now. We file in 20 minutes.');
+  assert.equal(joinFollowUp('Forms are faster now,', 'We file in 20 minutes.'), 'Forms are faster now. We file in 20 minutes.');
+  assert.equal(joinFollowUp('Wow!', ''), 'Wow!');
+  assert.equal(joinFollowUp('', 'We file in 20 minutes.'), 'We file in 20 minutes.');
 });
 
 test('eimmigration preview under-5 end screen uses the live portal copy', () => {
@@ -371,90 +545,6 @@ test('eimmigration preview under-5 end screen uses the live portal copy', () => 
     return html.slice(start, end).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
   };
   assert.equal(ending('pages/previews/v2/eimmigration/index.html'), ending('pages/clients/eimmigration/index.html'));
-});
-
-test('results follow the services picked, and the grid rates those results', () => {
-  const p = loadPreview('eimmigration');
-  const outcomes = step(p, 'outcomes');
-  const shown = (services) => Array.from(D.visibleOptions(p, outcomes, { services }), (o) => o.id);
-  assert.deepEqual(shown(['reports']), ['reports', 'time']);
-  assert.ok(shown(['uscis-forms']).includes('efile'));
-  assert.ok(!shown(['uscis-forms']).includes('billing'));
-  assert.equal(shown([]).length, outcomes.options.length, 'nothing picked shows every result');
-  const serviceIds = step(p, 'services').options.map((o) => o.id);
-  outcomes.options.forEach((o) => (o.for || []).forEach((id) => assert.ok(serviceIds.includes(id), `${o.id} points at missing service ${id}`)));
-
-  const grid = step(p, 'grid');
-  assert.deepEqual(Array.from(D.gridDims(p, grid, { outcomes: ['autofill', 'time'], outcomesOther: 'fewer late nights!' })), ['Form auto-fill', 'Time saved', 'Fewer late nights']);
-  assert.deepEqual(Array.from(D.gridDims(p, grid, {})), []);
-});
-
-test('a customer who picks everything gets every pick in G2 and Gartner, and Trustpilot still fits', () => {
-  const p = loadPreview('eimmigration');
-  const ids = (id) => step(p, id).options.map((o) => o.id);
-  const a = Object.assign({}, p.persona, {
-    pain: ids('pain'),
-    services: ids('services'),
-    outcomes: ids('outcomes'),
-    servicesOther: 'we had a freelancer and then nobody at all for a long while honestly it was rough',
-    grid: {},
-    result: LONG_TEXT,
-  });
-  for (let seed = 0; seed < 20; seed += 1) {
-    const drafts = D.buildDrafts(p, a, seed);
-    for (const plat of ['g2', 'gartner']) {
-      const text = drafts[plat].text;
-      ['pain', 'services', 'outcomes'].forEach((id) => step(p, id).options.forEach((o) => {
-        assert.ok(text.includes(o.phrase), `${plat} seed ${seed}: missing ${id} "${o.phrase}"\n${text}`);
-      }));
-    }
-    assert.ok(drafts.trustpilot.words <= D.LIMITS.trustpilot[1], `trustpilot seed ${seed}: ${drafts.trustpilot.words} words`);
-  }
-});
-
-test('drafts name the picked results, and a rated result is said once', () => {
-  const p = loadPreview('eimmigration');
-  const a = Object.assign({}, p.persona, { grid: { all: { 'Form auto-fill': 5, 'Case status at a glance': 2, 'Pulling reports': 3 } } });
-  const g2 = D.buildDrafts(p, a, 4).g2.text;
-  assert.match(g2, /Form auto-fill (has been the standout for us|stands out)/);
-  assert.match(g2, /Case status at a glance could be better/);
-  assert.match(g2, /pulling reports quickly/);
-  assert.doesNotMatch(g2, /filling forms from one client profile/, 'a result rated high already has its own sentence');
-  assert.doesNotMatch(g2, /seeing every case's status/, 'a result rated low must not also read as a result');
-  // Acronyms keep their capitals when a rated result is not first in a list.
-  const both = Object.assign({}, p.persona, { outcomes: ['autofill', 'efile'], grid: { all: { 'Form auto-fill': 5, 'E-filing with USCIS': 5 } } });
-  assert.match(D.buildDrafts(p, both, 1).g2.text, /Form auto-fill and e-filing with USCIS have been strong for us/);
-});
-
-test('a rating sentence follows the result list, not the order the scores were tapped', () => {
-  const p = loadPreview('eimmigration');
-  const forward = { 'Form auto-fill': 5, 'E-filing with USCIS': 5 };
-  const backward = {};
-  backward['E-filing with USCIS'] = 5;
-  backward['Form auto-fill'] = 5;
-  const answers = (grid) => Object.assign({}, p.persona, { outcomes: ['autofill', 'efile'], grid: { all: grid } });
-  const first = D.buildDrafts(p, answers(forward), 1).g2.text;
-  assert.equal(D.buildDrafts(p, answers(backward), 1).g2.text, first);
-  assert.match(first, /Form auto-fill and e-filing with USCIS have been strong for us/);
-});
-
-test('own words that repeat a picked result are said once', () => {
-  const p = loadPreview('eimmigration');
-  const a = Object.assign({}, p.persona, {
-    outcomes: ['time'],
-    outcomesOther: 'Time saved',
-    grid: { all: { 'Time saved': 3 } },
-  });
-  const g2 = D.buildDrafts(p, a, 1).g2.text;
-  assert.match(g2, /saving our team time/);
-  assert.doesNotMatch(g2, /time saved/i);
-  const typed = Object.assign({}, p.persona, {
-    outcomes: ['time'],
-    outcomesOther: 'saving our team time',
-    grid: { all: {} },
-  });
-  const text = D.buildDrafts(p, typed, 2).g2.text.toLowerCase();
-  assert.equal(text.split('saving our team time').length - 1, 1);
 });
 
 test('preview noindex header stays on the preview path and the stage host', () => {
