@@ -431,6 +431,52 @@ test('the facts sentence is not repeated to fill an empty field', () => {
   assert.equal(g2.split(marker).length - 1, 1, g2);
 });
 
+test('a skipped answer never leaves a field that only says the company name', () => {
+  const p = loadPreview('eimmigration');
+  const parse = loadParseG2Fields();
+  const check = (a, where) => {
+    const drafts = D.buildDrafts(p, a, 3);
+    ['g2', 'gartner'].forEach((plat) => parse(drafts[plat].text).forEach((f) => {
+      assert.notEqual(f.body, `${p.company}.`, `${where} ${plat} "${f.label}"`);
+    }));
+  };
+  check(Object.assign({}, p.persona, { advice: '' }), 'no advice');
+  check(Object.assign({}, p.persona, { result: '' }), 'no result');
+  check(Object.assign({}, p.persona, { result: '', advice: '', improve: '' }), 'nothing typed');
+  const rand = D.mulberry32(29);
+  for (let i = 0; i < 300; i += 1) check(randomAnswers(p, rand), `random ${i}`);
+});
+
+test('in G2 and Gartner every field has a sentence and no sentence is said twice', () => {
+  const p = loadPreview('eimmigration');
+  const parse = loadParseG2Fields();
+  const norm = (s) => s.toLowerCase().replace(/[.!?]+$/, '').trim();
+  const one = 'We stopped typing the same client details into every form, which saves our caseworkers hours a week.';
+  const cases = {
+    sample: {},
+    'no advice': { advice: '' },
+    'no result': { result: '' },
+    'nothing typed': { result: '', advice: '', improve: '' },
+    'two short sentences, no advice': { result: 'Saves us time. Forms that took an hour now take ten minutes.', advice: '' },
+    'one sentence': { result: one },
+    'one sentence, no advice': { result: one, advice: '' },
+    'one sentence that is the title': { result: 'It saves our team hours on every single case.' },
+  };
+  Object.entries(cases).forEach(([name, change]) => {
+    const drafts = D.buildDrafts(p, Object.assign({}, p.persona, change), 4);
+    ['g2', 'gartner'].forEach((plat) => {
+      const seen = new Set();
+      parse(drafts[plat].text).forEach((f) => {
+        assert.ok(f.body.length, `${name} ${plat} "${f.label}" is empty`);
+        f.body.split(/(?<=[.!?])\s+/).map(norm).forEach((s) => {
+          assert.ok(!seen.has(s), `${name} ${plat} says "${s}" twice:\n${drafts[plat].text}`);
+          seen.add(s);
+        });
+      });
+    });
+  });
+});
+
 test('V3 sentences in our words never praise, recommend or rate', () => {
   const p = loadPreview('eimmigration');
   Object.entries(p.templates).forEach(([kind, list]) => list.forEach((tpl) => {
