@@ -302,6 +302,7 @@ test('a yes to the 5-star question skips the star question, anything else asks i
   assert.equal(stepSkipped(stars, {}), false);
   assert.equal(stepSkipped({ id: 'x' }, { fiveStar: 'yes' }), false);
   assert.equal(stepSkipped(step(loadPreview('lean-labs'), 'rating'), { fiveStar: 'yes' }), false);
+  assert.equal(stepSkipped({ skipIf: {} }, { fiveStar: 'yes' }), false, 'an empty rule skips nothing');
 });
 
 test('every box ticked still reads like a person wrote it: two picks named at most, mostly their words', () => {
@@ -347,6 +348,87 @@ test('our one sentence leaves out what they used before when their words already
   assert.match(ours(quiet), /spreadsheets or paper files/);
   const first = Object.assign({}, p.persona, { before: 'first' });
   assert.match(ours(first), /first system/);
+});
+
+test('a typed service is kept, and a stem does not match inside another word', () => {
+  const p = loadPreview('eimmigration');
+  const ours = (a) => D.buildDrafts(p, a, 1).g2.segments.filter((s) => s.slot !== 'R').map((s) => s.t).join('');
+  const typed = Object.assign({}, p.persona, {
+    services: ['case-management', 'uscis-forms'],
+    servicesOther: 'court filings',
+  });
+  assert.match(D.buildDrafts(p, typed, 1).g2.text, /court filings/);
+  const repeated = Object.assign({}, p.persona, { servicesOther: 'case management' });
+  assert.equal(D.buildDrafts(p, repeated, 1).g2.text.split('case management').length - 1, D.buildDrafts(p, p.persona, 1).g2.text.split('case management').length - 1);
+
+  const talked = Object.assign({}, p.persona, {
+    services: ['case-management', 'uscis-forms', 'billing', 'portal'],
+    result: 'Billing is down to an hour and the client portal messages cut our phone calls in half.',
+    advice: 'Tell your caseworkers to start with the inbox.',
+    improve: 'The screens took a while to learn.',
+  });
+  const said = ours(talked);
+  assert.match(said, /billing/);
+  assert.match(said, /client portal/);
+  assert.doesNotMatch(said, /case management/, said);
+
+  const filed = Object.assign({}, p.persona, {
+    services: ['billing', 'uscis-forms', 'portal'],
+    result: 'We e-filed the last twenty petitions and the client portal messages are enough for us.',
+    advice: 'Start with the inbox.',
+    improve: 'Nothing major to change.',
+  });
+  const forms = ours(filed);
+  assert.match(forms, /USCIS forms/);
+  assert.doesNotMatch(forms, /\bbilling\b/);
+
+  const before = Object.assign({}, p.persona, {
+    before: null,
+    beforeOther: 'cel',
+    result: 'Excellent results on every form now.',
+    advice: 'Give it a week.',
+    improve: 'Nothing else.',
+  });
+  assert.match(D.buildDrafts(p, before, 2).g2.text, /from cel\b/);
+});
+
+test('a title keeps the rest of the sentence, and it is not repeated when it is the whole sentence', () => {
+  const p = loadPreview('eimmigration');
+  const clause = Object.assign({}, p.persona, {
+    result: 'We switched, and filing dropped from two hours to twenty minutes. Support was great.',
+    advice: 'Give the team a week to settle in.',
+    improve: 'Reporting took a while to learn.',
+  });
+  const clauseBody = D.buildDrafts(p, clause, 1).trustpilot.text.split('\n').slice(1).join('\n');
+  assert.match(clauseBody, /filing dropped from two hours to twenty minutes/);
+  assert.match(clauseBody, /Support was great/);
+
+  const one = Object.assign({}, p.persona, {
+    result: 'Forms fill themselves now.',
+    advice: 'Give the move a week and lean on support.',
+    improve: 'Reporting took a while to learn.',
+  });
+  const oneParts = D.buildDrafts(p, one, 1).trustpilot.text.split('\n');
+  assert.equal(oneParts[0], 'Forms fill themselves now');
+  assert.ok(!oneParts.slice(1).join('\n').includes('Forms fill themselves now'), oneParts.join('\n'));
+
+  const fromAdvice = Object.assign({}, p.persona, {
+    result: 'Our caseworkers enter a client once and every related form fills itself without anyone retyping the old data.',
+    advice: 'Give the move a week.',
+    improve: 'Reporting took a while to learn.',
+  });
+  const adviceDraft = D.buildDrafts(p, fromAdvice, 1).trustpilot.text;
+  assert.equal(adviceDraft.split('\n')[0], 'Give the move a week');
+  assert.ok(!adviceDraft.split('\n').slice(1).join('\n').includes('Give the move a week'), adviceDraft);
+  assert.match(adviceDraft, /caseworkers enter a client once/);
+});
+
+test('the facts sentence is not repeated to fill an empty field', () => {
+  const p = loadPreview('eimmigration');
+  const a = Object.assign({}, p.persona, { advice: '' });
+  const g2 = D.buildDrafts(p, a, 2).g2.text;
+  const marker = 'nonprofit immigration legal services team';
+  assert.equal(g2.split(marker).length - 1, 1, g2);
 });
 
 test('V3 sentences in our words never praise, recommend or rate', () => {
@@ -421,9 +503,36 @@ test('under 5 stars stays off the review step, and 5 stars still reach the draft
   const engine = fs.readFileSync(path.join(V2, 'preview.js'), 'utf8');
   assert.match(engine, /empathy\.textContent = saved/);
   assert.doesNotMatch(engine, /empathy\.innerHTML/);
+  const finish = engine.slice(engine.indexOf('async function finishChat'), engine.indexOf('function renderDraftStars'));
+  const gate = finish.indexOf("if (isGated() && $('#screen-negative'))");
+  const link = finish.indexOf('chat-draft-inline__link');
+  assert.ok(gate !== -1 && link > gate, 'a gated visit returns before the review link is offered');
+  assert.ok(finish.indexOf('return;', gate) < link);
   const draft = fs.readFileSync(path.join(V2, 'eimmigration/index.html'), 'utf8');
   assert.match(draft, /Here are your reviews, ready to publish\./);
   assert.match(draft, /id="btn-saved-drafts"/);
+});
+
+test('Lean Labs stays on the V2 interview', () => {
+  const p = loadPreview('lean-labs');
+  assert.equal(p.versionLabel, undefined);
+  assert.equal(p.draftStyle, undefined);
+  assert.notEqual(p.draftStyle, 'their-words');
+  const html = fs.readFileSync(path.join(V2, 'lean-labs/index.html'), 'utf8');
+  assert.match(html, /V2 preview \| Lean Labs/);
+  assert.match(html, /Jump to V1 vs V2/);
+  assert.doesNotMatch(html, /V3/);
+  const engine = fs.readFileSync(path.join(V2, 'preview.js'), 'utf8');
+  assert.match(engine, /const VERSION = P\.versionLabel \|\| 'V2'/);
+});
+
+test('a short answer and its follow-up stay two sentences', () => {
+  const { joinFollowUp } = extractPreviewFunctions(['joinFollowUp']);
+  assert.equal(joinFollowUp('Forms are faster now', 'We file in 20 minutes.'), 'Forms are faster now. We file in 20 minutes.');
+  assert.equal(joinFollowUp('Forms are faster now.', 'We file in 20 minutes.'), 'Forms are faster now. We file in 20 minutes.');
+  assert.equal(joinFollowUp('Forms are faster now,', 'We file in 20 minutes.'), 'Forms are faster now. We file in 20 minutes.');
+  assert.equal(joinFollowUp('Wow!', ''), 'Wow!');
+  assert.equal(joinFollowUp('', 'We file in 20 minutes.'), 'We file in 20 minutes.');
 });
 
 test('eimmigration preview under-5 end screen uses the live portal copy', () => {

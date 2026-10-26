@@ -610,9 +610,25 @@
     return [answers.result, answers.advice, answers.improve].map((t) => tidy(t).toLowerCase()).join(' ');
   }
 
+  // Word-boundary match. A short stem may continue as a plural or -ing/-ed
+  // ("form" matches "forms", "report" matches "reporting") and must not match
+  // inside a longer word ("case" does not match "caseworkers" or "lowercase").
+  const keywordRes = new Map();
+  function keywordIn(text, keyword) {
+    const raw = String(keyword || '').toLowerCase().trim();
+    if (!raw || !text) return false;
+    let re = keywordRes.get(raw);
+    if (!re) {
+      const esc = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+      re = new RegExp(`(^|[^a-z0-9])${esc}(?:s|es|ing|ed)?(?=$|[^a-z0-9])`, 'i');
+      keywordRes.set(raw, re);
+    }
+    return re.test(text);
+  }
+
   // Loose match to rank picks: did their own words touch on it?
   function touches(text, option) {
-    return (option.keywords || []).concat(option.terms || []).some((k) => k && text.includes(String(k).toLowerCase()));
+    return (option.keywords || []).concat(option.terms || []).some((k) => keywordIn(text, k));
   }
 
   // Strict match: one of the option's scored terms is already in their words.
@@ -621,15 +637,24 @@
   }
 
   // Up to `max` of the things they use it for. Picks their own words touch
-  // on come first, then the order they tapped them.
+  // on come first, then the order they tapped them. A service they typed is
+  // their words, so it keeps a slot ahead of a second tap, unless the essay
+  // or a picked phrase already says it. The one-job short sentence keeps a
+  // tap when there is one, so the category is not the thing that gets cut.
   function namedJobs(preview, answers, said, max) {
     const ranked = pickedOptions(preview, 'services', answers)
       .map((o, i) => ({ o, i, hit: touches(said, o) ? 1 : 0 }))
       .sort((a, b) => b.hit - a.hit || a.i - b.i)
       .map((x) => seg(x.o.phrase, 'X', { step: 'services', option: x.o.id }));
     const own = ownPhrase(answers.servicesOther);
-    if (own) ranked.push(seg(own, 'R'));
-    return { named: ranked.slice(0, max), total: ranked.length };
+    const ownNew = own
+      && !ranked.some((s) => s.t.toLowerCase() === own.toLowerCase())
+      && !keywordIn(said, own);
+    const ownSeg = ownNew ? seg(own, 'R') : null;
+    const total = ranked.length + (ownSeg ? 1 : 0);
+    if (!ownSeg) return { named: ranked.slice(0, max), total };
+    if (max <= 1) return { named: ranked.length ? ranked.slice(0, 1) : [ownSeg], total };
+    return { named: ranked.slice(0, max - 1).concat([ownSeg]), total };
   }
 
   // The one sentence in our words.
@@ -647,7 +672,7 @@
     let kind = 'facts';
     if (before && before.firstSystem) kind = 'factsFirst';
     else if (before && !saysTerm(said, before)) vals.before = [seg(before.phrase, 'Z', { step: 'before', option: before.id })];
-    else if (!before && beforeOwn && !said.includes(beforeOwn.toLowerCase())) vals.before = [seg(beforeOwn, 'R')];
+    else if (!before && beforeOwn && !keywordIn(said, beforeOwn)) vals.before = [seg(beforeOwn, 'R')];
     return sentence(kind, vals, preview, rand) || sentence('facts', vals, preview, rand);
   }
 
@@ -661,13 +686,22 @@
     return sentence('titleFallback', { co: [seg(preview.company)] }, preview, rand);
   }
 
+  // True when the title is that whole sentence, not merely its first clause.
+  // A clause title must not cause the rest of the sentence to be dropped.
+  function coversSentence(title, sentence) {
+    if (!title || !title.length || !sentence || title[0].slot !== 'R') return false;
+    const head = segmentsToText(title).replace(/[.!?]+$/, '').toLowerCase();
+    const body = segmentsToText(sentence).replace(/[.!?]+$/, '').toLowerCase();
+    return Boolean(head) && head === body;
+  }
+
   function theirWordsParts(preview, answers, rand) {
     const result = customerSentences(answers.result);
-    const advice = customerSentences(answers.advice);
+    let advice = customerSentences(answers.advice);
     const title = theirTitle(preview, result, advice, rand);
-    // A title taken from their first sentence is not said again right under it.
-    const titleIsFirst = Boolean(title && result[0] && title[0].slot === 'R'
-      && segmentsToText(result[0]).startsWith(segmentsToText(title)));
+    // A title taken from a whole sentence is not said again in the body.
+    const titleIsFirst = coversSentence(title, result[0]);
+    if (coversSentence(title, advice[0])) advice = advice.slice(1);
     return {
       result,
       advice,
@@ -688,7 +722,8 @@
   function theirWordsBody(p, max, skipFirst) {
     const count = (l) => words(segmentsToText(joinSentences(l)));
     let facts = p.facts;
-    let result = skipFirst && p.result.length >= 2 ? p.result.slice(1) : p.result.slice();
+    let result = p.result.slice();
+    if (skipFirst) result = result.slice(1);
     let advice = p.advice.slice();
     let improve = p.improve.slice();
     const build = () => [facts].concat(result, advice, improve).filter(Boolean);
@@ -720,20 +755,24 @@
     const dislike = p.improve.length ? p.improve : [p.nothingToAdd];
     if (platform === 'g2') {
       // Below 4 stars their result is not turned into a "like".
-      const like = p.positive ? [r.first, r.last] : [p.facts];
-      const problems = p.positive ? [p.facts].concat(r.middle) : p.result;
+      // The facts sentence is used once. Empty fields fall back to the
+      // company name instead of repeating it.
+      const like = p.positive ? [r.first, r.last].filter(Boolean) : [];
+      const problems = p.positive ? r.middle.slice() : p.result.slice();
+      if (like.length) problems.unshift(p.facts);
+      else like.push(p.facts);
       return fieldsDraft(FIELDS.g2(preview.company), [
-        fieldBody(like, p.facts, preview),
+        fieldBody(like, null, preview),
         fieldBody(dislike, null, preview),
-        fieldBody(problems, p.facts, preview),
-        fieldBody(p.advice, p.facts, preview),
+        fieldBody(problems, null, preview),
+        fieldBody(p.advice, null, preview),
       ]);
     }
     if (platform === 'gartner') {
       const story = p.positive ? (p.titleIsFirst ? r.middle : [r.first].concat(r.middle)) : p.result;
       const like = p.positive ? [r.last || r.first] : [];
       return fieldsDraft(FIELDS.gartner(), [
-        fieldBody([p.facts].concat(story, p.advice), p.facts, preview),
+        fieldBody([p.facts].concat(story, p.advice), null, preview),
         fieldBody(like, null, preview),
         fieldBody(dislike, null, preview),
         [p.title || [seg(preview.company)]],

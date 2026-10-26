@@ -65,11 +65,25 @@
   const STEP_OF = { welcome: 1, chat: 2, draft: 3, compare: 4 };
 
   // A step whose skipIf matches earlier answers is not asked. V3: a yes to
-  // "publish as a 5-star rating" skips the star question.
+  // "publish as a 5-star rating" skips the star question. An empty rule
+  // skips nothing.
   function stepSkipped(step, answers) {
     const rule = step && step.skipIf;
     if (!rule) return false;
-    return Object.keys(rule).every((k) => (answers || {})[k] === rule[k]);
+    const keys = Object.keys(rule);
+    if (!keys.length) return false;
+    return keys.every((k) => (answers || {})[k] === rule[k]);
+  }
+
+  // The follow-up is a second sentence, not a tail glued onto the first.
+  function joinFollowUp(first, second) {
+    let a = String(first || '').trim();
+    const b = String(second || '').trim();
+    if (!a) return b;
+    if (!b) return a;
+    a = a.replace(/[,;:]+$/, '');
+    if (!/[.!?]$/.test(a)) a += '.';
+    return `${a} ${b}`;
   }
 
   function lowRatingBelow(lowRating) {
@@ -261,6 +275,9 @@
     if (!step) return finishChat();
     if (stepSkipped(step, state.answers)) {
       if (step.skipValue !== undefined) state.answers[step.id] = step.skipValue;
+      // A filled-in rating still has to hit the reach-out gate. Yes maps to 5,
+      // so this does not fire on the V3 skip. A value under the threshold would.
+      if (step.type === 'stars' && ratingIsGated(state.answers[step.id], P.lowRating)) return runLowRating();
       return runStep(i + 1);
     }
     if (step.type === 'grid' && step.perService) {
@@ -528,7 +545,9 @@
     const input = $('#chat-input');
     const send = $('#chat-send');
     input.value = '';
-    input.placeholder = step.required ? 'Type your answer...' : 'Type your answer, or skip';
+    input.placeholder = isFollowUp
+      ? 'Add one more sentence, or leave it here'
+      : (step.required ? 'Type your answer...' : 'Type your answer, or skip');
     send.disabled = true;
 
     const tools = [];
@@ -570,13 +589,14 @@
       userSay(label || text);
       const first = state.partial[step.id];
       const f = step.followUp;
-      if (f && !isFollowUp && text && D.words(text) < (f.minWords || 8)) {
+      const minWords = f && f.minWords == null ? 8 : f && f.minWords;
+      if (f && !isFollowUp && text && D.words(text) < minWords) {
         state.partial[step.id] = text;
         agentSay(f.ask).then(() => renderText(step, true));
         return;
       }
       delete state.partial[step.id];
-      state.answers[step.id] = [first, text].filter(Boolean).join(' ');
+      state.answers[step.id] = joinFollowUp(first, text);
       next();
     }
   }

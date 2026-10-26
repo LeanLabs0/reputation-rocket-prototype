@@ -81,11 +81,11 @@ window.V2_PREVIEW = {
       ownWords: true,
       options: [
         { id: 'case-management', label: 'Immigration case management', phrase: 'case management', terms: ['case management'], keywords: ['case'], bestAs: 'immigration case management software' },
-        { id: 'uscis-forms', label: 'Filling and e-filing USCIS forms', phrase: 'USCIS forms', terms: ['uscis forms', 'e-filing'], keywords: ['form', 'uscis', 'e-fil'], bestAs: 'immigration forms software' },
+        { id: 'uscis-forms', label: 'Filling and e-filing USCIS forms', phrase: 'USCIS forms', terms: ['uscis forms', 'e-filing'], keywords: ['form', 'uscis', 'e-file', 'e-fil'], bestAs: 'immigration forms software' },
         { id: 'intake', label: 'Client intake questionnaires', phrase: 'client intake questionnaires', terms: ['intake questionnaires'], keywords: ['intake', 'questionnaire'], bestAs: 'immigration client intake software' },
         { id: 'deadlines', label: 'Deadlines and reminders', phrase: 'deadline reminders', terms: [], keywords: ['deadline', 'reminder'] },
         { id: 'reports', label: 'Reports for funders or leadership', phrase: 'reporting for funders or leadership', terms: [], keywords: ['report', 'funder'] },
-        { id: 'portal', label: 'Client portal and messaging', phrase: 'the client portal', terms: [], keywords: ['portal', 'messag'] },
+        { id: 'portal', label: 'Client portal and messaging', phrase: 'the client portal', terms: [], keywords: ['portal', 'message', 'messaging'] },
         { id: 'billing', label: 'Invoices and trust accounting', phrase: 'billing', terms: [], keywords: ['invoice', 'billing', 'trust account'] },
       ],
     },
