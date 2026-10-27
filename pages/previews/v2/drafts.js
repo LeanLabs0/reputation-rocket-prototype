@@ -657,8 +657,8 @@
     return { named: ranked.slice(0, max - 1).concat([ownSeg]), total };
   }
 
-  // The one sentence in our words.
-  function factsSentence(preview, answers, rand, maxJobs) {
+  // What our one sentence can say, as template values.
+  function factsVals(preview, answers, maxJobs) {
     const said = theirText(answers);
     const vals = { co: [seg(preview.company)] };
     const org = pickedOptions(preview, 'orgType', answers)[0];
@@ -673,7 +673,28 @@
     if (before && before.firstSystem) kind = 'factsFirst';
     else if (before && !saysTerm(said, before)) vals.before = [seg(before.phrase, 'Z', { step: 'before', option: before.id })];
     else if (!before && beforeOwn && !keywordIn(said, beforeOwn)) vals.before = [seg(beforeOwn, 'R')];
+    return { vals, kind };
+  }
+
+  // The one sentence in our words.
+  function factsSentence(preview, answers, rand, maxJobs) {
+    const { vals, kind } = factsVals(preview, answers, maxJobs);
     return sentence(kind, vals, preview, rand) || sentence('facts', vals, preview, rand);
+  }
+
+  // The same facts as up to `k` shorter sentences, each fact said once. Only
+  // for field forms where the customer left more than one field empty.
+  function factsPieces(preview, answers, rand, k) {
+    const { vals, kind } = factsVals(preview, answers, 2);
+    let plan = [['org', 'forJobs'], ['before']];
+    if (kind === 'factsFirst' || !vals.before) plan = [['org'], ['forJobs']];
+    else if (k >= 3) plan = [['before'], ['forJobs'], ['org']];
+    return plan.map((keys) => {
+      const v = { co: vals.co };
+      keys.forEach((key) => { if (vals[key]) v[key] = vals[key]; });
+      if (Object.keys(v).length < 2) return null;
+      return sentence(kind === 'factsFirst' && v.forJobs ? 'factsFirst' : 'facts', v, preview, rand);
+    }).filter(Boolean).slice(0, k);
   }
 
   // A title from their own first line, never a category plus a buyer.
@@ -688,11 +709,37 @@
 
   // True when the title is that whole sentence, not merely its first clause.
   // A clause title must not cause the rest of the sentence to be dropped.
-  function coversSentence(title, sentence) {
-    if (!title || !title.length || !sentence || title[0].slot !== 'R') return false;
+  function coversSentence(title, sentenceSegs) {
+    if (!title || !title.length || !sentenceSegs || title[0].slot !== 'R') return false;
     const head = segmentsToText(title).replace(/[.!?]+$/, '').toLowerCase();
-    const body = segmentsToText(sentence).replace(/[.!?]+$/, '').toLowerCase();
+    const body = segmentsToText(sentenceSegs).replace(/[.!?]+$/, '').toLowerCase();
     return Boolean(head) && head === body;
+  }
+
+  // True when `title` is the headline theirTitle would take from this sentence,
+  // including a short first clause of a longer sentence.
+  function titleComesFrom(sentenceSegs, title) {
+    if (!title || !title.length || !sentenceSegs || title[0].slot !== 'R') return false;
+    const clause = firstClause(segmentsToText(sentenceSegs), 40);
+    if (!clause || words(clause) > 10) return false;
+    const head = segmentsToText(title).replace(/[.!?]+$/, '').toLowerCase();
+    return head === asSentence(clause).replace(/[.!?]+$/, '').toLowerCase();
+  }
+
+  // The plain headline, as a sentence, for a field that would otherwise
+  // repeat a fact or say only the company name.
+  function spareSentence(preview, rand) {
+    const made = sentence('titleFallback', { co: [seg(preview.company)] }, preview, rand);
+    if (!made || !made.length) return null;
+    const out = made.map((part) => {
+      const copy = { t: part.t };
+      if (part.slot) copy.slot = part.slot;
+      if (part.src) copy.src = part.src;
+      return copy;
+    });
+    const last = out[out.length - 1];
+    if (!/[.!?]$/.test(last.t)) last.t += '.';
+    return out;
   }
 
   function theirWordsParts(preview, answers, rand) {
@@ -700,11 +747,14 @@
     let advice = customerSentences(answers.advice);
     const title = theirTitle(preview, result, advice, rand);
     // A title taken from a whole sentence is not said again in the body.
+    // G2 has no headline, so it keeps the full advice (`adviceAll`).
     const titleIsFirst = coversSentence(title, result[0]);
+    const adviceAll = advice.slice();
     if (coversSentence(title, advice[0])) advice = advice.slice(1);
     return {
       result,
       advice,
+      adviceAll,
       improve: customerSentences(answers.improve),
       facts: factsSentence(preview, answers, rand, 2),
       factsShort: factsSentence(preview, answers, rand, 1),
@@ -713,6 +763,11 @@
       nothingToAdd: choseNothingToAdd(answers) ? sentence('nothingToAdd', {}, preview, rand) : null,
       title,
       titleIsFirst,
+      // Built only when a field form needs them, so the usual drafts do not
+      // change with them.
+      pieces: (k) => factsPieces(preview, answers, rand, k),
+      spare: () => spareSentence(preview, rand),
+      plainTitle: () => sentence('titleFallback', { co: [seg(preview.company)] }, preview, rand),
     };
   }
 
@@ -750,32 +805,95 @@
     };
   }
 
+  // G2 and Gartner fields. Every field gets real sentences, and none is said
+  // twice. A field they left empty first takes the last sentence of a field
+  // that holds two or more of theirs (never into `noBorrow`). Our facts
+  // sentence then goes to the home field, or to a field that is still empty.
+  // Only when more than one field is still empty are the facts split across
+  // them. An extra empty field gets the plain headline sentence. A fact is
+  // repeated only when that field is the only sentence we have. `allowSpare`
+  // is false when the plain headline is already the Gartner title, so the
+  // title is not said again in a field.
+  function fillTheirFields(fields, home, noBorrow, p, allowSpare) {
+    const out = fields.map((f) => (f || []).filter(Boolean));
+    const empty = () => out.map((f, i) => (f.length ? -1 : i)).filter((i) => i >= 0);
+    empty().filter((i) => i !== home && !noBorrow.includes(i)).forEach((i) => {
+      let donor = -1;
+      out.forEach((f, j) => {
+        if (j !== i && f.length >= 2 && (donor < 0 || f.length > out[donor].length)) donor = j;
+      });
+      if (donor >= 0) out[i].push(out[donor].pop());
+    });
+    const still = empty();
+    const target = still.includes(home) || !still.length ? home : still[0];
+    const slots = [target].concat(still.filter((i) => i !== target));
+    if (slots.length === 1) {
+      if (p.facts) out[target].unshift(p.facts);
+      return out;
+    }
+    const split = (p.pieces(slots.length) || []).filter(Boolean);
+    const pieces = split.length ? split : (p.facts ? [p.facts] : []);
+    const key = (s) => segmentsToText(s).replace(/[.!?]+$/, '').toLowerCase();
+    const used = new Set();
+    out.forEach((field) => field.forEach((s) => used.add(key(s))));
+    pieces.forEach((s) => used.add(key(s)));
+    let spare = null;
+    slots.forEach((i, n) => {
+      let piece = pieces[n];
+      if (!piece && allowSpare !== false && p.spare) {
+        if (!spare) spare = p.spare();
+        if (spare && !used.has(key(spare))) {
+          piece = spare;
+          used.add(key(spare));
+        }
+      }
+      // One sentence cannot fill every empty field. Repeat it, and nothing else.
+      if (!piece && pieces.length === 1) piece = pieces[0];
+      if (piece) out[i].unshift(piece);
+    });
+    return out;
+  }
+
   function theirWordsDraft(preview, platform, p) {
     const r = resultParts(p.result);
     const dislike = p.improve.length ? p.improve : [p.nothingToAdd];
     if (platform === 'g2') {
       // Below 4 stars their result is not turned into a "like".
-      // The facts sentence is used once. Empty fields fall back to the
-      // company name instead of repeating it.
-      const like = p.positive ? [r.first, r.last].filter(Boolean) : [];
-      const problems = p.positive ? r.middle.slice() : p.result.slice();
-      if (like.length) problems.unshift(p.facts);
-      else like.push(p.facts);
+      const like = p.positive ? [r.first, r.last] : [];
+      const problems = p.positive ? r.middle : p.result;
+      const [likeF, problemsF, adviceF] = fillTheirFields([like, problems, p.adviceAll], 1, p.positive ? [] : [0], p, true);
       return fieldsDraft(FIELDS.g2(preview.company), [
-        fieldBody(like, null, preview),
+        fieldBody(likeF, null, preview),
         fieldBody(dislike, null, preview),
-        fieldBody(problems, null, preview),
-        fieldBody(p.advice, null, preview),
+        fieldBody(problemsF, null, preview),
+        fieldBody(adviceF, null, preview),
       ]);
     }
     if (platform === 'gartner') {
-      const story = p.positive ? (p.titleIsFirst ? r.middle : [r.first].concat(r.middle)) : p.result;
+      // With one result sentence, it is what they like most and stays out of
+      // the overall comment. A low or skipped rating keeps their words in the
+      // overall comment, and still drops a title that would repeat a sentence.
+      const story = !p.positive
+        ? p.result.slice(p.titleIsFirst && p.result.length > 1 ? 1 : 0)
+        : (p.titleIsFirst || !r.last ? r.middle : [r.first].concat(r.middle));
       const like = p.positive ? [r.last || r.first] : [];
+      // A headline taken from the only result sentence repeats that sentence,
+      // whether or not the whole sentence fit in the title.
+      const fromOnlyResult = p.result.length === 1 && titleComesFrom(p.result[0], p.title);
+      const headlineIsPlain = fromOnlyResult || !(p.title && p.title[0] && p.title[0].slot === 'R');
+      const [overall, likeF] = fillTheirFields(
+        [story.concat(p.advice), like],
+        0,
+        p.positive ? [] : [1],
+        p,
+        !headlineIsPlain,
+      );
+      const headline = fromOnlyResult ? p.plainTitle() : p.title;
       return fieldsDraft(FIELDS.gartner(), [
-        fieldBody([p.facts].concat(story, p.advice), null, preview),
-        fieldBody(like, null, preview),
+        fieldBody(overall, null, preview),
+        fieldBody(likeF, null, preview),
         fieldBody(dislike, null, preview),
-        [p.title || [seg(preview.company)]],
+        [headline || [seg(preview.company)]],
       ]);
     }
     const titled = platform === 'trustpilot' && p.title;
