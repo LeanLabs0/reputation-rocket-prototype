@@ -92,6 +92,9 @@ window.V2_PREVIEW = {
     {
       // 10/23 review: ask this instead of the 1 to 5 stars. Yes skips the
       // star question. No or Skip shows it, and under 5 follows lowRating.
+      // The star question has no Skip (decided 10/27), so a customer who
+      // would not publish 5 stars can't reach the review links without a
+      // number.
       id: 'fiveStar', type: 'single', skip: true,
       ask: 'Would you be willing to publish your review as a 5-star rating?',
       options: [
@@ -100,7 +103,7 @@ window.V2_PREVIEW = {
       ],
     },
     {
-      id: 'rating', type: 'stars', skip: true, skipIf: { fiveStar: 'yes' }, skipValue: 5,
+      id: 'rating', type: 'stars', skipIf: { fiveStar: 'yes' }, skipValue: 5,
       ask: 'How would you rate your overall experience with eimmigration? (1 being poor, 5 being excellent)',
     },
     {

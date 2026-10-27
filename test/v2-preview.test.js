@@ -305,6 +305,22 @@ test('a yes to the 5-star question skips the star question, anything else asks i
   assert.equal(stepSkipped({ skipIf: {} }, { fiveStar: 'yes' }), false, 'an empty rule skips nothing');
 });
 
+test('after a no to 5 stars the star question has no Skip, so under 5 always reaches the reach-out step', () => {
+  const eim = loadPreview('eimmigration');
+  const stars = step(eim, 'rating');
+  assert.ok(eim.lowRating && eim.lowRating.gate, 'eimmigration holds back reviews under 5');
+  assert.equal(stars.skipIf && stars.skipIf.fiveStar, 'yes');
+  assert.ok(!stars.skip, 'a customer who would not publish 5 stars has to give a number');
+  assert.equal(step(loadPreview('lean-labs'), 'rating').skip, true, 'Lean Labs keeps its Skip');
+  const engine = fs.readFileSync(path.join(V2, 'preview.js'), 'utf8');
+  const start = engine.indexOf('function renderStars(');
+  const render = engine.slice(start, engine.indexOf('\n  }\n', start));
+  const guard = render.indexOf('if (step.skip) {');
+  assert.notEqual(guard, -1, 'renderStars offers Skip only when the step allows it');
+  assert.equal(render.split("text: 'Skip'").length - 1, 1);
+  assert.ok(render.indexOf("text: 'Skip'") > guard);
+});
+
 test('every box ticked still reads like a person wrote it: two picks named at most, mostly their words', () => {
   const p = loadPreview('eimmigration');
   const options = step(p, 'services').options;
@@ -691,6 +707,9 @@ test('interview, not script: every choice can be skipped or answered in own word
       assert.ok(s.skip || s.ownWords, `${slug}/${s.id} needs Skip or own words`);
     });
     p.steps.filter((s) => s.type === 'stars' || s.type === 'grid').forEach((s) => {
+      // The one exception: with the under-5 gate, the star question after a
+      // no to "publish as a 5-star rating" needs a number.
+      if (s.type === 'stars' && p.lowRating && p.lowRating.gate && s.skipIf) return;
       assert.equal(s.skip, true, `${slug}/${s.id} must be skippable`);
     });
     p.steps.filter((s) => s.type === 'text').forEach((s) => assert.ok(!s.required, `${slug}/${s.id} must be skippable`));
