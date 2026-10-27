@@ -707,9 +707,15 @@ test('interview, not script: every choice can be skipped or answered in own word
       assert.ok(s.skip || s.ownWords, `${slug}/${s.id} needs Skip or own words`);
     });
     p.steps.filter((s) => s.type === 'stars' || s.type === 'grid').forEach((s) => {
-      // The one exception: with the under-5 gate, the star question after a
-      // no to "publish as a 5-star rating" needs a number.
-      if (s.type === 'stars' && p.lowRating && p.lowRating.gate && s.skipIf) return;
+      // The one exception: after a no or a skip on "publish as a 5-star
+      // rating", the star question needs a number. A yes still records 5,
+      // so the drafts are never offered with a blank rating.
+      if (s.type === 'stars' && p.lowRating && p.lowRating.gate && s.skipIf) {
+        assert.equal(s.skipIf.fiveStar, 'yes', `${slug}/${s.id} may drop Skip only when a yes already means 5 stars`);
+        assert.equal(s.skipValue, 5, `${slug}/${s.id} yes-path must record 5 stars`);
+        assert.ok(!s.skip, `${slug}/${s.id} must not offer Skip once the under-5 gate needs a number`);
+        return;
+      }
       assert.equal(s.skip, true, `${slug}/${s.id} must be skippable`);
     });
     p.steps.filter((s) => s.type === 'text').forEach((s) => assert.ok(!s.required, `${slug}/${s.id} must be skippable`));
