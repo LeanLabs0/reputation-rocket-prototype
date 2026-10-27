@@ -461,6 +461,13 @@ test('in G2 and Gartner every field has a sentence and no sentence is said twice
     'one sentence': { result: one },
     'one sentence, no advice': { result: one, advice: '' },
     'one sentence that is the title': { result: 'It saves our team hours on every single case.' },
+    'one long sentence is not the headline': { result: one, advice: '' },
+    'skip before, nothing typed': { before: null, result: '', advice: '', improve: '' },
+    'skip org, nothing typed': { orgType: null, result: '', advice: '', improve: '' },
+    'first system, nothing typed': { before: 'first', result: '', advice: '', improve: '' },
+    'one service, skip before, nothing typed': { before: null, services: ['case-management'], result: '', advice: '', improve: '' },
+    'rating skipped': { rating: null },
+    'rating skipped, one sentence': { rating: null, result: 'It saves our team hours on every single case.' },
   };
   Object.entries(cases).forEach(([name, change]) => {
     const drafts = D.buildDrafts(p, Object.assign({}, p.persona, change), 4);
@@ -473,8 +480,54 @@ test('in G2 and Gartner every field has a sentence and no sentence is said twice
           seen.add(s);
         });
       });
+      if (name === 'one long sentence is not the headline') {
+        const g = parse(drafts.gartner.text);
+        assert.equal(g[3].body, 'Our experience with eimmigration');
+        assert.match(g[1].body, /We stopped typing the same client details/);
+        assert.doesNotMatch(g[0].body, /We stopped typing/);
+      }
+      if (name === 'rating skipped' || name === 'rating skipped, one sentence') {
+        const g = parse(drafts.gartner.text);
+        const headline = g[3].body.toLowerCase().replace(/[.!?]+$/, '').trim();
+        g.slice(0, 3).forEach((f) => {
+          f.body.split(/(?<=[.!?])\s+/).forEach((s) => {
+            assert.notEqual(norm(s), headline, `${name} repeats the headline:\n${drafts.gartner.text}`);
+          });
+        });
+      }
     });
   });
+});
+
+test('G2 keeps an advice line that Gartner uses as the headline', () => {
+  const p = loadPreview('eimmigration');
+  const a = Object.assign({}, p.persona, {
+    result: 'Our caseworkers enter a client once and every related form fills itself without anyone retyping the old data.',
+    advice: 'Give the move a week.',
+  });
+  const drafts = D.buildDrafts(p, a, 4);
+  assert.match(drafts.g2.text, /Give the move a week/);
+  assert.equal(drafts.gartner.text.split('\n').pop(), 'Give the move a week');
+  assert.ok(!drafts.gartner.text.slice(0, drafts.gartner.text.lastIndexOf('\n')).includes('Give the move a week'));
+});
+
+test('one tapped fact is not pasted into every empty G2 field', () => {
+  const p = loadPreview('eimmigration');
+  const parse = loadParseG2Fields();
+  const a = Object.assign({}, p.persona, {
+    orgType: null,
+    before: null,
+    services: ['billing'],
+    result: '',
+    advice: '',
+    improve: '',
+  });
+  const fields = parse(D.buildDrafts(p, a, 4).g2.text);
+  const fact = 'We use eimmigration for billing.';
+  const copies = fields.filter((f) => f.body === fact).length;
+  assert.ok(copies >= 1 && copies <= 2, fields.map((f) => f.body).join('\n'));
+  assert.ok(fields.some((f) => f.body === 'Our experience with eimmigration.'));
+  fields.forEach((f) => assert.notEqual(f.body, `${p.company}.`));
 });
 
 test('V3 sentences in our words never praise, recommend or rate', () => {
