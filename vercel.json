@@ -64,6 +64,11 @@
       "source": "/fatherhood/demo",
       "destination": "/fatherhood/demo/",
       "permanent": true
+    },
+    {
+      "source": "/alitek",
+      "destination": "/alitek/",
+      "permanent": true
     }
   ],
   "rewrites": [
@@ -86,6 +91,26 @@
     {
       "source": "/configure/:path*",
       "destination": "/pages/configure/:path*"
+    },
+    {
+      "source": "/alitek/demo",
+      "destination": "/pages/clients/alitek/demo/index.html"
+    },
+    {
+      "source": "/alitek/demo/",
+      "destination": "/pages/clients/alitek/demo/index.html"
+    },
+    {
+      "source": "/alitek",
+      "destination": "/pages/clients/alitek/"
+    },
+    {
+      "source": "/alitek/",
+      "destination": "/pages/clients/alitek/"
+    },
+    {
+      "source": "/alitek/:path*",
+      "destination": "/pages/clients/alitek/:path*"
     },
     {
       "source": "/eimmigration/demo",

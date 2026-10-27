@@ -45,3 +45,7 @@
 
 # Unknown paths
 /*  /404.html  404
+/alitek  /alitek/  308
+/alitek  /pages/clients/alitek/  200
+/alitek/  /pages/clients/alitek/  200
+/alitek/*  /pages/clients/alitek/:splat  200
