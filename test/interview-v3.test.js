@@ -1,0 +1,251 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+
+const ROOT = path.join(__dirname, '..');
+const src = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+
+function extractFunction(name) {
+  const start = src.indexOf(`function ${name}(`);
+  if (start < 0) throw new Error(`missing ${name}`);
+  // The body starts after the parameter list, which may hold `{ ... } = {}`.
+  let i = src.indexOf(') {', start) + 2;
+  let depth = 0;
+  for (; i < src.length; i++) {
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}') {
+      depth--;
+      if (depth === 0) return src.slice(start, i + 1);
+    }
+  }
+  throw new Error(`unclosed ${name}`);
+}
+
+function loadConfig(rel) {
+  const sandbox = { window: {} };
+  vm.runInNewContext(fs.readFileSync(path.join(ROOT, rel), 'utf8'), sandbox);
+  return sandbox.window.CLIENT_CONFIG;
+}
+
+// Objects made inside the vm come from another realm; compare them as JSON.
+const plain = (value) => JSON.parse(JSON.stringify(value));
+
+const fns = {};
+vm.runInNewContext([
+  'interviewStepSkipped',
+  'interviewWordCount',
+  'interviewJoinFollowUp',
+  'interviewRatingGated',
+  'interviewOption',
+  'interviewTapLines',
+  'interviewTextAnswer',
+  'buildInterviewWriterPrompt',
+  'buildInterviewNegativeFlag',
+  'isTestHost',
+].map(extractFunction).join('\n'), fns);
+
+const eim = loadConfig('pages/clients/eimmigration/config.js');
+const cfg = eim.interview;
+const step = (id) => cfg.steps.find((s) => s.id === id);
+
+const SAMPLE = {
+  orgType: 'nonprofit',
+  before: 'spreadsheets',
+  services: ['case-management', 'uscis-forms', 'reports'],
+  fiveStar: 'yes',
+  rating: 5,
+  result: 'No more re-typing client details. Now we enter a client once and the forms fill themselves.',
+  advice: '',
+  improve: '',
+};
+
+test('eimmigration runs the V3 interview: taps, the 5-star question, stars with no Skip, then three open questions', () => {
+  assert.equal(cfg.version, 3);
+  assert.deepEqual(plain(cfg.steps.map((s) => s.id)), [
+    'orgType', 'before', 'services', 'fiveStar', 'rating', 'result', 'advice', 'improve',
+  ]);
+  const stars = step('rating');
+  assert.equal(stars.type, 'stars');
+  assert.ok(!stars.skip, 'a customer who would not publish 5 stars has to give a number');
+  assert.equal(stars.skipIf.fiveStar, 'yes');
+  assert.equal(stars.skipValue, 5);
+  assert.equal(cfg.lowRating.gate, true);
+  assert.equal(cfg.lowRating.below, 5);
+  ['orgType', 'before', 'services'].forEach((id) => assert.ok(step(id).promptLabel, `${id} needs a promptLabel`));
+  assert.ok(step('services').min >= 1 && !step('services').skip, 'what they use it for is required');
+  assert.equal(step('result').followUp.minWords, 8);
+  assert.equal(step('improve').skipLabel, 'Nothing to add');
+  // The live page offers no sample answers, unlike the old preview.
+  cfg.steps.forEach((s) => assert.equal(s.sample, undefined, `${s.id} must not carry a sample answer`));
+});
+
+test('only eimmigration is on V3; every other portal keeps the V1 agent chat', () => {
+  const dir = path.join(ROOT, 'pages/clients');
+  fs.readdirSync(dir).forEach((slug) => {
+    ['config.js', 'demo/config.js'].forEach((file) => {
+      const rel = path.join('pages/clients', slug, file);
+      if (!fs.existsSync(path.join(ROOT, rel))) return;
+      const config = loadConfig(rel);
+      if (rel === path.join('pages/clients', 'eimmigration', 'config.js')) return;
+      assert.equal(config.interview, undefined, `${rel} should stay on V1`);
+    });
+  });
+});
+
+test('a yes to the 5-star question skips the stars, anything else asks them', () => {
+  const stars = step('rating');
+  assert.equal(fns.interviewStepSkipped(stars, { fiveStar: 'yes' }), true);
+  assert.equal(fns.interviewStepSkipped(stars, { fiveStar: 'no' }), false);
+  assert.equal(fns.interviewStepSkipped(stars, { fiveStar: null }), false, 'skipping the question still asks the stars');
+  assert.equal(fns.interviewStepSkipped(stars, {}), false);
+  assert.equal(fns.interviewStepSkipped({ skipIf: {} }, { fiveStar: 'yes' }), false);
+  assert.equal(fns.interviewStepSkipped(step('result'), { fiveStar: 'yes' }), false);
+});
+
+test('under 5 is held back; 5 and a missing rating are not', () => {
+  [1, 2, 3, 4].forEach((n) => assert.equal(fns.interviewRatingGated(n, cfg.lowRating), true, `${n} stars`));
+  assert.equal(fns.interviewRatingGated(5, cfg.lowRating), false);
+  assert.equal(fns.interviewRatingGated(null, cfg.lowRating), false);
+  assert.equal(fns.interviewRatingGated(3, { below: 5 }), false, 'no gate, no hold');
+});
+
+test('a short answer and its follow-up stay two sentences', () => {
+  assert.equal(fns.interviewJoinFollowUp('saves us time', 'intake used to take a week.'), 'saves us time. intake used to take a week.');
+  assert.equal(fns.interviewJoinFollowUp('Saves us time!', 'Really.'), 'Saves us time! Really.');
+  assert.equal(fns.interviewJoinFollowUp('fast,', 'and simple'), 'fast. and simple');
+  assert.equal(fns.interviewJoinFollowUp('', 'Only this.'), 'Only this.');
+  assert.equal(fns.interviewJoinFollowUp('Only this.', ''), 'Only this.');
+  assert.equal(fns.interviewWordCount('  saves us   tons of time '), 5);
+});
+
+test('the writer gets the rating, the taps as phrases, and their own words question by question', () => {
+  const prompt = fns.buildInterviewWriterPrompt(cfg, SAMPLE);
+  const lines = prompt.split('\n');
+  assert.equal(lines[0], 'RATING: 5 (they agreed to publish their review as a 5-star rating)');
+  assert.ok(lines.includes('- Who they are: a nonprofit immigration legal services team'), prompt);
+  assert.ok(lines.includes('- Used before: spreadsheets or paper files'), prompt);
+  assert.ok(lines.includes('- Use eimmigration for: case management; USCIS forms; reporting for funders or leadership'), prompt);
+  assert.ok(lines.includes(`Q: ${step('result').ask}`));
+  assert.ok(lines.includes(`A: ${SAMPLE.result}`));
+  assert.ok(lines.includes(`Q: ${step('advice').ask}`));
+  assert.equal(lines[lines.indexOf(`Q: ${step('advice').ask}`) + 1], 'A: (skipped)');
+  assert.equal(lines[lines.indexOf(`Q: ${step('improve').ask}`) + 1], 'A: (chose: Nothing to add)');
+  // The 5-star question itself and the customer's details are not answers.
+  assert.doesNotMatch(prompt, /Would you be willing/);
+  assert.doesNotMatch(prompt, /@|customer_email/);
+});
+
+test('own words, a first system and skipped taps reach the writer as they are', () => {
+  const prompt = fns.buildInterviewWriterPrompt(cfg, {
+    orgType: null,
+    before: 'first',
+    services: ['uscis-forms'],
+    servicesOther: 'tracking DACA renewals',
+    fiveStar: 'no',
+    rating: 5,
+    result: 'It works.',
+  });
+  assert.match(prompt, /^RATING: 5$/m);
+  assert.doesNotMatch(prompt, /Who they are/);
+  assert.match(prompt, /^- Used before: first system$/m);
+  assert.match(prompt, /^- Use eimmigration for: USCIS forms; \(own words\) tracking DACA renewals$/m);
+  const empty = fns.buildInterviewWriterPrompt(cfg, { fiveStar: 'yes' });
+  assert.match(empty, /^- \(nothing tapped\)$/m);
+});
+
+test('an under-5 review reaches Slack and email with its answers first', () => {
+  const flag = plain(fns.buildInterviewNegativeFlag(cfg, {
+    orgType: 'solo',
+    services: ['billing'],
+    fiveStar: 'no',
+    rating: 3,
+    reachOut: 'yes',
+    result: 'Setup was slow.',
+    advice: '',
+    improve: 'Faster support replies.',
+  }, { customer_name: 'Pat', customer_email: 'pat@example.com', client_name: 'eimmigration' }));
+  assert.equal(flag.rating, 3);
+  assert.equal(flag.severity, 'medium');
+  assert.equal(flag.client_name, 'eimmigration');
+  const first6 = flag.survey_responses.slice(0, 6);
+  assert.equal(first6[0].answer, '3 stars');
+  assert.deepEqual(first6[1], { question: 'May we reach out?', answer: 'Yes, reach out to me' });
+  assert.ok(first6.some((r) => r.answer === 'Setup was slow.'));
+  assert.ok(first6.some((r) => r.answer === 'Faster support replies.'));
+  assert.ok(first6.some((r) => r.question === step('advice').ask && r.answer === '(skipped)'));
+  assert.equal(flag.suggested_actions.length, 1);
+  assert.equal(plain(fns.buildInterviewNegativeFlag(cfg, { rating: 1 }, {})).severity, 'high');
+  assert.equal(plain(fns.buildInterviewNegativeFlag(cfg, { rating: 4, reachOut: 'no' }, {})).suggested_actions.length, 0);
+});
+
+test('stage, previews and local dev never send to HubSpot, Slack or email', () => {
+  ['stage.reputationrocket.ai', 'reputation-rocket-git-stage-leanlabs.vercel.app', 'localhost', '127.0.0.1'].forEach((host) => {
+    assert.equal(fns.isTestHost(host), true, host);
+  });
+  ['reputationrocket.ai', 'www.reputationrocket.ai', 'reviews.example.com'].forEach((host) => {
+    assert.equal(fns.isTestHost(host), false, host);
+  });
+  ['submitLeadFieldsToHubSpotApi', 'patchHubSpotContact', 'sendLifecycleNotification'].forEach((name) => {
+    const body = extractFunction(name);
+    const guard = body.indexOf('if (isTestHost())');
+    assert.notEqual(guard, -1, `${name} must check the host`);
+    assert.ok(guard < body.indexOf('fetch('), `${name} checks the host before any request`);
+  });
+});
+
+test('V3 never sends a chat turn to the V1 agent; one writer request makes the drafts', () => {
+  const init = extractFunction('initChat');
+  assert.ok(init.indexOf('if (isInterviewV3())') < init.indexOf("sendMessage('Please start the review process.'"));
+  const send = extractFunction('handleChatSend');
+  assert.ok(send.indexOf('if (isInterviewV3())') < send.indexOf('sendMessage(text)'));
+  assert.match(src, /const INTERVIEW_WRITER_AGENT = 'reputation-rocket-writer';/);
+  const request = extractFunction('requestInterviewDrafts');
+  assert.match(request, /agent: INTERVIEW_WRITER_AGENT/);
+  assert.match(request, /crypto\.randomUUID\(\)/, 'each try gets a fresh writer session');
+  assert.match(request, /parseDraftsBlock/);
+  const finish = extractFunction('finishInterview');
+  assert.ok(finish.indexOf('interviewRatingGated') < finish.indexOf('requestInterviewDrafts()'),
+    'under 5 ends before the writer is called');
+  const regen = extractFunction('sendRegenerateRequest');
+  assert.match(regen, /v3 \? INTERVIEW_WRITER_AGENT : CONFIG\.AGENT/);
+});
+
+test('a resume link keeps the V3 progress, cleaned up', () => {
+  const { sanitizeSnapshot } = require('../lib/handoff-store');
+  const snap = sanitizeSnapshot({
+    currentState: 'chat',
+    sessionId: 's1',
+    interviewState: {
+      step: 5,
+      answers: { orgType: 'nonprofit', services: ['case-management', 7], rating: 5, result: 'x'.repeat(5000), fiveStar: null },
+      partial: { result: 'saves us time' },
+      pending: 'lowRating',
+      done: false,
+      writerSessionId: 'w1',
+      extra: 'drop me',
+    },
+  }, 'eimmigration');
+  const st = snap.interviewState;
+  assert.equal(st.step, 5);
+  assert.deepEqual(st.answers.services, ['case-management', '7']);
+  assert.equal(st.answers.rating, 5);
+  assert.equal(st.answers.fiveStar, null);
+  assert.equal(st.answers.result.length, 4000);
+  assert.deepEqual(st.partial, { result: 'saves us time' });
+  assert.equal(st.pending, 'lowRating');
+  assert.equal(st.writerSessionId, 'w1');
+  assert.equal('extra' in st, false);
+  assert.equal(sanitizeSnapshot({ currentState: 'chat', interviewState: 'nope' }, 'x').interviewState, null);
+  assert.match(extractFunction('buildSessionSnapshot'), /interviewState,/);
+  assert.match(extractFunction('applySavedSession'), /interviewState = data\.interviewState/);
+});
+
+test('a portal save keeps the interview block and does not add it to other clients', () => {
+  const { preserveOptInClientConfig } = require('../lib/client-config-file');
+  const kept = preserveOptInClientConfig({ interview: cfg }, { platforms: ['g2'] });
+  assert.equal(kept.interview, cfg);
+  const other = preserveOptInClientConfig({ providerName: 'Acme' }, { platforms: ['g2'] });
+  assert.equal('interview' in other, false);
+});
