@@ -245,14 +245,14 @@ function buildSlackMessage(payload) {
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: `*Survey responses / summary:*\n${surveySummary}\n\n*Key concerns:*\n${concerns}`,
+            text: slackBlockText(`*Survey responses / summary:*\n${escapeMrkdwn(surveySummary)}\n\n*Key concerns:*\n${escapeMrkdwn(concerns)}`),
           },
         },
         {
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: `*Action required:*\n• Review customer feedback and identify resolution steps\n• Assign team member to follow up with ${payload.client || 'the client'} within 24 hours\n• Determine if this requires immediate client communication or internal process improvement\n\n*Suggested actions:*\n${actions}`,
+            text: slackBlockText(`*Action required:*\n• Review customer feedback and identify resolution steps\n• Assign team member to follow up with ${payload.client || 'the client'} within 24 hours\n• Determine if this requires immediate client communication or internal process improvement\n\n*Suggested actions:*\n${escapeMrkdwn(actions)}`),
           },
         },
         {
@@ -364,6 +364,11 @@ function escapeMrkdwn(value) {
     .replace(/>/g, '&gt;');
 }
 
+function slackBlockText(text) {
+  const value = String(text || '');
+  return value.length > 2900 ? `${value.slice(0, 2899)}…` : value;
+}
+
 /**
  * 4-star choice ("murky middle") context: which rating the customer picked
  * after tapping 4, and the improvement feedback they want routed to support.
@@ -417,7 +422,7 @@ function formatTranscriptBlocks(transcript) {
   }
   if (pairs.length === 0) return [];
 
-  const lines = pairs.map((p, i) => `${i + 1}. ${p.question}: ${p.answer}`);
+  const lines = pairs.map((p, i) => `${i + 1}. ${escapeMrkdwn(p.question)}: ${escapeMrkdwn(p.answer)}`);
 
   const MAX = 2900;
   const chunks = [];

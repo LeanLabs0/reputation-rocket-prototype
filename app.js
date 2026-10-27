@@ -210,6 +210,12 @@ let murkyMiddle = null;
 let ratedDirectFive = false;
 /** Direct-5 path already auto-answered the closing improvements question. */
 let directFiveImproveSkipped = false;
+/** V3 interview progress: { step, answers, partial, pending, done, writerSessionId } or null. */
+let interviewState = null;
+/** What the V3 interview shows: 'choices' (under the question), 'text' (the text box) or 'none'. */
+let interviewInputMode = 'none';
+/** The V3 open question waiting for an answer: { step, isFollowUp, placeholder } or null. */
+let interviewTextStep = null;
 let isWaitingForAgent = false;
 let lastAgentMessage = '';
 let notificationsSent = {};
@@ -1263,11 +1269,34 @@ function hubspotTrackingCookie() {
   return match ? decodeURIComponent(match[1]) : '';
 }
 
+/**
+ * Stage, Vercel previews and local dev never write to a client's HubSpot or
+ * send their Slack, n8n or email notices: the form submit goes straight from
+ * the browser to the client's live HubSpot, so only the page can stop it.
+ * What would have gone out is logged to the console instead. Every other
+ * host is production.
+ */
+function isTestHost(hostname) {
+  const host = String(hostname == null ? window.location.hostname : hostname)
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '');
+  // Loopback includes IPv6 (::1). A miss here would post the lead form to the
+  // client's live HubSpot from a local browser. Every *.vercel.app host is a
+  // preview or the deployment alias, not the production custom domain.
+  if (host === 'localhost' || host === '::1' || host === '0.0.0.0') return true;
+  if (/^127(?:\.\d{1,3}){3}$/.test(host)) return true;
+  return host.startsWith('stage.') || host.endsWith('.vercel.app');
+}
+
 async function submitLeadFieldsToHubSpotApi(rows) {
   const portalId = String(CLIENT_CONFIG.hubspotPortalId || '').trim();
   const formId = String(CLIENT_CONFIG.hubspotFormId || '').trim();
   const region = String(CLIENT_CONFIG.hubspotFormRegion || 'na1').trim() || 'na1';
   if (!portalId || !formId) return false;
+  if (isTestHost()) {
+    console.info('[Reputation Rocket] Test host, lead form not sent to HubSpot:', rows);
+    return true;
+  }
 
   let fields = (rows || [])
     .map((row) => ({
@@ -1499,6 +1528,11 @@ async function startExperience() {
 function initChat() {
   markHubSpotContactIncomplete();
 
+  if (isInterviewV3()) {
+    initInterviewChat();
+    return;
+  }
+
   if (chatHistory.length === 0) {
     sendMessage('Please start the review process.', true);
   }
@@ -1510,6 +1544,702 @@ function initChat() {
   if (chatInput && !chatChoiceHidesInput() && !isChatDraftPromptVisible()) {
     chatInput.focus();
   }
+}
+
+// ── Interview V3: the page asks, the writer agent drafts ────
+// CLIENT_CONFIG.interview = { version: 3, steps, lowRating } turns this on.
+// The page asks every question itself: taps, the 5-star question, the stars,
+// then open questions with one follow-up. All the answers go to the writer
+// agent in ONE request, and it returns the same <drafts> block the rest of the
+// portal uses. Under the lowRating threshold nothing goes to the agent: the
+// review is saved and the chat ends on the negative screen. Clients without
+// the block keep the V1 agent chat.
+
+const INTERVIEW_WRITER_AGENT = 'reputation-rocket-writer';
+const INTERVIEW_TYPING_MS = 450;
+const INTERVIEW_WRITER_TIMEOUT_MS = 90000;
+
+function interviewConfig() {
+  const cfg = CLIENT_CONFIG.interview;
+  return cfg && Number(cfg.version) === 3 && Array.isArray(cfg.steps) && cfg.steps.length ? cfg : null;
+}
+
+function isInterviewV3() {
+  return Boolean(interviewConfig());
+}
+
+function ensureInterviewState() {
+  if (!interviewState || typeof interviewState !== 'object') {
+    interviewState = { step: 0, answers: {}, partial: {}, pending: '', done: false, writerSessionId: '' };
+  }
+  if (!interviewState.answers || typeof interviewState.answers !== 'object') interviewState.answers = {};
+  if (!interviewState.partial || typeof interviewState.partial !== 'object') interviewState.partial = {};
+  return interviewState;
+}
+
+/** A step whose skipIf matches earlier answers is not asked: a yes to "publish as a 5-star rating" skips the stars. */
+function interviewStepSkipped(step, answers) {
+  const rule = step && step.skipIf;
+  if (!rule || typeof rule !== 'object') return false;
+  const keys = Object.keys(rule);
+  if (!keys.length) return false;
+  return keys.every((key) => (answers || {})[key] === rule[key]);
+}
+
+function interviewWordCount(text) {
+  return String(text || '').trim().split(/\s+/).filter(Boolean).length;
+}
+
+/** One line, so an answer cannot add a fake Q: or A: line to the writer prompt. */
+function interviewOneLine(text, max = 4000) {
+  return String(text || '').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+/** A whole-number 1 to 5 the customer actually gave, or null. Never invent a 5. */
+function interviewRecordedRating(answers) {
+  const n = Number(answers && answers.rating);
+  return Number.isFinite(n) && n >= 1 && n <= 5 ? n : null;
+}
+
+/**
+ * Resume of the star step. A recorded rating is not asked again: re-asking it
+ * let a reload during the reach-out reply change an under-5 into a publishable 5.
+ * '' means ask the step. 'lowRating' means the reach-out question is still open.
+ */
+function interviewResumeAction(step, answers, lowRating) {
+  if (!step || step.type !== 'stars') return '';
+  const rating = answers ? answers[step.id] : null;
+  if (rating == null || rating === '') return '';
+  if (interviewRatingGated(rating, lowRating) && !(answers && answers.reachOut)) return 'lowRating';
+  return 'skip';
+}
+
+/** Closing line for a held review. A "no" must not promise that someone will call. */
+function interviewLowRatingClosing(lowRating, answers) {
+  const low = lowRating || {};
+  const declined = !!(answers && answers.reachOut === 'no');
+  return String((declined ? low.savedDeclined : low.saved) || '').trim();
+}
+
+/** A short answer and its follow-up stay two sentences, not one run-on. */
+function interviewJoinFollowUp(first, second) {
+  let a = String(first || '').trim();
+  const b = String(second || '').trim();
+  if (!a) return b;
+  if (!b) return a;
+  a = a.replace(/[,;:]+$/, '');
+  if (!/[.!?]$/.test(a)) a += '.';
+  return `${a} ${b}`;
+}
+
+/** Under the threshold with gate on: no drafts and no review links. A skipped rating is not a number. */
+function interviewRatingGated(rating, lowRating) {
+  if (!lowRating || !lowRating.gate) return false;
+  const n = Number(rating);
+  const below = lowRating.below == null ? 5 : Number(lowRating.below);
+  return n >= 1 && n < below;
+}
+
+function interviewOption(step, id) {
+  const options = step && Array.isArray(step.options) ? step.options : [];
+  return options.find((o) => o && o.id === id) || null;
+}
+
+/** Their taps as the phrases a draft may use: one "label: value" line per tap step they answered. */
+function interviewTapLines(cfg, answers) {
+  const a = answers || {};
+  const lines = [];
+  ((cfg && cfg.steps) || [])
+    .filter((s) => (s.type === 'single' || s.type === 'multi') && s.promptLabel)
+    .forEach((s) => {
+      const ids = s.type === 'multi' ? (Array.isArray(a[s.id]) ? a[s.id] : []) : [a[s.id]].filter(Boolean);
+      const values = ids.map((id) => {
+        const o = interviewOption(s, id);
+        if (!o) return '';
+        return o.firstSystem ? 'first system' : String(o.phrase || o.label || '').trim();
+      }).filter(Boolean);
+      const own = interviewOneLine(a[`${s.id}Other`]);
+      if (own) values.push(`(own words) ${own}`);
+      if (values.length) lines.push(`${s.promptLabel}: ${values.join('; ')}`);
+    });
+  return lines;
+}
+
+function interviewTextAnswer(step, answers) {
+  const text = interviewOneLine((answers || {})[step.id]);
+  if (text) return text;
+  const label = interviewOneLine(step && step.skipLabel);
+  return label && label !== 'Skip' ? `(chose: ${label})` : '(skipped)';
+}
+
+/** Drafts the writer may return: only this portal's platforms, in portal order. */
+function interviewKeepDrafts(parsed, platforms) {
+  const out = {};
+  const list = Array.isArray(platforms) ? platforms : [];
+  list.forEach((platform) => {
+    const key = String(platform || '').trim().toLowerCase();
+    if (!key || Object.prototype.hasOwnProperty.call(out, key)) return;
+    if (!parsed || !Object.prototype.hasOwnProperty.call(parsed, key)) return;
+    const text = String(parsed[key]).trim();
+    if (text) out[key] = text;
+  });
+  return out;
+}
+
+/**
+ * The one message the writer agent gets: the rating, the taps and their own
+ * words. Client name, platforms and review links travel in `config`.
+ */
+function buildInterviewWriterPrompt(cfg, answers) {
+  const a = answers || {};
+  const rating = interviewRecordedRating(a);
+  const agreedFive = a.fiveStar === 'yes' && (rating == null || rating === 5);
+  const shown = rating != null ? rating : (a.fiveStar === 'yes' ? 5 : null);
+  let ratingLine = 'RATING: (missing)';
+  if (shown != null && agreedFive && shown === 5) {
+    ratingLine = 'RATING: 5 (they agreed to publish their review as a 5-star rating)';
+  } else if (shown != null) {
+    ratingLine = `RATING: ${shown}`;
+  }
+  const lines = [ratingLine, '', 'TAPPED'];
+  const taps = interviewTapLines(cfg, a);
+  if (taps.length) taps.forEach((line) => lines.push(`- ${line}`));
+  else lines.push('- (nothing tapped)');
+  lines.push('', 'THEIR WORDS');
+  ((cfg && cfg.steps) || []).filter((s) => s.type === 'text').forEach((s) => {
+    lines.push(`Q: ${interviewOneLine(s.ask)}`, `A: ${interviewTextAnswer(s, a)}`);
+  });
+  return lines.join('\n');
+}
+
+/** negative_flag for a V3 review under the threshold. Slack and email print the first 6 answers, so the useful ones go first. */
+function buildInterviewNegativeFlag(cfg, answers, lead) {
+  const a = answers || {};
+  const steps = (cfg && cfg.steps) || [];
+  const low = (cfg && cfg.lowRating) || {};
+  const rating = interviewRecordedRating(a);
+  const stars = steps.find((s) => s.type === 'stars');
+  const responses = [{
+    question: stars ? interviewOneLine(stars.ask) : 'Rating',
+    answer: rating ? `${rating} star${rating === 1 ? '' : 's'}` : '(skipped)',
+  }];
+  const reach = (low.options || []).find((o) => o && o.id === a.reachOut);
+  if (reach) responses.push({ question: 'May we reach out?', answer: reach.label });
+  steps.filter((s) => s.type === 'text').forEach((s) => {
+    responses.push({ question: interviewOneLine(s.ask), answer: interviewTextAnswer(s, a) });
+  });
+  const taps = interviewTapLines(cfg, a);
+  if (taps.length) responses.push({ question: 'Their taps', answer: taps.join(' | ') });
+  const info = lead || {};
+  return {
+    severity: rating != null && rating <= 2 ? 'high' : rating === 3 ? 'medium' : 'low',
+    customer_name: info.customer_name || '',
+    customer_email: info.customer_email || '',
+    client_name: info.client_name || '',
+    rating,
+    survey_responses: responses,
+    key_concerns: [],
+    suggested_actions: reach && reach.id === 'yes'
+      ? ['They said yes to a follow-up. Reach out before anything gets posted.']
+      : reach && reach.id === 'no'
+        ? ['They asked not to be contacted. Nothing was posted.']
+        : [],
+  };
+}
+
+function interviewEl(tag, attrs, children) {
+  const node = document.createElement(tag);
+  Object.entries(attrs || {}).forEach(([key, value]) => {
+    if (value == null || value === false) return;
+    if (key === 'text') node.textContent = value;
+    else if (key === 'class') node.className = value;
+    else node.setAttribute(key, value === true ? '' : String(value));
+  });
+  (children || []).forEach((child) => { if (child) node.appendChild(child); });
+  return node;
+}
+
+function interviewPause(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function interviewSay(text) {
+  const t = String(text || '').trim();
+  if (!t) return;
+  showTypingIndicator(true);
+  await interviewPause(INTERVIEW_TYPING_MS);
+  showTypingIndicator(false);
+  addChatBubble('agent', t);
+  chatHistory.push({ role: 'agent', content: t });
+  agentMessageCount += 1;
+  saveSession();
+}
+
+/** Asks once: after a reload the question is already the last thing in the chat. */
+async function interviewAsk(text) {
+  const t = String(text || '').trim();
+  const last = chatHistory[chatHistory.length - 1];
+  if (last && last.role === 'agent' && last.content === t) return;
+  await interviewSay(t);
+}
+
+function interviewUserSay(text) {
+  const t = String(text || '').trim();
+  if (!t) return;
+  addChatBubble('user', t);
+  chatHistory.push({ role: 'user', content: t });
+}
+
+function setInterviewInputMode(mode) {
+  interviewInputMode = mode;
+  if (mode !== 'choices') document.getElementById('interview-choices')?.remove();
+  if (mode !== 'text') {
+    interviewTextStep = null;
+    document.getElementById('interview-text-tools')?.remove();
+  }
+  syncChatComposerState();
+}
+
+/** The choices sit in the chat, right under their question, and scroll with it. */
+function interviewChoiceBox(label) {
+  document.getElementById('interview-choices')?.remove();
+  const box = interviewEl('div', { id: 'interview-choices', class: 'interview-choices', role: 'group', 'aria-label': label });
+  $('#chat-messages').appendChild(box);
+  return box;
+}
+
+/** Keep the question in view when it and its choices don't both fit, then focus the first choice. */
+function revealInterviewChoices(box) {
+  requestAnimationFrame(() => {
+    const messages = $('#chat-messages');
+    if (!messages || !box.isConnected) return;
+    const row = box.previousElementSibling;
+    const base = messages.getBoundingClientRect().top - messages.scrollTop;
+    const top = (row || box).getBoundingClientRect().top - base - 12;
+    const bottom = box.getBoundingClientRect().bottom - base + 20 - messages.clientHeight;
+    messages.scrollTop = Math.max(0, Math.min(top, bottom));
+    const first = box.querySelector('button:not([disabled]), input:not([hidden])');
+    if (first) first.focus({ preventScroll: true });
+  });
+}
+
+function interviewActions(left, right) {
+  return interviewEl('div', { class: 'interview-choice-actions' }, [
+    interviewEl('div', {}, left),
+    interviewEl('div', {}, right),
+  ]);
+}
+
+function interviewChip(label, multi, attrs, onClick) {
+  const chip = interviewEl('button', Object.assign({
+    type: 'button',
+    class: `interview-chip${multi ? '' : ' interview-chip--single'}`,
+    'aria-pressed': 'false',
+  }, attrs), [
+    interviewEl('span', { class: 'interview-chip-box', 'aria-hidden': 'true' }),
+    interviewEl('span', { text: label }),
+  ]);
+  chip.addEventListener('click', () => onClick(chip));
+  return chip;
+}
+
+// Single and multi-select taps, with optional own words and Skip. Own words
+// count toward the step's max, so nothing typed gets dropped.
+function renderInterviewChoices(step, multi) {
+  setInterviewInputMode('choices');
+  const st = ensureInterviewState();
+  const box = interviewChoiceBox(step.ask);
+  const picked = new Set();
+  const max = multi ? step.max || Infinity : 1;
+  const min = step.min == null ? 1 : step.min;
+  const grid = interviewEl('div', { class: 'interview-chip-grid' });
+  const own = interviewEl('input', {
+    class: 'interview-own-input', type: 'text', placeholder: 'In your own words',
+    'aria-label': 'In your own words', maxlength: '120', hidden: true,
+  });
+  const hintText = step.max ? `Pick up to ${step.max}` : 'Pick all that apply';
+  const hint = multi ? interviewEl('span', { class: 'interview-choice-hint', text: hintText }) : null;
+  const cont = interviewEl('button', { type: 'button', class: 'btn btn-primary btn-md', disabled: true, text: 'Continue' });
+  const ownOpen = () => !own.hidden;
+  const ownText = () => (ownOpen() ? own.value.trim() : '');
+  const used = () => picked.size + (ownOpen() ? 1 : 0);
+  const sync = () => {
+    const count = picked.size + (ownText() ? 1 : 0);
+    // Continue means at least one answer. Skip is the way to leave a step blank.
+    cont.disabled = multi ? count < Math.max(min, 1) : !ownText();
+  };
+  const flashLimit = () => {
+    if (!hint) return;
+    hint.textContent = `Up to ${step.max}. Unpick one first.`;
+    hint.classList.add('is-flash');
+  };
+  const clearFlash = () => {
+    if (!hint) return;
+    hint.textContent = hintText;
+    hint.classList.remove('is-flash');
+  };
+  const submit = (ids, text) => {
+    st.answers[step.id] = multi ? ids : ids[0] || null;
+    if (text) st.answers[`${step.id}Other`] = text;
+    else delete st.answers[`${step.id}Other`];
+    const labels = ids.map((id) => (interviewOption(step, id) || {}).label).filter(Boolean).concat(text ? [text] : []);
+    setInterviewInputMode('none');
+    interviewUserSay(labels.length ? labels.join(', ') : 'Skip');
+    nextInterviewStep();
+  };
+
+  (step.options || []).forEach((o) => {
+    grid.appendChild(interviewChip(o.label, multi, { 'data-option': o.id }, (chip) => {
+      if (!multi) {
+        submit([o.id], '');
+        return;
+      }
+      if (picked.has(o.id)) picked.delete(o.id);
+      else if (used() < max) picked.add(o.id);
+      else {
+        flashLimit();
+        return;
+      }
+      clearFlash();
+      chip.setAttribute('aria-pressed', String(picked.has(o.id)));
+      sync();
+    }));
+  });
+  if (step.ownWords) {
+    const ghostClass = `interview-chip interview-chip--ghost${multi ? '' : ' interview-chip--single'}`;
+    grid.appendChild(interviewChip('Something else', multi, { class: ghostClass, 'data-option': 'other' }, (chip) => {
+      if (!ownOpen() && multi && used() >= max) {
+        flashLimit();
+        return;
+      }
+      own.hidden = ownOpen();
+      if (own.hidden) own.value = '';
+      chip.setAttribute('aria-pressed', String(ownOpen()));
+      if (!multi) cont.hidden = !ownOpen();
+      if (ownOpen()) own.focus();
+      sync();
+    }));
+  }
+  own.addEventListener('input', sync);
+  own.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !cont.disabled) cont.click();
+  });
+  cont.addEventListener('click', () => submit(multi ? [...picked] : [], ownText()));
+
+  const right = [];
+  if (step.skip) {
+    const skip = interviewEl('button', { type: 'button', class: 'btn btn-tertiary btn-md', text: 'Skip' });
+    skip.addEventListener('click', () => submit([], ''));
+    right.push(skip);
+  }
+  if (multi || step.ownWords) right.push(cont);
+  if (!multi) cont.hidden = true;
+
+  box.appendChild(interviewEl('div', { class: 'interview-choice-scroll' }, [grid, own]));
+  box.appendChild(interviewActions(hint ? [hint] : [], right));
+  sync();
+  revealInterviewChoices(box);
+}
+
+function renderInterviewStars(step) {
+  setInterviewInputMode('choices');
+  const st = ensureInterviewState();
+  const box = interviewChoiceBox('Your rating from 1 to 5');
+  const row = interviewEl('div', { class: 'rating-choice-row' });
+  [1, 2, 3, 4, 5].forEach((n) => {
+    const btn = interviewEl('button', {
+      type: 'button', class: 'rating-choice', 'data-rating': String(n),
+      'aria-label': `${n} star${n === 1 ? '' : 's'}`,
+    });
+    btn.innerHTML = `<span class="rating-choice-num">${n}</span>${ratingStarIcon()}`;
+    btn.addEventListener('click', () => {
+      st.answers[step.id] = n;
+      setInterviewInputMode('none');
+      interviewUserSay(`${n} star${n === 1 ? '' : 's'}`);
+      if (interviewRatingGated(n, interviewConfig().lowRating)) runInterviewLowRating();
+      else nextInterviewStep();
+    });
+    row.appendChild(btn);
+  });
+  box.appendChild(row);
+  box.appendChild(interviewEl('div', { class: 'rating-choice-legend', 'aria-hidden': 'true' }, [
+    interviewEl('span', { text: 'Poor' }),
+    interviewEl('span', { text: 'Excellent' }),
+  ]));
+  // Without `skip` (after a no to 5 stars) the under-5 check always gets a number.
+  if (step.skip) {
+    const skip = interviewEl('button', { type: 'button', class: 'btn btn-tertiary btn-md', text: 'Skip' });
+    skip.addEventListener('click', () => {
+      st.answers[step.id] = null;
+      setInterviewInputMode('none');
+      interviewUserSay('Skip');
+      nextInterviewStep();
+    });
+    box.appendChild(interviewActions([], [skip]));
+  }
+  revealInterviewChoices(box);
+}
+
+// Under the threshold: offer to reach out first, then finish the questions.
+// The chat then ends on the negative screen with no drafts (finishInterview).
+async function runInterviewLowRating() {
+  const low = interviewConfig().lowRating || {};
+  const st = ensureInterviewState();
+  st.pending = 'lowRating';
+  saveSession();
+  await interviewAsk(low.ask);
+  setInterviewInputMode('choices');
+  const box = interviewChoiceBox(low.ask);
+  const grid = interviewEl('div', { class: 'interview-chip-grid' });
+  (low.options || []).forEach((o) => {
+    grid.appendChild(interviewChip(o.label, false, { 'data-option': o.id }, async () => {
+      // Move past the stars before the reply is spoken. A reload in that pause
+      // used to land back on the stars and let an under-5 become a 5.
+      if (st.pending !== 'lowRating') return;
+      st.answers.reachOut = o.id;
+      st.pending = '';
+      const nextIndex = (Number.isInteger(st.step) ? st.step : 0) + 1;
+      st.step = nextIndex;
+      setInterviewInputMode('none');
+      interviewUserSay(o.label);
+      saveSession();
+      if (o.reply) await interviewSay(o.reply);
+      runInterviewStep(nextIndex);
+    }));
+  });
+  box.appendChild(interviewEl('div', { class: 'interview-choice-scroll' }, [grid]));
+  revealInterviewChoices(box);
+}
+
+// Open questions use the chat's own text box (and its mic). followUp: one
+// friendly nudge when the first answer is very short.
+function renderInterviewText(step, isFollowUp) {
+  setInterviewInputMode('text');
+  const skipLabel = isFollowUp
+    ? (step.followUp && step.followUp.skipLabel) || "That's it"
+    : step.skipLabel || 'Skip';
+  interviewTextStep = {
+    step,
+    isFollowUp,
+    placeholder: isFollowUp ? 'Add one more sentence, or leave it here' : 'Type your answer, or skip',
+  };
+  const inputBar = $('.chat-input-bar');
+  if (inputBar) {
+    const tools = interviewEl('div', { id: 'interview-text-tools', class: 'interview-text-tools' });
+    const skip = interviewEl('button', { type: 'button', class: 'btn btn-tertiary btn-md', text: skipLabel });
+    skip.addEventListener('click', () => finishInterviewText('', skipLabel));
+    tools.appendChild(skip);
+    inputBar.insertBefore(tools, inputBar.firstChild);
+  }
+  const input = $('#chat-input');
+  if (input) {
+    input.value = '';
+    resizeChatInput();
+  }
+  syncChatComposerState();
+  if (input) input.focus({ preventScroll: true });
+  requestAnimationFrame(() => {
+    const messages = $('#chat-messages');
+    if (messages) messages.scrollTop = messages.scrollHeight;
+  });
+}
+
+function finishInterviewText(text, label) {
+  const current = interviewTextStep;
+  if (!current) return;
+  const { step, isFollowUp } = current;
+  const st = ensureInterviewState();
+  const input = $('#chat-input');
+  if (input) {
+    input.value = '';
+    resizeChatInput();
+  }
+  setInterviewInputMode('none');
+  interviewUserSay(label || text);
+  const followUp = step.followUp;
+  const minWords = followUp && followUp.minWords == null ? 8 : followUp && followUp.minWords;
+  if (followUp && !isFollowUp && text && interviewWordCount(text) < minWords) {
+    st.partial[step.id] = text;
+    saveSession();
+    interviewAsk(followUp.ask).then(() => renderInterviewText(step, true));
+    return;
+  }
+  const first = st.partial[step.id];
+  delete st.partial[step.id];
+  st.answers[step.id] = interviewJoinFollowUp(first, text);
+  nextInterviewStep();
+}
+
+async function runInterviewStep(index) {
+  const cfg = interviewConfig();
+  const st = ensureInterviewState();
+  st.step = index;
+  const step = cfg.steps[index];
+  if (!step) {
+    finishInterview();
+    return;
+  }
+  if (interviewStepSkipped(step, st.answers)) {
+    if (step.skipValue !== undefined) st.answers[step.id] = step.skipValue;
+    runInterviewStep(index + 1);
+    return;
+  }
+  const resume = interviewResumeAction(step, st.answers, cfg.lowRating);
+  if (resume === 'lowRating') {
+    runInterviewLowRating();
+    return;
+  }
+  if (resume === 'skip') {
+    runInterviewStep(index + 1);
+    return;
+  }
+  saveSession();
+  // A reload during the follow-up picks up at the follow-up.
+  if (step.type === 'text' && step.followUp && st.partial[step.id]) {
+    await interviewAsk(step.followUp.ask);
+    renderInterviewText(step, true);
+    return;
+  }
+  await interviewAsk(step.ask);
+  if (step.type === 'multi') renderInterviewChoices(step, true);
+  else if (step.type === 'single') renderInterviewChoices(step, false);
+  else if (step.type === 'stars') renderInterviewStars(step);
+  else if (step.type === 'text') renderInterviewText(step, false);
+  else runInterviewStep(index + 1);
+}
+
+function nextInterviewStep() {
+  runInterviewStep(ensureInterviewState().step + 1);
+}
+
+async function finishInterview() {
+  const cfg = interviewConfig();
+  const st = ensureInterviewState();
+  if (!cfg || st.done) return;
+  setInterviewInputMode('none');
+  const rating = interviewRecordedRating(st.answers);
+  if (rating != null) agentRating = rating;
+  if (interviewRatingGated(st.answers.rating, cfg.lowRating)) {
+    st.done = true;
+    const saved = interviewLowRatingClosing(cfg.lowRating, st.answers);
+    // The negative screen shows this as its closing line.
+    lastAgentMessage = saved;
+    negativeFlagData = buildInterviewNegativeFlag(cfg, st.answers, getLeadFieldsForApi());
+    saveSession();
+    if (saved) await interviewSay(saved);
+    setTimeout(() => transitionTo('negative'), 2500);
+    return;
+  }
+  if (rating == null) {
+    saveSession();
+    showInterviewDraftError('Something went wrong saving your rating.', { retry: false });
+    return;
+  }
+  st.done = true;
+  saveSession();
+  if (cfg.writingMessage) await interviewSay(cfg.writingMessage);
+  requestInterviewDrafts();
+}
+
+async function requestInterviewDrafts() {
+  if (isWaitingForAgent) return;
+  const cfg = interviewConfig();
+  const st = ensureInterviewState();
+  if (!cfg || interviewRatingGated(st.answers.rating, cfg.lowRating) || interviewRecordedRating(st.answers) == null) return;
+  isWaitingForAgent = true;
+  syncChatComposerState();
+  // A fresh writer session each try: a reused id would replay the last attempt.
+  st.writerSessionId = crypto.randomUUID();
+  saveSession();
+  showTypingIndicator(true);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), INTERVIEW_WRITER_TIMEOUT_MS);
+  try {
+    const L = getLeadFieldsForApi();
+    const res = await fetchWithStickyRetry({
+      prompt: buildInterviewWriterPrompt(cfg, st.answers),
+      agent: INTERVIEW_WRITER_AGENT,
+      session_id: st.writerSessionId,
+      config: {
+        client_name: L.client_name,
+        customer_name: L.customer_name,
+        customer_email: L.customer_email,
+        platforms: PARAMS.platforms,
+        review_links: PARAMS.reviewLinks,
+      },
+    }, controller.signal);
+    if (!res.ok) throw new Error(`API error: ${res.status}`);
+    const data = await res.json();
+    if (data.machine_id) machineId = data.machine_id;
+    const match = String(data.result || '').match(/<drafts>([\s\S]*?)<\/drafts>/);
+    const parsed = interviewKeepDrafts(match ? parseDraftsBlock(match[1]) : {}, PARAMS.platforms);
+    if (!Object.keys(parsed).length) throw new Error('No drafts in the reply');
+    drafts = parsed;
+    activeDraftPlatform = Object.keys(drafts)[0];
+    reviewDraft = drafts[activeDraftPlatform];
+    draftLooksGood = {};
+    showTypingIndicator(false);
+    renderChatDraftPrompt();
+    setChatDraftPromptVisible(true);
+  } catch (err) {
+    showTypingIndicator(false);
+    console.warn('[Reputation Rocket] Writer request failed:', err);
+    showInterviewDraftError(err && err.name === 'AbortError'
+      ? 'Writing your drafts took too long.'
+      : 'Something went wrong writing your drafts.');
+  } finally {
+    clearTimeout(timeout);
+    isWaitingForAgent = false;
+    syncChatComposerState();
+    saveSession();
+  }
+}
+
+function showInterviewDraftError(message, options) {
+  const messages = $('#chat-messages');
+  if (!messages) return;
+  messages.querySelectorAll('.chat-error').forEach((el) => el.remove());
+  const retryable = !options || options.retry !== false;
+  const box = interviewEl('div', { class: 'chat-error' }, [
+    interviewEl('span', { text: `${message} Your answers are saved.` }),
+  ]);
+  if (retryable) {
+    const retry = interviewEl('button', { type: 'button', text: 'Retry' });
+    retry.addEventListener('click', () => {
+      box.remove();
+      requestInterviewDrafts();
+    });
+    box.appendChild(retry);
+  }
+  messages.appendChild(box);
+  messages.scrollTop = messages.scrollHeight;
+}
+
+function initInterviewChat() {
+  const st = ensureInterviewState();
+  syncChatDraftPromptVisibility();
+  if (Object.keys(drafts || {}).length) {
+    syncChatComposerState();
+    return;
+  }
+  if (st.done) {
+    if (interviewRatingGated(st.answers.rating, interviewConfig().lowRating)) {
+      // Reloaded between the closing line and the negative screen.
+      setTimeout(() => transitionTo('negative'), 0);
+      return;
+    }
+    if (interviewRecordedRating(st.answers) == null) {
+      showInterviewDraftError('Something went wrong saving your rating.', { retry: false });
+      return;
+    }
+    requestInterviewDrafts();
+    return;
+  }
+  if (st.pending === 'lowRating') {
+    runInterviewLowRating();
+    return;
+  }
+  runInterviewStep(Number(st.step) || 0);
 }
 
 // ── Tap-to-answer rating (star buttons + 4-star choice) ─────
@@ -1536,6 +2266,8 @@ function isChatChoiceActive() {
 
 /** Choice modes that replace the text box entirely (the feedback step keeps it). */
 function chatChoiceHidesInput() {
+  // V3 shows the text box only for its open questions.
+  if (isInterviewV3()) return interviewInputMode !== 'text';
   return isChatChoiceActive() && chatChoiceMode !== 'murky-feedback';
 }
 
@@ -2242,9 +2974,10 @@ function syncChatComposerStateNow() {
 
   if (!chatInput.dataset.defaultPlaceholder) chatInput.dataset.defaultPlaceholder = chatInput.placeholder || '';
   const feedbackStep = chatChoiceMode === 'murky-feedback';
+  const interviewPlaceholder = isInterviewV3() && interviewTextStep ? interviewTextStep.placeholder : '';
   chatInput.placeholder = feedbackStep
     ? MURKY_FEEDBACK_PLACEHOLDER
-    : chatInput.dataset.defaultPlaceholder;
+    : interviewPlaceholder || chatInput.dataset.defaultPlaceholder;
   if (feedbackStep) {
     chatInput.setAttribute('maxlength', String(MURKY_FEEDBACK_MAX_CHARS));
     chatInput.setAttribute('aria-label', 'Feedback for our support team');
@@ -2499,6 +3232,11 @@ function handleChatSend() {
   // The send button is disabled while the mic is recording or transcribing.
   // Enter used to skip that lock and send a partial answer, or discard the take.
   if (!text || isWaitingForAgent || chatMicPhase) return;
+  // V3 answers its own open questions; nothing goes to the chat agent.
+  if (isInterviewV3()) {
+    if (interviewTextStep) finishInterviewText(text);
+    return;
+  }
   // The 4 -> 5 support question: also routes the answer to the support flow.
   if (chatChoiceMode === 'murky-feedback') {
     handleMurkyFeedback(text);
@@ -3046,10 +3784,27 @@ function handleRegenerate() {
 async function sendRegenerateRequest(platform) {
   try {
     const L = getLeadFieldsForApi();
+    // V3 sends the answers again under a new writer session. Reusing the
+    // session that produced the drafts replays that attempt instead of writing.
+    const v3 = isInterviewV3();
+    const plat = String(platform || '').trim().toLowerCase();
+    const st = v3 ? ensureInterviewState() : null;
+    const cfg = v3 ? interviewConfig() : null;
+    const allowed = (PARAMS.platforms || []).some((p) => String(p).toLowerCase() === plat);
+    if (v3 && (!cfg || !allowed)) return;
+    const currentDraft = v3 ? interviewOneLine(drafts[plat] || drafts[platform]) : '';
     const body = {
-      prompt: `Please regenerate ONLY the ${platform} draft with a slightly different angle. Wrap the new draft in <drafts><draft platform="${platform}">...</draft></drafts>. Do not include any other platforms.`,
-      agent: CONFIG.AGENT,
-      session_id: sessionId,
+      prompt: v3
+        ? [
+            buildInterviewWriterPrompt(cfg, st.answers),
+            '',
+            `Write the ${plat} draft again from the answers above. Keep every rule: their words, at most one sentence of yours, nothing invented.`,
+            currentDraft ? `Current ${plat} draft, which you must not copy: ${currentDraft}` : '',
+            `Wrap it in <drafts><draft platform="${plat}">...</draft></drafts>. Do not include any other platforms.`,
+          ].filter(Boolean).join('\n')
+        : `Please regenerate ONLY the ${platform} draft with a slightly different angle. Wrap the new draft in <drafts><draft platform="${platform}">...</draft></drafts>. Do not include any other platforms.`,
+      agent: v3 ? INTERVIEW_WRITER_AGENT : CONFIG.AGENT,
+      session_id: v3 ? crypto.randomUUID() : sessionId,
       config: {
         client_name: L.client_name,
         customer_name: L.customer_name,
@@ -3070,12 +3825,13 @@ async function sendRegenerateRequest(platform) {
 
     const draftsMatch = resultText.match(/<drafts>([\s\S]*?)<\/drafts>/);
     if (draftsMatch) {
-      const parsed = parseDraftsBlock(draftsMatch[1]);
-      if (parsed[platform]) {
-        drafts[platform] = parsed[platform];
+      const parsedAll = parseDraftsBlock(draftsMatch[1]);
+      const nextText = v3 ? interviewKeepDrafts(parsedAll, [plat])[plat] : parsedAll[platform];
+      if (nextText) {
+        drafts[platform] = nextText;
         delete draftLooksGood[platform];
         if (platform === activeDraftPlatform) {
-          $('#draft-textarea').value = parsed[platform];
+          $('#draft-textarea').value = nextText;
         }
         renderDraftTabs();
         updateDraftScreenChrome();
@@ -3083,6 +3839,7 @@ async function sendRegenerateRequest(platform) {
         return;
       }
     }
+    if (v3) throw new Error('No draft in the reply');
     // Fallback: legacy single-draft extraction
     const newDraft = extractDraft(resultText);
     if (newDraft && newDraft.length > 30) {
@@ -3097,6 +3854,8 @@ async function sendRegenerateRequest(platform) {
     }
   } catch (err) {
     console.error('Regenerate failed:', err);
+    const hint = $('#draft-copy-hint-text');
+    if (hint) hint.textContent = 'Could not rewrite that draft. Your current text is unchanged.';
   }
 }
 
@@ -4673,6 +5432,24 @@ async function uploadRecordedVideoToHubSpot() {
   form.append('customerCompany', lead.client_name || PARAMS.customerCompany || '');
 
   try {
+    if (isTestHost()) {
+      console.info('[Reputation Rocket] Test host, video not uploaded to HubSpot:', { fileName, portalId });
+      uploadedVideoMeta = {
+        id: '',
+        url: '',
+        name: fileName,
+        portalId,
+        uploadedAt: new Date().toISOString(),
+      };
+      closeVideoCaptureModal();
+      const held = document.getElementById('video-status-text');
+      if (held) {
+        held.textContent = 'Test host: video was not sent to HubSpot.';
+        held.classList.remove('error');
+      }
+      transitionTo('complete');
+      return;
+    }
     const res = await fetch(CONFIG.VIDEO_UPLOAD_URL, { method: 'POST', body: form });
     const text = await res.text();
     let payload = {};
@@ -4735,6 +5512,10 @@ async function patchHubSpotContact(properties, { attempts = 5, delayMs = 700, ro
 
   const portalId = String(CLIENT_CONFIG.hubspotPortalId || '').trim();
   if (!portalId) return false;
+  if (isTestHost()) {
+    console.info('[Reputation Rocket] Test host, HubSpot contact not updated:', properties);
+    return true;
+  }
 
   const email = (getLeadFieldsForApi().customer_email || PARAMS.email || '').trim();
   if (!email || email === 'Unknown') return false;
@@ -4938,6 +5719,12 @@ async function sendLifecycleNotification(event) {
   if (PARAMS.supportEmail) {
     payload.support_email = PARAMS.supportEmail;
   }
+  if (isTestHost()) {
+    console.info(`[Reputation Rocket] Test host, "${event}" notification not sent:`, payload);
+    notificationsSent[event] = true;
+    saveSession();
+    return;
+  }
 
   try {
     const res = await fetch(CONFIG.NOTIFY_URL, {
@@ -5039,6 +5826,7 @@ function buildSessionSnapshot() {
     murkyMiddle,
     ratedDirectFive,
     directFiveImproveSkipped,
+    interviewState,
     leadIdentity: {
       name: PARAMS.name,
       firstName: PARAMS.firstName,
@@ -5105,6 +5893,9 @@ function applySavedSession(data) {
     murkyMiddle = normalizeMurkyMiddle(data.murkyMiddle);
     ratedDirectFive = data.ratedDirectFive === true || firstCustomerAnswer() === '5 stars';
     directFiveImproveSkipped = data.directFiveImproveSkipped === true;
+    interviewState = data.interviewState && typeof data.interviewState === 'object' && !Array.isArray(data.interviewState)
+      ? data.interviewState
+      : null;
 
     applyLeadIdentityFromStorage(data.leadIdentity);
     leadFields = Array.isArray(data.leadFields) ? data.leadFields : [];

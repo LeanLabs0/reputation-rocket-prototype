@@ -20,6 +20,93 @@ window.CLIENT_CONFIG = {
     "How did we deliver on your expectations?"
   ],
   videoCaptureEnabled: false,
+  // V3 interview (10/27): the page asks these questions, then the writer agent
+  // drafts the reviews from the answers in one request ("Interview V3" in
+  // app.js). Under 5 stars nothing is drafted: the review is saved and the
+  // team reaches out first. The star question has no Skip, so a customer who
+  // would not publish 5 stars always gives a number.
+  interview: {
+    version: 3,
+    writingMessage: "Thank you! Give me a few seconds to put your drafts together.",
+    lowRating: {
+      below: 5,
+      gate: true,
+      ask: "Thanks for being honest. Before anything gets posted, we'll save your review. We'd really like to reach out and figure out what we need to solve to get you all the way to 5 stars. Is that OK?",
+      options: [
+        { id: "yes", label: "Yes, reach out to me", reply: "Thank you. A few more questions so we know where to start." },
+        { id: "no", label: "No thanks", reply: "No problem. A few more questions so the team knows what to fix." }
+      ],
+      saved: "Thanks for sharing. We saved your review, and someone from eimmigration will reach out before anything gets posted.",
+      savedDeclined: "Thanks for sharing. We saved your review, and nothing will be posted."
+    },
+    steps: [
+      {
+        id: "orgType", type: "single", skip: true, promptLabel: "Who they are",
+        ask: "Thanks for helping other teams find the right immigration software. First, which best describes your organization?",
+        options: [
+          { id: "nonprofit", label: "Nonprofit immigration legal services", phrase: "a nonprofit immigration legal services team" },
+          { id: "solo", label: "Solo immigration attorney", phrase: "a solo immigration practice" },
+          { id: "small-firm", label: "Immigration law firm, 2 to 10 attorneys", phrase: "a small immigration law firm" },
+          { id: "large-firm", label: "Immigration law firm, 11 or more attorneys", phrase: "a larger immigration law firm" },
+          { id: "corporate", label: "Corporate immigration team", phrase: "a corporate immigration team" }
+        ]
+      },
+      {
+        id: "before", type: "single", skip: true, ownWords: true, promptLabel: "Used before",
+        ask: "What were you using before eimmigration?",
+        options: [
+          { id: "spreadsheets", label: "Spreadsheets or paper files", phrase: "spreadsheets or paper files" },
+          { id: "docketwise", label: "DocketWise", phrase: "DocketWise" },
+          { id: "lollylaw", label: "LollyLaw", phrase: "LollyLaw" },
+          { id: "bluedot", label: "BlueDot", phrase: "BlueDot" },
+          { id: "other-software", label: "Another immigration software", phrase: "another immigration software" },
+          { id: "first", label: "Nothing, this is our first system", firstSystem: true }
+        ]
+      },
+      {
+        id: "services", type: "multi", min: 1, ownWords: true, promptLabel: "Use eimmigration for",
+        ask: "What does your team use eimmigration for? Pick all that apply.",
+        options: [
+          { id: "case-management", label: "Immigration case management", phrase: "case management" },
+          { id: "uscis-forms", label: "Filling and e-filing USCIS forms", phrase: "USCIS forms" },
+          { id: "intake", label: "Client intake questionnaires", phrase: "client intake questionnaires" },
+          { id: "deadlines", label: "Deadlines and reminders", phrase: "deadline reminders" },
+          { id: "reports", label: "Reports for funders or leadership", phrase: "reporting for funders or leadership" },
+          { id: "portal", label: "Client portal and messaging", phrase: "the client portal" },
+          { id: "billing", label: "Invoices and trust accounting", phrase: "billing" }
+        ]
+      },
+      {
+        id: "fiveStar", type: "single", skip: true,
+        ask: "Would you be willing to publish your review as a 5-star rating?",
+        options: [
+          { id: "yes", label: "Yes" },
+          { id: "no", label: "No" }
+        ]
+      },
+      {
+        id: "rating", type: "stars", skipIf: { fiveStar: "yes" }, skipValue: 5,
+        ask: "How would you rate your overall experience with eimmigration? (1 being poor, 5 being excellent)"
+      },
+      {
+        id: "result", type: "text", skipLabel: "Skip",
+        ask: "What made you switch, and what has changed for your team since? An example or a number helps.",
+        followUp: {
+          minWords: 8,
+          ask: "Thanks! Could you add an example or a number? One more sentence helps another team picture it.",
+          skipLabel: "That's it"
+        }
+      },
+      {
+        id: "advice", type: "text", skipLabel: "Skip",
+        ask: "What would you tell a team like yours that's looking at eimmigration?"
+      },
+      {
+        id: "improve", type: "text", skipLabel: "Nothing to add",
+        ask: "Is there anything we could improve or do better?"
+      }
+    ]
+  },
   // Wording from Viv's 10/13 feedback. Keys are read by clientCopy() and
   // clientCardHint() in app.js; anything not set here keeps the shared default.
   copy: {

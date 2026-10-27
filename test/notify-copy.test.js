@@ -98,6 +98,40 @@ test('alerts without the 4-star prompt are unchanged', () => {
   assert.doesNotMatch(email.text, /Rating note|Feedback for support/);
 });
 
+test('Slack survey text and transcripts escape markup so an answer cannot mention the channel', () => {
+  const nasty = 'Please <!channel> see <https://evil.example>';
+  const negative = buildSlackMessage({
+    event: 'negative',
+    client: 'Acme',
+    negative_flag: {
+      rating: 2,
+      survey_responses: [{ question: 'What happened?', answer: nasty }],
+      key_concerns: [nasty],
+      suggested_actions: [nasty],
+    },
+  });
+  const slack = allBlockText(negative);
+  assert.match(slack, /&lt;!channel&gt;/);
+  assert.doesNotMatch(slack, /<!channel>/);
+  const email = buildNegativeEmailSubjectAndText({
+    event: 'negative',
+    client: 'Acme',
+    negative_flag: { survey_responses: [{ question: 'What happened?', answer: nasty }] },
+  });
+  assert.match(email.text, /<!channel>/);
+
+  const completed = allBlockText(buildSlackMessage({
+    event: 'completed',
+    client: 'Acme',
+    transcript: [
+      { role: 'agent', content: 'How was it?' },
+      { role: 'user', content: nasty },
+    ],
+  }));
+  assert.match(completed, /&lt;!channel&gt;/);
+  assert.doesNotMatch(completed, /<!channel>/);
+});
+
 test('Slack 4-star fields escape markup so customer text cannot mention the channel', () => {
   const payload = {
     event: 'completed',
