@@ -91,7 +91,10 @@
     return Number(lowRating.below);
   }
 
-  // Gate only a real 1 to N star answer. Skip (no rating) stays on the draft path.
+  // Gate only a real 1 to N star answer. A blank is not "under 5": that screen
+  // is for a number the customer actually gave, and a blank still reaches the
+  // drafts. A gated star step must leave `skip` off (eimmigration). Lean Labs
+  // has no gate, so its Skip still reaches the drafts.
   function ratingIsGated(rating, lowRating) {
     if (!lowRating || !lowRating.gate) return false;
     const n = Number(rating);
@@ -432,16 +435,20 @@
       });
       row.appendChild(b);
     });
-    const skip = el('button', { type: 'button', class: 'btn btn-tertiary btn-md', text: 'Skip' });
-    skip.addEventListener('click', () => {
-      state.answers[step.id] = null;
-      mode('none');
-      userSay('Skip');
-      next();
-    });
     bar.appendChild(row);
     bar.appendChild(el('div', { class: 'rating-choice-legend', 'aria-hidden': 'true', html: '<span>Poor</span><span>Excellent</span>' }));
-    bar.appendChild(actionsRow([], [skip]));
+    // A star step without `skip` needs a number, so the under-5 check always
+    // has one (eimmigration V3, after a no to "publish as a 5-star rating").
+    if (step.skip) {
+      const skip = el('button', { type: 'button', class: 'btn btn-tertiary btn-md', text: 'Skip' });
+      skip.addEventListener('click', () => {
+        state.answers[step.id] = null;
+        mode('none');
+        userSay('Skip');
+        next();
+      });
+      bar.appendChild(actionsRow([], [skip]));
+    }
     reveal(bar);
     focusFirst(bar);
   }
