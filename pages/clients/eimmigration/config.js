@@ -36,7 +36,8 @@ window.CLIENT_CONFIG = {
         { id: "yes", label: "Yes, reach out to me", reply: "Thank you. A few more questions so we know where to start." },
         { id: "no", label: "No thanks", reply: "No problem. A few more questions so the team knows what to fix." }
       ],
-      saved: "Thanks for sharing. We saved your review, and someone from eimmigration will reach out before anything gets posted."
+      saved: "Thanks for sharing. We saved your review, and someone from eimmigration will reach out before anything gets posted.",
+      savedDeclined: "Thanks for sharing. We saved your review, and nothing will be posted."
     },
     steps: [
       {

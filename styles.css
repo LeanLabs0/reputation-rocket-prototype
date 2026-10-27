@@ -3889,6 +3889,10 @@ body.rr-directory {
   background: var(--ll-dark-alt);
   animation: bubbleIn 0.3s ease;
 }
+.interview-choice-scroll {
+  max-height: min(320px, 45vh);
+  overflow: auto;
+}
 .interview-chip-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));

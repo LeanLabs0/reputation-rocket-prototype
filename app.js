@@ -1277,8 +1277,15 @@ function hubspotTrackingCookie() {
  * host is production.
  */
 function isTestHost(hostname) {
-  const host = String(hostname == null ? window.location.hostname : hostname).toLowerCase();
-  return host === 'localhost' || host === '127.0.0.1' || host.startsWith('stage.') || host.endsWith('.vercel.app');
+  const host = String(hostname == null ? window.location.hostname : hostname)
+    .toLowerCase()
+    .replace(/^\[|\]$/g, '');
+  // Loopback includes IPv6 (::1). A miss here would post the lead form to the
+  // client's live HubSpot from a local browser. Every *.vercel.app host is a
+  // preview or the deployment alias, not the production custom domain.
+  if (host === 'localhost' || host === '::1' || host === '0.0.0.0') return true;
+  if (/^127(?:\.\d{1,3}){3}$/.test(host)) return true;
+  return host.startsWith('stage.') || host.endsWith('.vercel.app');
 }
 
 async function submitLeadFieldsToHubSpotApi(rows) {
@@ -1583,6 +1590,37 @@ function interviewWordCount(text) {
   return String(text || '').trim().split(/\s+/).filter(Boolean).length;
 }
 
+/** One line, so an answer cannot add a fake Q: or A: line to the writer prompt. */
+function interviewOneLine(text, max = 4000) {
+  return String(text || '').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+/** A whole-number 1 to 5 the customer actually gave, or null. Never invent a 5. */
+function interviewRecordedRating(answers) {
+  const n = Number(answers && answers.rating);
+  return Number.isFinite(n) && n >= 1 && n <= 5 ? n : null;
+}
+
+/**
+ * Resume of the star step. A recorded rating is not asked again: re-asking it
+ * let a reload during the reach-out reply change an under-5 into a publishable 5.
+ * '' means ask the step. 'lowRating' means the reach-out question is still open.
+ */
+function interviewResumeAction(step, answers, lowRating) {
+  if (!step || step.type !== 'stars') return '';
+  const rating = answers ? answers[step.id] : null;
+  if (rating == null || rating === '') return '';
+  if (interviewRatingGated(rating, lowRating) && !(answers && answers.reachOut)) return 'lowRating';
+  return 'skip';
+}
+
+/** Closing line for a held review. A "no" must not promise that someone will call. */
+function interviewLowRatingClosing(lowRating, answers) {
+  const low = lowRating || {};
+  const declined = !!(answers && answers.reachOut === 'no');
+  return String((declined ? low.savedDeclined : low.saved) || '').trim();
+}
+
 /** A short answer and its follow-up stay two sentences, not one run-on. */
 function interviewJoinFollowUp(first, second) {
   let a = String(first || '').trim();
@@ -1620,7 +1658,7 @@ function interviewTapLines(cfg, answers) {
         if (!o) return '';
         return o.firstSystem ? 'first system' : String(o.phrase || o.label || '').trim();
       }).filter(Boolean);
-      const own = String(a[`${s.id}Other`] || '').trim();
+      const own = interviewOneLine(a[`${s.id}Other`]);
       if (own) values.push(`(own words) ${own}`);
       if (values.length) lines.push(`${s.promptLabel}: ${values.join('; ')}`);
     });
@@ -1628,10 +1666,24 @@ function interviewTapLines(cfg, answers) {
 }
 
 function interviewTextAnswer(step, answers) {
-  const text = String((answers || {})[step.id] || '').trim();
+  const text = interviewOneLine((answers || {})[step.id]);
   if (text) return text;
-  const label = String(step.skipLabel || '').trim();
+  const label = interviewOneLine(step && step.skipLabel);
   return label && label !== 'Skip' ? `(chose: ${label})` : '(skipped)';
+}
+
+/** Drafts the writer may return: only this portal's platforms, in portal order. */
+function interviewKeepDrafts(parsed, platforms) {
+  const out = {};
+  const list = Array.isArray(platforms) ? platforms : [];
+  list.forEach((platform) => {
+    const key = String(platform || '').trim().toLowerCase();
+    if (!key || Object.prototype.hasOwnProperty.call(out, key)) return;
+    if (!parsed || !Object.prototype.hasOwnProperty.call(parsed, key)) return;
+    const text = String(parsed[key]).trim();
+    if (text) out[key] = text;
+  });
+  return out;
 }
 
 /**
@@ -1640,20 +1692,22 @@ function interviewTextAnswer(step, answers) {
  */
 function buildInterviewWriterPrompt(cfg, answers) {
   const a = answers || {};
-  const rating = Number(a.rating);
-  const lines = [
-    a.fiveStar === 'yes'
-      ? 'RATING: 5 (they agreed to publish their review as a 5-star rating)'
-      : `RATING: ${Number.isFinite(rating) && rating > 0 ? rating : 5}`,
-    '',
-    'TAPPED',
-  ];
+  const rating = interviewRecordedRating(a);
+  const agreedFive = a.fiveStar === 'yes' && (rating == null || rating === 5);
+  const shown = rating != null ? rating : (a.fiveStar === 'yes' ? 5 : null);
+  let ratingLine = 'RATING: (missing)';
+  if (shown != null && agreedFive && shown === 5) {
+    ratingLine = 'RATING: 5 (they agreed to publish their review as a 5-star rating)';
+  } else if (shown != null) {
+    ratingLine = `RATING: ${shown}`;
+  }
+  const lines = [ratingLine, '', 'TAPPED'];
   const taps = interviewTapLines(cfg, a);
   if (taps.length) taps.forEach((line) => lines.push(`- ${line}`));
   else lines.push('- (nothing tapped)');
   lines.push('', 'THEIR WORDS');
   ((cfg && cfg.steps) || []).filter((s) => s.type === 'text').forEach((s) => {
-    lines.push(`Q: ${s.ask}`, `A: ${interviewTextAnswer(s, a)}`);
+    lines.push(`Q: ${interviewOneLine(s.ask)}`, `A: ${interviewTextAnswer(s, a)}`);
   });
   return lines.join('\n');
 }
@@ -1663,16 +1717,16 @@ function buildInterviewNegativeFlag(cfg, answers, lead) {
   const a = answers || {};
   const steps = (cfg && cfg.steps) || [];
   const low = (cfg && cfg.lowRating) || {};
-  const rating = Number(a.rating) >= 1 ? Number(a.rating) : null;
+  const rating = interviewRecordedRating(a);
   const stars = steps.find((s) => s.type === 'stars');
   const responses = [{
-    question: stars ? stars.ask : 'Rating',
+    question: stars ? interviewOneLine(stars.ask) : 'Rating',
     answer: rating ? `${rating} star${rating === 1 ? '' : 's'}` : '(skipped)',
   }];
   const reach = (low.options || []).find((o) => o && o.id === a.reachOut);
   if (reach) responses.push({ question: 'May we reach out?', answer: reach.label });
   steps.filter((s) => s.type === 'text').forEach((s) => {
-    responses.push({ question: s.ask, answer: interviewTextAnswer(s, a) });
+    responses.push({ question: interviewOneLine(s.ask), answer: interviewTextAnswer(s, a) });
   });
   const taps = interviewTapLines(cfg, a);
   if (taps.length) responses.push({ question: 'Their taps', answer: taps.join(' | ') });
@@ -1687,7 +1741,9 @@ function buildInterviewNegativeFlag(cfg, answers, lead) {
     key_concerns: [],
     suggested_actions: reach && reach.id === 'yes'
       ? ['They said yes to a follow-up. Reach out before anything gets posted.']
-      : [],
+      : reach && reach.id === 'no'
+        ? ['They asked not to be contacted. Nothing was posted.']
+        : [],
   };
 }
 
@@ -1937,12 +1993,18 @@ async function runInterviewLowRating() {
   const grid = interviewEl('div', { class: 'interview-chip-grid' });
   (low.options || []).forEach((o) => {
     grid.appendChild(interviewChip(o.label, false, { 'data-option': o.id }, async () => {
+      // Move past the stars before the reply is spoken. A reload in that pause
+      // used to land back on the stars and let an under-5 become a 5.
+      if (st.pending !== 'lowRating') return;
       st.answers.reachOut = o.id;
       st.pending = '';
+      const nextIndex = (Number.isInteger(st.step) ? st.step : 0) + 1;
+      st.step = nextIndex;
       setInterviewInputMode('none');
       interviewUserSay(o.label);
+      saveSession();
       if (o.reply) await interviewSay(o.reply);
-      nextInterviewStep();
+      runInterviewStep(nextIndex);
     }));
   });
   box.appendChild(interviewEl('div', { class: 'interview-choice-scroll' }, [grid]));
@@ -2022,6 +2084,15 @@ async function runInterviewStep(index) {
     runInterviewStep(index + 1);
     return;
   }
+  const resume = interviewResumeAction(step, st.answers, cfg.lowRating);
+  if (resume === 'lowRating') {
+    runInterviewLowRating();
+    return;
+  }
+  if (resume === 'skip') {
+    runInterviewStep(index + 1);
+    return;
+  }
   saveSession();
   // A reload during the follow-up picks up at the follow-up.
   if (step.type === 'text' && step.followUp && st.partial[step.id]) {
@@ -2044,22 +2115,29 @@ function nextInterviewStep() {
 async function finishInterview() {
   const cfg = interviewConfig();
   const st = ensureInterviewState();
-  st.done = true;
+  if (!cfg || st.done) return;
   setInterviewInputMode('none');
-  const rating = Number(st.answers.rating);
-  if (rating >= 1) agentRating = rating;
+  const rating = interviewRecordedRating(st.answers);
+  if (rating != null) agentRating = rating;
   if (interviewRatingGated(st.answers.rating, cfg.lowRating)) {
-    const saved = String(cfg.lowRating.saved || '').trim();
-    if (saved) await interviewSay(saved);
+    st.done = true;
+    const saved = interviewLowRatingClosing(cfg.lowRating, st.answers);
     // The negative screen shows this as its closing line.
     lastAgentMessage = saved;
     negativeFlagData = buildInterviewNegativeFlag(cfg, st.answers, getLeadFieldsForApi());
     saveSession();
+    if (saved) await interviewSay(saved);
     setTimeout(() => transitionTo('negative'), 2500);
     return;
   }
-  if (cfg.writingMessage) await interviewSay(cfg.writingMessage);
+  if (rating == null) {
+    saveSession();
+    showInterviewDraftError('Something went wrong saving your rating.', { retry: false });
+    return;
+  }
+  st.done = true;
   saveSession();
+  if (cfg.writingMessage) await interviewSay(cfg.writingMessage);
   requestInterviewDrafts();
 }
 
@@ -2067,6 +2145,7 @@ async function requestInterviewDrafts() {
   if (isWaitingForAgent) return;
   const cfg = interviewConfig();
   const st = ensureInterviewState();
+  if (!cfg || interviewRatingGated(st.answers.rating, cfg.lowRating) || interviewRecordedRating(st.answers) == null) return;
   isWaitingForAgent = true;
   syncChatComposerState();
   // A fresh writer session each try: a reused id would replay the last attempt.
@@ -2093,7 +2172,7 @@ async function requestInterviewDrafts() {
     const data = await res.json();
     if (data.machine_id) machineId = data.machine_id;
     const match = String(data.result || '').match(/<drafts>([\s\S]*?)<\/drafts>/);
-    const parsed = match ? parseDraftsBlock(match[1]) : {};
+    const parsed = interviewKeepDrafts(match ? parseDraftsBlock(match[1]) : {}, PARAMS.platforms);
     if (!Object.keys(parsed).length) throw new Error('No drafts in the reply');
     drafts = parsed;
     activeDraftPlatform = Object.keys(drafts)[0];
@@ -2116,18 +2195,22 @@ async function requestInterviewDrafts() {
   }
 }
 
-function showInterviewDraftError(message) {
+function showInterviewDraftError(message, options) {
   const messages = $('#chat-messages');
   if (!messages) return;
+  messages.querySelectorAll('.chat-error').forEach((el) => el.remove());
+  const retryable = !options || options.retry !== false;
   const box = interviewEl('div', { class: 'chat-error' }, [
     interviewEl('span', { text: `${message} Your answers are saved.` }),
   ]);
-  const retry = interviewEl('button', { type: 'button', text: 'Retry' });
-  retry.addEventListener('click', () => {
-    box.remove();
-    requestInterviewDrafts();
-  });
-  box.appendChild(retry);
+  if (retryable) {
+    const retry = interviewEl('button', { type: 'button', text: 'Retry' });
+    retry.addEventListener('click', () => {
+      box.remove();
+      requestInterviewDrafts();
+    });
+    box.appendChild(retry);
+  }
   messages.appendChild(box);
   messages.scrollTop = messages.scrollHeight;
 }
@@ -2143,6 +2226,10 @@ function initInterviewChat() {
     if (interviewRatingGated(st.answers.rating, interviewConfig().lowRating)) {
       // Reloaded between the closing line and the negative screen.
       setTimeout(() => transitionTo('negative'), 0);
+      return;
+    }
+    if (interviewRecordedRating(st.answers) == null) {
+      showInterviewDraftError('Something went wrong saving your rating.', { retry: false });
       return;
     }
     requestInterviewDrafts();
@@ -3697,14 +3784,27 @@ function handleRegenerate() {
 async function sendRegenerateRequest(platform) {
   try {
     const L = getLeadFieldsForApi();
-    // V3 asks its writer session again, under the same rules.
+    // V3 sends the answers again under a new writer session. Reusing the
+    // session that produced the drafts replays that attempt instead of writing.
     const v3 = isInterviewV3();
+    const plat = String(platform || '').trim().toLowerCase();
+    const st = v3 ? ensureInterviewState() : null;
+    const cfg = v3 ? interviewConfig() : null;
+    const allowed = (PARAMS.platforms || []).some((p) => String(p).toLowerCase() === plat);
+    if (v3 && (!cfg || !allowed)) return;
+    const currentDraft = v3 ? interviewOneLine(drafts[plat] || drafts[platform]) : '';
     const body = {
       prompt: v3
-        ? `Write the ${platform} draft again from the same answers. Keep every rule: their words, at most one sentence of yours, nothing invented. Wrap it in <drafts><draft platform="${platform}">...</draft></drafts>. Do not include any other platforms.`
+        ? [
+            buildInterviewWriterPrompt(cfg, st.answers),
+            '',
+            `Write the ${plat} draft again from the answers above. Keep every rule: their words, at most one sentence of yours, nothing invented.`,
+            currentDraft ? `Current ${plat} draft, which you must not copy: ${currentDraft}` : '',
+            `Wrap it in <drafts><draft platform="${plat}">...</draft></drafts>. Do not include any other platforms.`,
+          ].filter(Boolean).join('\n')
         : `Please regenerate ONLY the ${platform} draft with a slightly different angle. Wrap the new draft in <drafts><draft platform="${platform}">...</draft></drafts>. Do not include any other platforms.`,
       agent: v3 ? INTERVIEW_WRITER_AGENT : CONFIG.AGENT,
-      session_id: v3 ? ensureInterviewState().writerSessionId || sessionId : sessionId,
+      session_id: v3 ? crypto.randomUUID() : sessionId,
       config: {
         client_name: L.client_name,
         customer_name: L.customer_name,
@@ -3725,12 +3825,13 @@ async function sendRegenerateRequest(platform) {
 
     const draftsMatch = resultText.match(/<drafts>([\s\S]*?)<\/drafts>/);
     if (draftsMatch) {
-      const parsed = parseDraftsBlock(draftsMatch[1]);
-      if (parsed[platform]) {
-        drafts[platform] = parsed[platform];
+      const parsedAll = parseDraftsBlock(draftsMatch[1]);
+      const nextText = v3 ? interviewKeepDrafts(parsedAll, [plat])[plat] : parsedAll[platform];
+      if (nextText) {
+        drafts[platform] = nextText;
         delete draftLooksGood[platform];
         if (platform === activeDraftPlatform) {
-          $('#draft-textarea').value = parsed[platform];
+          $('#draft-textarea').value = nextText;
         }
         renderDraftTabs();
         updateDraftScreenChrome();
@@ -3738,6 +3839,7 @@ async function sendRegenerateRequest(platform) {
         return;
       }
     }
+    if (v3) throw new Error('No draft in the reply');
     // Fallback: legacy single-draft extraction
     const newDraft = extractDraft(resultText);
     if (newDraft && newDraft.length > 30) {
@@ -3752,6 +3854,8 @@ async function sendRegenerateRequest(platform) {
     }
   } catch (err) {
     console.error('Regenerate failed:', err);
+    const hint = $('#draft-copy-hint-text');
+    if (hint) hint.textContent = 'Could not rewrite that draft. Your current text is unchanged.';
   }
 }
 
@@ -5328,6 +5432,24 @@ async function uploadRecordedVideoToHubSpot() {
   form.append('customerCompany', lead.client_name || PARAMS.customerCompany || '');
 
   try {
+    if (isTestHost()) {
+      console.info('[Reputation Rocket] Test host, video not uploaded to HubSpot:', { fileName, portalId });
+      uploadedVideoMeta = {
+        id: '',
+        url: '',
+        name: fileName,
+        portalId,
+        uploadedAt: new Date().toISOString(),
+      };
+      closeVideoCaptureModal();
+      const held = document.getElementById('video-status-text');
+      if (held) {
+        held.textContent = 'Test host: video was not sent to HubSpot.';
+        held.classList.remove('error');
+      }
+      transitionTo('complete');
+      return;
+    }
     const res = await fetch(CONFIG.VIDEO_UPLOAD_URL, { method: 'POST', body: form });
     const text = await res.text();
     let payload = {};
