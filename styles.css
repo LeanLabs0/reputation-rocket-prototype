@@ -3892,6 +3892,9 @@ body.rr-directory {
 .interview-choice-scroll {
   max-height: min(320px, 45vh);
   overflow: auto;
+  /* Side room for the own-words focus ring. Negative margin keeps the chips the same width. */
+  padding: 0 4px;
+  margin: 0 -4px;
 }
 .interview-chip-grid {
   display: grid;
@@ -3959,21 +3962,34 @@ body.rr-directory {
   color: var(--ll-muted);
 }
 .interview-own-input {
+  display: block;
   width: 100%;
-  margin-top: 10px;
+  margin: 10px 0 4px;
   padding: 10px 12px;
   border: 1px solid var(--ll-border);
   border-radius: var(--radius-md);
   background: var(--ll-dark);
   color: var(--ll-heading);
+  caret-color: currentColor;
   font-family: var(--font-family);
   font-size: 0.875rem;
+  min-width: 0;
+  scroll-margin: 4px;
+  transition: border-color var(--transition), box-shadow var(--transition);
 }
-.interview-own-input::placeholder { color: var(--ll-muted); }
+.interview-own-input::placeholder {
+  color: var(--ll-muted);
+  opacity: 1;
+}
 .interview-own-input:focus {
   outline: none;
   border-color: var(--ll-purple);
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
+}
+@media (forced-colors: active) {
+  .interview-own-input:focus {
+    outline: 2px solid CanvasText;
+  }
 }
 .interview-own-input[hidden] { display: none; }
 .interview-choice-actions {
