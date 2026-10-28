@@ -3969,6 +3969,12 @@ body.rr-directory {
   font-family: var(--font-family);
   font-size: 0.875rem;
 }
+.interview-own-input::placeholder { color: var(--ll-muted); }
+.interview-own-input:focus {
+  outline: none;
+  border-color: var(--ll-purple);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.12);
+}
 .interview-own-input[hidden] { display: none; }
 .interview-choice-actions {
   display: flex;
