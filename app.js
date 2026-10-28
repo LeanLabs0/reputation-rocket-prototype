@@ -2146,7 +2146,13 @@ async function startChatDictation() {
   setChatMicStatus('');
   syncChatComposerState();
   try {
-    chatMicStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    chatMicStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+      },
+    });
   } catch (_) {
     abortChatMicStartup(chatMicMessage('blocked'));
     return;
