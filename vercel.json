@@ -69,6 +69,26 @@
       "source": "/alitek",
       "destination": "/alitek/",
       "permanent": true
+    },
+    {
+      "source": "/alitek/demo",
+      "destination": "/alitek/demo/",
+      "permanent": true
+    },
+    {
+      "source": "/overdeliver",
+      "destination": "/clients/",
+      "permanent": true
+    },
+    {
+      "source": "/overdeliver/",
+      "destination": "/clients/",
+      "permanent": true
+    },
+    {
+      "source": "/clients",
+      "destination": "/clients/",
+      "permanent": true
     }
   ],
   "rewrites": [
@@ -91,6 +111,18 @@
     {
       "source": "/configure/:path*",
       "destination": "/pages/configure/:path*"
+    },
+    {
+      "source": "/clients",
+      "destination": "/pages/client-directory/index.html"
+    },
+    {
+      "source": "/clients/",
+      "destination": "/pages/client-directory/index.html"
+    },
+    {
+      "source": "/clients/:path*",
+      "destination": "/pages/client-directory/:path*"
     },
     {
       "source": "/alitek/demo",

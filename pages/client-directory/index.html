@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Clients | Reputation Rocket</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/clients/clients.css">
+<link rel="SHORTCUT ICON" href="/assets/image/reprocket-icon.svg">
+</head>
+<body class="rr-directory rr-clients-page">
+<main class="rr-directory-main">
+  <header class="rr-directory-header">
+    <div class="rr-directory-brand">
+      <img class="rr-directory-logo" src="/assets/image/reprocket-icon.svg" width="32" height="32" alt="" decoding="async">
+      <span class="rr-directory-brand-text">Reputation Rocket</span>
+    </div>
+  </header>
+
+  <section class="rr-directory-hero">
+    <h1 class="rr-directory-title">Clients</h1>
+    <p class="rr-directory-lead">Live pages and walkthrough demos.</p>
+  </section>
+
+  <section id="rr-clients-gate" class="rr-clients-gate">
+    <form id="rr-clients-form">
+      <label for="rr-clients-password">Password</label>
+      <input id="rr-clients-password" name="password" type="password" autocomplete="current-password" required>
+      <button type="submit" class="rr-clients-submit">Open directory</button>
+      <p id="rr-clients-error" class="rr-clients-error" hidden></p>
+    </form>
+  </section>
+
+  <section id="rr-clients-board" class="rr-clients-board" hidden>
+    <p id="rr-clients-count" class="rr-clients-count"></p>
+    <div id="rr-clients-list" class="rr-directory-grid"></div>
+  </section>
+</main>
+<script src="/clients/clients.js"></script>
+</body>
+</html>

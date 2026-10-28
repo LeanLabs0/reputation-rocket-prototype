@@ -104,6 +104,12 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/transcribe') {
       return await callApiHandlerRaw(requireFresh('./api/transcribe'), req, res);
     }
+    if (url.pathname === '/api/overdeliver/login') {
+      return await callApiHandler(requireFresh('./api/overdeliver/login'), req, res);
+    }
+    if (url.pathname === '/api/overdeliver/catalog') {
+      return await callApiHandler(requireFresh('./api/overdeliver/catalog'), req, res);
+    }
 
     return serveStatic(url.pathname, res);
   } catch (error) {
@@ -195,6 +201,12 @@ function callApiHandlerRaw(handler, req, nodeRes) {
  */
 function maybeRedirectTrailingSlash(url, res) {
   const pathname = decodeURIComponent(url.pathname);
+
+  if (pathname === '/overdeliver' || pathname === '/overdeliver/') {
+    res.writeHead(308, { Location: `/clients/${url.search}`, 'Cache-Control': 'no-cache' });
+    res.end();
+    return true;
+  }
 
   if (pathname === '/demo' || pathname === '/demo/') {
     res.writeHead(308, { Location: `/lean-labs/demo/${url.search}`, 'Cache-Control': 'no-cache' });

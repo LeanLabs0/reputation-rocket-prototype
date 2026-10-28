@@ -43,6 +43,15 @@
 /fatherhood/  /pages/clients/fatherhood/  200
 /fatherhood/*  /pages/clients/fatherhood/:splat  200
 
+/overdeliver  /clients/  308
+/overdeliver/  /clients/  308
+/clients  /clients/  308
+/clients/  /pages/client-directory/index.html  200
+/clients/*  /pages/client-directory/:splat  200
+/alitek/demo  /alitek/demo/  308
+/alitek/demo  /pages/clients/alitek/demo/index.html  200
+/alitek/demo/  /pages/clients/alitek/demo/index.html  200
+
 # Unknown paths
 /*  /404.html  404
 /alitek  /alitek/  308

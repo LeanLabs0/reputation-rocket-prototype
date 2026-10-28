@@ -1,0 +1,187 @@
+body.rr-directory.rr-clients-page {
+  background-color: #000;
+  background-image: url('/assets/image/bg-aurora-stars.svg');
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: cover;
+  background-attachment: fixed;
+}
+
+.rr-clients-page .rr-directory-main {
+  max-width: 1080px;
+}
+
+.rr-clients-gate {
+  width: 100%;
+  max-width: 480px;
+  padding: 24px;
+  border-radius: 16px;
+  border: 1px solid var(--ll-border);
+  background: linear-gradient(
+    106deg,
+    rgba(20, 20, 20, 0.92) 0%,
+    rgba(13, 13, 13, 0.98) 48%,
+    rgba(18, 14, 28, 0.5) 100%
+  );
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.32);
+}
+
+.rr-clients-gate label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--ll-heading);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.rr-clients-gate input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--ll-border);
+  border-radius: var(--radius-md);
+  background: var(--ll-dark);
+  color: var(--ll-heading);
+  font: inherit;
+}
+
+.rr-clients-gate input:focus {
+  outline: 2px solid rgba(255, 255, 255, 0.28);
+  outline-offset: 2px;
+}
+
+.rr-clients-submit {
+  margin-top: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 50px;
+  padding: 0 28px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--ll-white);
+  color: var(--ll-dark);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.rr-clients-submit:hover {
+  transform: translateY(-1px);
+}
+
+.rr-clients-error {
+  margin: 12px 0 0;
+  color: #ff8d8d;
+  font-size: 0.9rem;
+}
+
+.rr-clients-board[hidden],
+.rr-clients-gate[hidden] {
+  display: none;
+}
+
+.rr-clients-board {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.rr-clients-count {
+  margin: 0;
+  color: var(--ll-muted);
+}
+
+.rr-clients-page .rr-directory-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.rr-clients-card {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 18px;
+  min-height: 100%;
+  padding: 28px 20px 20px;
+  text-align: center;
+  cursor: default;
+  transition: none;
+}
+
+.rr-clients-card:hover {
+  transform: none;
+  border-color: var(--rr-dir-border);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.32);
+}
+
+.rr-clients-logo {
+  width: 168px;
+  height: 56px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.rr-clients-logo img {
+  display: block;
+  width: 168px;
+  height: 56px;
+  object-fit: contain;
+  object-position: center;
+}
+
+.rr-clients-card .rr-directory-card-name {
+  text-align: center;
+}
+
+.rr-clients-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-top: auto;
+}
+
+.rr-clients-actions .btn {
+  width: 100%;
+  height: 44px;
+  text-decoration: none;
+}
+
+.rr-clients-actions .btn-primary {
+  background: var(--ll-white);
+  color: var(--ll-dark);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.rr-clients-actions .btn-primary:hover {
+  color: var(--ll-dark);
+  text-decoration: none;
+}
+
+.rr-clients-actions .btn-secondary:hover {
+  text-decoration: none;
+}
+
+.rr-clients-missing {
+  color: var(--ll-muted);
+  font-size: 0.875rem;
+}
+
+@media (max-width: 900px) {
+  .rr-clients-page .rr-directory-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .rr-clients-page .rr-directory-grid {
+    grid-template-columns: 1fr;
+  }
+}
