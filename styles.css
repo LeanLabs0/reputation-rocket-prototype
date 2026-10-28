@@ -3205,6 +3205,29 @@ a:hover { text-decoration: underline; }
   word-break: normal;
   overflow-wrap: normal;
 }
+/* The bubble is a flex item. Without a floor it grows to the button's one-line
+   width and the chat frame clips the right side on a phone. */
+.chat-draft-inline .chat-bubble {
+  min-width: 0;
+  flex: 1;
+}
+.chat-draft-inline .chat-bubble button.chat-draft-inline__cta {
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  margin-top: 12px;
+  white-space: normal;
+  height: auto;
+  min-height: 50px;
+  padding: 12px 16px;
+  text-align: center;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.chat-draft-inline .chat-bubble button.chat-draft-inline__cta:focus-visible {
+  outline: 2px solid var(--ll-purple);
+  outline-offset: 2px;
+}
 .chat-bubble.user a { color: rgba(255,255,255,0.9); }
 
 /* ── Error state in chat ──────────────────────────────────── */

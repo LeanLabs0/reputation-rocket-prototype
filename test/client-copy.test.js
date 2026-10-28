@@ -64,6 +64,7 @@ test('EIM live and demo configs carry the same copy overrides', () => {
   const demo = loadConfig('pages/clients/eimmigration/demo/config.js');
   assert.match(live.copy.draftsReadyMessage, /^Thanks so much for sharing\.\n\nWe turned /);
   assert.equal(live.copy.draftsReadyLink, 'Read the drafts.');
+  assert.equal(live.copy.draftsReadyButton, 'See my reviews');
   assert.equal(live.copy.postFinishHint, '');
   assert.equal(live.copy.postNudgeProgress.includes('{'), false);
   assert.deepEqual(Object.keys(live.copy.cardHints).sort(), [...live.platforms].sort());

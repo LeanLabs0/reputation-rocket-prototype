@@ -24,6 +24,7 @@ window.CLIENT_CONFIG = {
   copy: {
     draftsReadyMessage: "Thanks so much for sharing.\n\nWe turned your responses into a few reviews that you can edit or publish.",
     draftsReadyLink: "Read the drafts.",
+    draftsReadyButton: "See my reviews",
     cardHints: {
       gartner: "Takes 2 minutes. You'll need to log in to or create a free Gartner account to publish your review.",
       g2: "Takes 2 minutes. You'll need to log in to or create a free G2 account to publish your review.",
