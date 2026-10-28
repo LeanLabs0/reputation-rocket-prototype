@@ -1581,10 +1581,15 @@ function ensureInterviewState() {
 function interviewStepSkipped(step, answers) {
   // onlyIfShort: { step, minWords }: shown only when that text answer came back
   // short or skipped, so a customer who already wrote detail is not asked again.
+  // A word minimum that is not a number still means 8, so a typo cannot hide
+  // the question from someone who wrote a long answer, or show it to everyone.
   const short = step && step.onlyIfShort;
   if (short && typeof short === 'object' && short.step) {
-    const min = short.minWords == null ? 8 : short.minWords;
-    if (interviewWordCount((answers || {})[short.step]) >= min) return true;
+    const configured = short.minWords == null ? 8 : Number(short.minWords);
+    const min = Number.isFinite(configured) && configured >= 0 ? configured : 8;
+    const value = (answers || {})[short.step];
+    const text = typeof value === 'string' || typeof value === 'number' ? value : '';
+    if (interviewWordCount(text) >= min) return true;
   }
   const rule = step && step.skipIf;
   if (!rule || typeof rule !== 'object') return false;
@@ -1637,6 +1642,24 @@ function interviewJoinFollowUp(first, second) {
   a = a.replace(/[,;:]+$/, '');
   if (!/[.!?]$/.test(a)) a += '.';
   return `${a} ${b}`;
+}
+
+/** A follow-up stays a second sentence. Any other reply replaces a leftover partial. */
+function interviewComposeTextAnswer(partial, text, isFollowUp) {
+  return interviewJoinFollowUp(isFollowUp ? partial : '', text);
+}
+
+/**
+ * True when this question already has an answer, so resume can move past it.
+ * A half-finished follow-up is not done. Stars are excluded: an under-5
+ * rating still has to offer the reach-out question.
+ */
+function interviewStepAlreadyAnswered(step, answers, partial) {
+  if (!step || step.type === 'stars' || !step.id) return false;
+  const pending = partial && typeof partial === 'object' ? partial : {};
+  if (Object.prototype.hasOwnProperty.call(pending, step.id)) return false;
+  const bag = answers && typeof answers === 'object' ? answers : {};
+  return Object.prototype.hasOwnProperty.call(bag, step.id);
 }
 
 /** Under the threshold with gate on: no drafts and no review links. A skipped rating is not a number. */
@@ -2073,7 +2096,7 @@ function finishInterviewText(text, label) {
   }
   const first = st.partial[step.id];
   delete st.partial[step.id];
-  st.answers[step.id] = interviewJoinFollowUp(first, text);
+  st.answers[step.id] = interviewComposeTextAnswer(first, text, isFollowUp);
   nextInterviewStep();
 }
 
@@ -2091,6 +2114,12 @@ async function runInterviewStep(index) {
     runInterviewStep(index + 1);
     return;
   }
+  // Inserting a step shifts saved positions. A question already answered stays
+  // answered, so a visit in progress is not asked it again and cannot overwrite it.
+  if (interviewStepAlreadyAnswered(step, st.answers, st.partial)) {
+    runInterviewStep(index + 1);
+    return;
+  }
   const resume = interviewResumeAction(step, st.answers, cfg.lowRating);
   if (resume === 'lowRating') {
     runInterviewLowRating();
@@ -2105,6 +2134,19 @@ async function runInterviewStep(index) {
   if (step.type === 'text' && step.followUp && st.partial[step.id]) {
     await interviewAsk(step.followUp.ask);
     renderInterviewText(step, true);
+    return;
+  }
+  // The typed follow-up was replaced by detail taps. Keep the short answer
+  // they already gave in the box instead of gluing it onto the next reply.
+  if (step.type === 'text' && st.partial[step.id] && !step.followUp) {
+    const kept = String(st.partial[step.id]);
+    await interviewAsk(step.ask);
+    renderInterviewText(step, false);
+    const input = $('#chat-input');
+    if (input) {
+      input.value = kept;
+      resizeChatInput();
+    }
     return;
   }
   await interviewAsk(step.ask);
@@ -4083,13 +4125,18 @@ function formatDraftForOverlay(platform, draftText) {
   return text.replace(/\[FIELD:\s*([^\]]+?)\]/g, '$1');
 }
 
-/** Join preview parts so one without end punctuation (a headline, "eimmigration is better") does not run into the next. */
+/**
+ * Join preview parts so one without end punctuation (a headline, "eimmigration
+ * is better", or a line that ends on a quote or a bracket) does not run into
+ * the next. A trailing comma is not a sentence ending.
+ */
 function snippetJoin(parts) {
-  return parts
-    .map((part) => String(part || '').trim())
-    .filter(Boolean)
-    .map((part) => (/[.!?\u2026"\u201d')\]]$/.test(part) ? part : `${part}.`))
-    .join(' ');
+  return parts.map((part) => {
+    const text = String(part || '').trim().replace(/[,;:]+(["'\u2019\u201d)\]\u00bb]*)$/, '$1');
+    if (!text) return '';
+    if (/[.!?\u2026]["'\u2019\u201d)\]\u00bb]*$/.test(text)) return text;
+    return `${text}.`;
+  }).filter(Boolean).join(' ');
 }
 
 /**
@@ -4101,9 +4148,11 @@ function draftSnippetText(platform, draftText) {
   const meta = PLATFORM_META[String(platform || '').toLowerCase()];
   if (meta && meta.flow === 'fields') {
     const fields = parseG2Fields(draftText);
-    if (fields.length > 0) return snippetJoin(fields.map((f) => f.body));
+    if (fields.length > 0) {
+      return snippetJoin(fields.flatMap((f) => String(f.body || '').split(/\n\s*\n/)));
+    }
   }
-  return snippetJoin(formatDraftForOverlay(platform, draftText).split(/\n\s*\n/));
+  return snippetJoin(String(formatDraftForOverlay(platform, draftText) || '').split(/\n\s*\n/));
 }
 
 // ── Guided post flow (rich layout) ──────────────────────────

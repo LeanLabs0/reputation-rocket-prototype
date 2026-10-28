@@ -41,6 +41,8 @@ vm.runInNewContext([
   'interviewResumeAction',
   'interviewLowRatingClosing',
   'interviewJoinFollowUp',
+  'interviewComposeTextAnswer',
+  'interviewStepAlreadyAnswered',
   'interviewRatingGated',
   'interviewOption',
   'interviewTapLines',
@@ -66,7 +68,7 @@ const SAMPLE = {
   improve: '',
 };
 
-test('eimmigration runs the V3 interview: taps, the 5-star question, stars with no Skip, then three open questions', () => {
+test('eimmigration runs the V3 interview: taps, the 5-star question, stars with no Skip, then the open questions', () => {
   assert.equal(cfg.version, 3);
   assert.deepEqual(plain(cfg.steps.map((s) => s.id)), [
     'orgType', 'before', 'services', 'fiveStar', 'rating', 'result', 'gains', 'advice', 'improve',
@@ -132,6 +134,15 @@ test('the detail taps show only after a short or skipped switch answer', () => {
   assert.equal(fns.interviewStepSkipped(gains, { result: '' }), false);
   assert.equal(fns.interviewStepSkipped(gains, {}), false);
   assert.equal(fns.interviewStepSkipped(gains, { result: SAMPLE.result }), true);
+  // A word minimum that is not a number still means 8.
+  assert.equal(fns.interviewStepSkipped(
+    { onlyIfShort: { step: 'result', minWords: 'eight' } },
+    { result: SAMPLE.result },
+  ), true);
+  assert.equal(fns.interviewStepSkipped(
+    { onlyIfShort: { step: 'result' } },
+    { result: 'too short' },
+  ), false);
   // Steps without the rule are unchanged.
   assert.equal(fns.interviewStepSkipped(step('rating'), { fiveStar: 'yes' }), true);
   assert.equal(fns.interviewStepSkipped(step('advice'), { result: 'short' }), false);
@@ -143,6 +154,27 @@ test('the detail taps show only after a short or skipped switch answer', () => {
   assert.doesNotMatch(fns.buildInterviewWriterPrompt(cfg, SAMPLE), /What got better/);
 });
 
+test('a visit already past a question is not asked it again, and a leftover follow-up is not glued on', () => {
+  assert.equal(fns.interviewStepAlreadyAnswered(step('advice'), { advice: 'Tell them to switch.' }, {}), true);
+  assert.equal(fns.interviewStepAlreadyAnswered(step('advice'), { advice: '' }, {}), true);
+  assert.equal(fns.interviewStepAlreadyAnswered(step('gains'), { gains: [] }, {}), true);
+  assert.equal(fns.interviewStepAlreadyAnswered(step('advice'), {}, {}), false);
+  assert.equal(fns.interviewStepAlreadyAnswered(step('advice'), { advice: 'kept' }, { advice: 'still typing' }), false);
+  // Stars keep their own resume rule, so an under-5 can still offer the reach-out.
+  assert.equal(fns.interviewStepAlreadyAnswered(step('rating'), { rating: 2 }, {}), false);
+  assert.match(extractFunction('runInterviewStep'), /interviewStepAlreadyAnswered/);
+  assert.equal(
+    fns.interviewComposeTextAnswer('eimmigration is better', 'We switched from spreadsheets.', false),
+    'We switched from spreadsheets.',
+  );
+  assert.equal(
+    fns.interviewComposeTextAnswer('eimmigration is better', 'Intake used to take a week.', true),
+    'eimmigration is better. Intake used to take a week.',
+  );
+  assert.match(extractFunction('finishInterviewText'), /interviewComposeTextAnswer/);
+  assert.match(extractFunction('runInterviewStep'), /st\.partial\[step\.id\] && !step\.followUp/);
+});
+
 test('Post It previews keep a headline or a short field from running into the next one', () => {
   const ctx = { PLATFORM_META: { g2: { flow: 'fields' }, trustpilot: { flow: 'paste' } } };
   vm.runInNewContext(['snippetJoin', 'parseG2Fields', 'formatDraftForOverlay', 'draftSnippetText'].map(extractFunction).join('\n'), ctx);
@@ -150,6 +182,12 @@ test('Post It previews keep a headline or a short field from running into the ne
   assert.equal(ctx.draftSnippetText('g2', g2), 'eimmigration is better. Nothing to add right now.');
   assert.equal(ctx.draftSnippetText('trustpilot', 'eimmigration is better\n\nBefore we switched we were on LollyLaw.'), 'eimmigration is better. Before we switched we were on LollyLaw.');
   assert.equal(ctx.draftSnippetText('trustpilot', 'Is it worth it?\n\nYes.'), 'Is it worth it? Yes.');
+  const quoted = '[FIELD: Like]\nThey said "much better"\n\n[FIELD: Dislike]\nNothing to add right now.';
+  assert.equal(ctx.draftSnippetText('g2', quoted), 'They said "much better". Nothing to add right now.');
+  assert.equal(ctx.snippetJoin(['We switched (from spreadsheets)', 'Next']), 'We switched (from spreadsheets). Next.');
+  assert.equal(ctx.snippetJoin(['fast,', 'simple now']), 'fast. simple now.');
+  const paragraphs = '[FIELD: Like]\neimmigration is better\n\nStill short\n\n[FIELD: Dislike]\nNothing to add right now.';
+  assert.equal(ctx.draftSnippetText('g2', paragraphs), 'eimmigration is better. Still short. Nothing to add right now.');
 });
 
 test('a short answer and its follow-up stay two sentences', () => {
