@@ -90,12 +90,24 @@ window.CLIENT_CONFIG = {
       },
       {
         id: "result", type: "text", skipLabel: "Skip",
-        ask: "What made you switch, and what has changed for your team since? An example or a number helps.",
-        followUp: {
-          minWords: 8,
-          ask: "Thanks! Could you add an example or a number? One more sentence helps another team picture it.",
-          skipLabel: "That's it"
-        }
+        ask: "What made you switch, and what has changed for your team since? An example or a number helps."
+      },
+      {
+        // Only after a short or skipped switch answer: quick taps for real
+        // detail, so the drafts have more to say without inventing anything.
+        id: "gains", type: "multi", max: 3, skip: true, ownWords: true,
+        onlyIfShort: { step: "result", minWords: 8 },
+        promptLabel: "What got better",
+        ask: "Got it. What's better for your team since you started using eimmigration? Pick any that fit.",
+        options: [
+          { id: "intake", label: "Client intake is faster", phrase: "client intake is faster" },
+          { id: "retyping", label: "Less re-typing of client info", phrase: "less re-typing of client info" },
+          { id: "form-errors", label: "Fewer errors on forms", phrase: "fewer errors on forms" },
+          { id: "deadlines", label: "Easier to stay on top of deadlines", phrase: "staying on top of deadlines is easier" },
+          { id: "client-updates", label: "Easier to keep clients updated", phrase: "keeping clients updated is easier" },
+          { id: "reporting", label: "Reporting takes less time", phrase: "reporting takes less time" },
+          { id: "time", label: "We save time every week", phrase: "we save time every week" }
+        ]
       },
       {
         id: "advice", type: "text", skipLabel: "Skip",

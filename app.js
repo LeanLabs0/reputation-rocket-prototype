@@ -1579,6 +1579,13 @@ function ensureInterviewState() {
 
 /** A step whose skipIf matches earlier answers is not asked: a yes to "publish as a 5-star rating" skips the stars. */
 function interviewStepSkipped(step, answers) {
+  // onlyIfShort: { step, minWords }: shown only when that text answer came back
+  // short or skipped, so a customer who already wrote detail is not asked again.
+  const short = step && step.onlyIfShort;
+  if (short && typeof short === 'object' && short.step) {
+    const min = short.minWords == null ? 8 : short.minWords;
+    if (interviewWordCount((answers || {})[short.step]) >= min) return true;
+  }
   const rule = step && step.skipIf;
   if (!rule || typeof rule !== 'object') return false;
   const keys = Object.keys(rule);
@@ -2637,6 +2644,14 @@ function syncChatDraftInlineMessage(visible) {
       if (e.button === 1) openDrafts(e);
     });
     text.appendChild(link);
+    // The end of the chat is where the review is won or lost, so the next
+    // step is a full button, not only the inline link.
+    const cta = document.createElement('button');
+    cta.type = 'button';
+    cta.className = 'btn btn-primary btn-md chat-draft-inline__cta';
+    cta.textContent = clientCopy('draftsReadyButton', null, 'See my reviews').trim() || 'See my reviews';
+    cta.addEventListener('click', openDrafts);
+    bubble.appendChild(cta);
     row.appendChild(avatar);
     row.appendChild(bubble);
   }
@@ -4022,7 +4037,7 @@ function mountRichPasteUnpostedCard(card, plat, index1, meta) {
         <span class="field-label">Your review</span>
         <button type="button" class="btn-copy" data-action="copy-all" data-platform="${escapeHtml(plat)}">Copy again</button>
       </div>
-      <p class="field-body">${escapeHtml(truncatePostSnippet(draft, 420))}</p>
+      <p class="field-body">${escapeHtml(truncatePostSnippet(draftSnippetText(plat, draft), 420))}</p>
     </div>
     ${guidedConfirmHTML(plat, meta)}`;
   } else {
@@ -4036,7 +4051,7 @@ function mountRichPasteUnpostedCard(card, plat, index1, meta) {
       <p>${escapeHtml(meta.desc)}</p>
     </div>
     ${renderRichStarsRow()}
-    <p class="platform-card-snippet">${escapeHtml(truncatePostSnippet(draft))}</p>
+    <p class="platform-card-snippet">${escapeHtml(truncatePostSnippet(draftSnippetText(plat, draft)))}</p>
     <div class="platform-card-actions platform-card-actions--stack">
       <button type="button" class="btn btn-primary btn-md" data-action="post-paste" data-platform="${escapeHtml(plat)}">
         Open ${escapeHtml(meta.name)} review form ${iconExternalLink()}
@@ -4068,17 +4083,27 @@ function formatDraftForOverlay(platform, draftText) {
   return text.replace(/\[FIELD:\s*([^\]]+?)\]/g, '$1');
 }
 
+/** Join preview parts so one without end punctuation (a headline, "eimmigration is better") does not run into the next. */
+function snippetJoin(parts) {
+  return parts
+    .map((part) => String(part || '').trim())
+    .filter(Boolean)
+    .map((part) => (/[.!?\u2026"\u201d')\]]$/.test(part) ? part : `${part}.`))
+    .join(' ');
+}
+
 /**
  * Card-preview text: for fields-flow drafts, drop the question labels entirely
  * (they read as noise in a truncated snippet) and keep only the answers.
+ * Paste-flow drafts keep their headline as its own sentence.
  */
 function draftSnippetText(platform, draftText) {
   const meta = PLATFORM_META[String(platform || '').toLowerCase()];
   if (meta && meta.flow === 'fields') {
     const fields = parseG2Fields(draftText);
-    if (fields.length > 0) return fields.map((f) => f.body).join(' ');
+    if (fields.length > 0) return snippetJoin(fields.map((f) => f.body));
   }
-  return formatDraftForOverlay(platform, draftText);
+  return snippetJoin(formatDraftForOverlay(platform, draftText).split(/\n\s*\n/));
 }
 
 // ── Guided post flow (rich layout) ──────────────────────────

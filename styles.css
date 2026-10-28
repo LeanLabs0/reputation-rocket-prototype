@@ -3992,6 +3992,10 @@ body.rr-directory {
   }
 }
 .interview-own-input[hidden] { display: none; }
+.chat-draft-inline__cta {
+  display: inline-flex;
+  margin-top: 12px;
+}
 .interview-choice-actions {
   display: flex;
   flex-wrap: wrap;

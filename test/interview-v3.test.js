@@ -69,7 +69,7 @@ const SAMPLE = {
 test('eimmigration runs the V3 interview: taps, the 5-star question, stars with no Skip, then three open questions', () => {
   assert.equal(cfg.version, 3);
   assert.deepEqual(plain(cfg.steps.map((s) => s.id)), [
-    'orgType', 'before', 'services', 'fiveStar', 'rating', 'result', 'advice', 'improve',
+    'orgType', 'before', 'services', 'fiveStar', 'rating', 'result', 'gains', 'advice', 'improve',
   ]);
   const stars = step('rating');
   assert.equal(stars.type, 'stars');
@@ -80,7 +80,14 @@ test('eimmigration runs the V3 interview: taps, the 5-star question, stars with 
   assert.equal(cfg.lowRating.below, 5);
   ['orgType', 'before', 'services'].forEach((id) => assert.ok(step(id).promptLabel, `${id} needs a promptLabel`));
   assert.ok(step('services').min >= 1 && !step('services').skip, 'what they use it for is required');
-  assert.equal(step('result').followUp.minWords, 8);
+  // A short switch answer gets quick detail taps instead of a typed follow-up.
+  assert.equal(step('result').followUp, undefined);
+  const gains = step('gains');
+  assert.equal(gains.type, 'multi');
+  assert.deepEqual(plain(gains.onlyIfShort), { step: 'result', minWords: 8 });
+  assert.equal(gains.promptLabel, 'What got better');
+  assert.ok(gains.skip && gains.ownWords && gains.max === 3);
+  gains.options.forEach((o) => assert.ok(o.phrase && !/best|amazing|game|seamless/i.test(o.phrase), o.id));
   assert.equal(step('improve').skipLabel, 'Nothing to add');
   assert.match(cfg.lowRating.saved, /reach out/);
   assert.match(cfg.lowRating.savedDeclined, /nothing will be posted/i);
@@ -117,6 +124,32 @@ test('under 5 is held back; 5 and a missing rating are not', () => {
   assert.equal(fns.interviewRatingGated(5, cfg.lowRating), false);
   assert.equal(fns.interviewRatingGated(null, cfg.lowRating), false);
   assert.equal(fns.interviewRatingGated(3, { below: 5 }), false, 'no gate, no hold');
+});
+
+test('the detail taps show only after a short or skipped switch answer', () => {
+  const gains = step('gains');
+  assert.equal(fns.interviewStepSkipped(gains, { result: 'eimmigration is better' }), false);
+  assert.equal(fns.interviewStepSkipped(gains, { result: '' }), false);
+  assert.equal(fns.interviewStepSkipped(gains, {}), false);
+  assert.equal(fns.interviewStepSkipped(gains, { result: SAMPLE.result }), true);
+  // Steps without the rule are unchanged.
+  assert.equal(fns.interviewStepSkipped(step('rating'), { fiveStar: 'yes' }), true);
+  assert.equal(fns.interviewStepSkipped(step('advice'), { result: 'short' }), false);
+  // Their picks reach the writer as a tapped line, own words included.
+  const prompt = fns.buildInterviewWriterPrompt(cfg, {
+    ...SAMPLE, result: 'eimmigration is better', gains: ['intake', 'form-errors'], gainsOther: 'Our paralegals stopped working late',
+  });
+  assert.ok(prompt.includes('- What got better: client intake is faster; fewer errors on forms; (own words) Our paralegals stopped working late'), prompt);
+  assert.doesNotMatch(fns.buildInterviewWriterPrompt(cfg, SAMPLE), /What got better/);
+});
+
+test('Post It previews keep a headline or a short field from running into the next one', () => {
+  const ctx = { PLATFORM_META: { g2: { flow: 'fields' }, trustpilot: { flow: 'paste' } } };
+  vm.runInNewContext(['snippetJoin', 'parseG2Fields', 'formatDraftForOverlay', 'draftSnippetText'].map(extractFunction).join('\n'), ctx);
+  const g2 = '[FIELD: What do you like best about eimmigration?]\neimmigration is better\n\n[FIELD: What do you dislike about eimmigration?]\nNothing to add right now.';
+  assert.equal(ctx.draftSnippetText('g2', g2), 'eimmigration is better. Nothing to add right now.');
+  assert.equal(ctx.draftSnippetText('trustpilot', 'eimmigration is better\n\nBefore we switched we were on LollyLaw.'), 'eimmigration is better. Before we switched we were on LollyLaw.');
+  assert.equal(ctx.draftSnippetText('trustpilot', 'Is it worth it?\n\nYes.'), 'Is it worth it? Yes.');
 });
 
 test('a short answer and its follow-up stay two sentences', () => {
