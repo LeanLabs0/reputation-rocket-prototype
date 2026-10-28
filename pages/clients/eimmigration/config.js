@@ -97,6 +97,7 @@ window.CLIENT_CONFIG = {
         // detail, so the drafts have more to say without inventing anything.
         id: "gains", type: "multi", max: 3, skip: true, ownWords: true,
         onlyIfShort: { step: "result", minWords: 8 },
+        skipBelowRating: 5,
         promptLabel: "What got better",
         ask: "Got it. What's better for your team since you started using eimmigration? Pick any that fit.",
         options: [

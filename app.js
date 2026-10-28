@@ -1591,6 +1591,13 @@ function interviewStepSkipped(step, answers) {
     const text = typeof value === 'string' || typeof value === 'number' ? value : '';
     if (interviewWordCount(text) >= min) return true;
   }
+  // skipBelowRating: n: skipped once they gave a rating under n. An unhappy
+  // customer is not asked a positive question, and their review is held back anyway.
+  const floor = step && Number(step.skipBelowRating);
+  if (Number.isFinite(floor)) {
+    const rating = interviewRecordedRating(answers);
+    if (rating != null && rating < floor) return true;
+  }
   const rule = step && step.skipIf;
   if (!rule || typeof rule !== 'object') return false;
   const keys = Object.keys(rule);

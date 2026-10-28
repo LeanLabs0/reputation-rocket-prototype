@@ -134,6 +134,12 @@ test('the detail taps show only after a short or skipped switch answer', () => {
   assert.equal(fns.interviewStepSkipped(gains, { result: '' }), false);
   assert.equal(fns.interviewStepSkipped(gains, {}), false);
   assert.equal(fns.interviewStepSkipped(gains, { result: SAMPLE.result }), true);
+  // An unhappy customer is not asked what got better; a 5, a yes or no rating yet still is.
+  assert.equal(gains.skipBelowRating, 5);
+  assert.equal(fns.interviewStepSkipped(gains, { fiveStar: 'no', rating: 3, result: 'support is slow' }), true);
+  assert.equal(fns.interviewStepSkipped(gains, { fiveStar: 'no', rating: 5, result: 'it is fine' }), false);
+  assert.equal(fns.interviewStepSkipped(gains, { fiveStar: 'yes', rating: 5, result: 'it is fine' }), false);
+  assert.equal(fns.interviewStepSkipped(gains, { result: 'it is fine' }), false);
   // A word minimum that is not a number still means 8.
   assert.equal(fns.interviewStepSkipped(
     { onlyIfShort: { step: 'result', minWords: 'eight' } },
