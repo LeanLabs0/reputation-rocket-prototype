@@ -142,6 +142,7 @@ body {
 
 /* Inputs (was --ll-dark with white text) */
 .chat-composer,
+.interview-own-input,
 #draft-textarea,
 .draft-textarea,
 .video-capture-modal__select {
@@ -150,10 +151,12 @@ body {
   color: var(--ei-navy);
 }
 .chat-composer textarea::placeholder,
+.interview-own-input::placeholder,
 .draft-textarea::placeholder {
   color: var(--ei-muted);
 }
 .chat-composer:focus-within,
+.interview-own-input:focus,
 #draft-textarea:focus,
 .draft-textarea:focus,
 .video-capture-modal__select:focus {
