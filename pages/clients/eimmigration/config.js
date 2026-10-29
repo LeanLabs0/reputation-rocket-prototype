@@ -93,8 +93,8 @@ window.CLIENT_CONFIG = {
         ask: "What made you switch, and what has changed for your team since? An example or a number helps."
       },
       {
-        // Only after a short or skipped switch answer: quick taps for real
-        // detail, so the drafts have more to say without inventing anything.
+        // Only after a short or skipped switch answer, and only once they are
+        // at 5 stars. A lower rating is not asked what got better.
         id: "gains", type: "multi", max: 3, skip: true, ownWords: true,
         onlyIfShort: { step: "result", minWords: 8 },
         skipBelowRating: 5,
