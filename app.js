@@ -4131,15 +4131,23 @@ function snippetJoin(parts) {
 
 /**
  * Card-preview text: for fields-flow drafts, drop the question labels entirely
- * (they read as noise in a truncated snippet) and keep only the answers.
- * Paste-flow drafts keep their headline as its own sentence.
+ * (they read as noise in a truncated snippet) and keep only the answers, read
+ * as one testimonial: no title or headline (it repeats a body line), the
+ * dislike last instead of in the form's order, and no "Nothing to add right
+ * now." (Trustpilot drafts leave it out too). Paste-flow drafts keep their
+ * headline as its own sentence.
  */
 function draftSnippetText(platform, draftText) {
   const meta = PLATFORM_META[String(platform || '').toLowerCase()];
   if (meta && meta.flow === 'fields') {
     const fields = parseG2Fields(draftText);
     if (fields.length > 0) {
-      return snippetJoin(fields.flatMap((f) => String(f.body || '').split(/\n\s*\n/)));
+      const body = fields.filter((f) => !/^(review title|create a headline)/i.test(f.label));
+      const dislike = (f) => /dislike/i.test(f.label);
+      const parts = [...body.filter((f) => !dislike(f)), ...body.filter(dislike)]
+        .flatMap((f) => String(f.body || '').split(/\n\s*\n/))
+        .filter((p) => !/^nothing to add right now\.?$/i.test(p.trim()));
+      return snippetJoin(parts.length ? parts : fields.flatMap((f) => String(f.body || '').split(/\n\s*\n/)));
     }
   }
   return snippetJoin(String(formatDraftForOverlay(platform, draftText) || '').split(/\n\s*\n/));

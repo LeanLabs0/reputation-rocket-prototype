@@ -211,15 +211,48 @@ test('Post It previews keep a headline or a short field from running into the ne
   const ctx = { PLATFORM_META: { g2: { flow: 'fields' }, trustpilot: { flow: 'paste' } } };
   vm.runInNewContext(['snippetJoin', 'parseG2Fields', 'formatDraftForOverlay', 'draftSnippetText'].map(extractFunction).join('\n'), ctx);
   const g2 = '[FIELD: What do you like best about eimmigration?]\neimmigration is better\n\n[FIELD: What do you dislike about eimmigration?]\nNothing to add right now.';
-  assert.equal(ctx.draftSnippetText('g2', g2), 'eimmigration is better. Nothing to add right now.');
+  assert.equal(ctx.draftSnippetText('g2', g2), 'eimmigration is better.');
   assert.equal(ctx.draftSnippetText('trustpilot', 'eimmigration is better\n\nBefore we switched we were on LollyLaw.'), 'eimmigration is better. Before we switched we were on LollyLaw.');
   assert.equal(ctx.draftSnippetText('trustpilot', 'Is it worth it?\n\nYes.'), 'Is it worth it? Yes.');
   const quoted = '[FIELD: Like]\nThey said "much better"\n\n[FIELD: Dislike]\nNothing to add right now.';
-  assert.equal(ctx.draftSnippetText('g2', quoted), 'They said "much better". Nothing to add right now.');
+  assert.equal(ctx.draftSnippetText('g2', quoted), 'They said "much better".');
   assert.equal(ctx.snippetJoin(['We switched (from spreadsheets)', 'Next']), 'We switched (from spreadsheets). Next.');
   assert.equal(ctx.snippetJoin(['fast,', 'simple now']), 'fast. simple now.');
   const paragraphs = '[FIELD: Like]\neimmigration is better\n\nStill short\n\n[FIELD: Dislike]\nNothing to add right now.';
-  assert.equal(ctx.draftSnippetText('g2', paragraphs), 'eimmigration is better. Still short. Nothing to add right now.');
+  assert.equal(ctx.draftSnippetText('g2', paragraphs), 'eimmigration is better. Still short.');
+});
+
+test('Post It previews read as one testimonial: no "Nothing to add right now." in the middle, no title, a real complaint last', () => {
+  const ctx = { PLATFORM_META: { g2: { flow: 'fields' }, gartner: { flow: 'fields' } } };
+  vm.runInNewContext(['snippetJoin', 'parseG2Fields', 'formatDraftForOverlay', 'draftSnippetText'].map(extractFunction).join('\n'), ctx);
+  // Jonathan's stage run: the dislike filler sat mid-paragraph and the G2 title repeated at the end.
+  const g2 = [
+    '[FIELD: What do you like best about eimmigration?]', 'eimmigration is better, with client intake faster and fewer errors on forms.', '',
+    '[FIELD: What do you dislike about eimmigration?]', 'Nothing to add right now.', '',
+    '[FIELD: What problems is eimmigration solving and how is that benefiting you?]', "We're a solo immigration practice that moved from LollyLaw.", '',
+    '[FIELD: Recommendations to others considering eimmigration:]', 'eimmigration is good.', '',
+    '[FIELD: Review title]', 'eimmigration is better',
+  ].join('\n');
+  assert.equal(
+    ctx.draftSnippetText('g2', g2),
+    "eimmigration is better, with client intake faster and fewer errors on forms. We're a solo immigration practice that moved from LollyLaw. eimmigration is good.",
+  );
+  // A real complaint stays in the preview, as the last thing it says.
+  const gartner = [
+    '[FIELD: Please provide comments on your overall experience]', 'We moved from LollyLaw. The forms fill in.', '',
+    '[FIELD: What do you like most about the product or service?]', 'Our filings go out about two days faster.', '',
+    '[FIELD: What do you dislike most about the product or service?]', 'Reporting could be easier to customize.', '',
+    '[FIELD: Create a headline summary of your review]', 'The forms fill in',
+  ].join('\n');
+  assert.equal(
+    ctx.draftSnippetText('gartner', gartner),
+    'We moved from LollyLaw. The forms fill in. Our filings go out about two days faster. Reporting could be easier to customize.',
+  );
+  // Nothing left but the filler and a title: show what there is rather than nothing.
+  assert.equal(
+    ctx.draftSnippetText('g2', '[FIELD: What do you dislike about eimmigration?]\nNothing to add right now.\n\n[FIELD: Review title]\nOur experience with eimmigration'),
+    'Nothing to add right now. Our experience with eimmigration.',
+  );
 });
 
 test('a short answer and its follow-up stay two sentences', () => {
