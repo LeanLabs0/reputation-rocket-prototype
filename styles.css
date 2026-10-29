@@ -3192,18 +3192,12 @@ a:hover { text-decoration: underline; }
   word-break: break-all;
 }
 /* Drafts-ready chat message (client copy.draftsReadyMessage). Paragraphs must
-   not pick up the browser's default block margins, and the "Read the drafts."
-   link must stay one phrase instead of breaking mid-word like other chat links. */
+   not pick up the browser's default block margins. */
 .chat-draft-inline .chat-bubble p {
   margin: 0;
 }
 .chat-draft-inline .chat-bubble p + p {
   margin-top: 10px;
-}
-.chat-draft-inline .chat-bubble a.chat-draft-inline__link {
-  white-space: nowrap;
-  word-break: normal;
-  overflow-wrap: normal;
 }
 /* The bubble is a flex item. Without a floor it grows to the button's one-line
    width and the chat frame clips the right side on a phone. */
