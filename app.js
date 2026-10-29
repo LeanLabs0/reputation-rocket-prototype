@@ -2649,7 +2649,7 @@ function setChatDraftPromptVisible(visible) {
 
 /**
  * Clients that set CLIENT_CONFIG.copy.draftsReadyMessage get the drafts-ready
- * step as a chat message with a "Read the drafts." link instead of the card.
+ * step as a chat message with a "See my reviews" button instead of the card.
  * It is rebuilt from the drafts on reload, like the card.
  */
 function syncChatDraftInlineMessage(visible) {
@@ -2676,32 +2676,13 @@ function syncChatDraftInlineMessage(visible) {
       text.textContent = para;
       bubble.appendChild(text);
     });
-    const text = bubble.lastElementChild;
-    if (!text) return;
-    text.appendChild(document.createTextNode(' '));
-    const link = document.createElement('a');
-    link.href = '#';
-    link.className = 'chat-draft-inline__link';
-    const linkLabel = clientCopy('draftsReadyLink', null, 'Read the drafts.').trim() || 'Read the drafts.';
-    link.textContent = linkLabel;
-    const openDrafts = (e) => {
-      e.preventDefault();
-      transitionTo('draft');
-    };
-    link.addEventListener('click', openDrafts);
-    // Middle-click would open a useless copy of this page. The link only
-    // moves to the review screen inside this visit.
-    link.addEventListener('auxclick', (e) => {
-      if (e.button === 1) openDrafts(e);
-    });
-    text.appendChild(link);
     // The end of the chat is where the review is won or lost, so the next
-    // step is a full button, not only the inline link.
+    // step is one full button under the message.
     const cta = document.createElement('button');
     cta.type = 'button';
     cta.className = 'btn btn-primary btn-md chat-draft-inline__cta';
     cta.textContent = clientCopy('draftsReadyButton', null, 'See my reviews').trim() || 'See my reviews';
-    cta.addEventListener('click', openDrafts);
+    cta.addEventListener('click', () => transitionTo('draft'));
     bubble.appendChild(cta);
     row.appendChild(avatar);
     row.appendChild(bubble);

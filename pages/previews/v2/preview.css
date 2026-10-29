@@ -15,6 +15,27 @@
    Scoped to the preview pages so this file cannot restyle a live portal. */
 body.v2-preview .chat-bubble { overflow-wrap: anywhere; }
 
+/* The live portal's drafts-ready step is a button. This preview still ends
+   the chat with a "Read the drafts." link. Chat links break mid-word
+   (word-break: break-all, plus the wrap rule above), so the phrase stays
+   one bold line with the focus ring it had in the client theme.
+   --ei-purple is the eimmigration link color; other previews fall back to
+   their own --ll-purple. */
+body.v2-preview .chat-draft-inline .chat-bubble a.chat-draft-inline__link {
+  color: var(--ei-purple, var(--ll-purple));
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+body.v2-preview .chat-draft-inline .chat-bubble a.chat-draft-inline__link:focus-visible {
+  outline: 2px solid var(--ei-purple, var(--ll-purple));
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 /* Taller chat than the live portal's fixed 560px, so earlier answers stay
    in view above the question and the text box. Grows with the window. */
 body.v2-preview .chat-container { height: clamp(560px, calc(100vh - 140px), 880px); }
