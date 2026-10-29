@@ -1577,7 +1577,7 @@ function ensureInterviewState() {
   return interviewState;
 }
 
-/** A step whose skipIf matches earlier answers is not asked: a yes to "publish as a 5-star rating" skips the stars. */
+/** True when this step is not asked. skipIf, onlyIfShort, and skipBelowRating each skip on their own. */
 function interviewStepSkipped(step, answers) {
   // onlyIfShort: { step, minWords }: shown only when that text answer came back
   // short or skipped, so a customer who already wrote detail is not asked again.
@@ -1590,6 +1590,15 @@ function interviewStepSkipped(step, answers) {
     const value = (answers || {})[short.step];
     const text = typeof value === 'string' || typeof value === 'number' ? value : '';
     if (interviewWordCount(text) >= min) return true;
+  }
+  // skipBelowRating: n. Skipped once they gave a rating under n. A missing
+  // rating does not skip. n has to be a whole number from 2 to 5: anything
+  // else is ignored, so a typo cannot hide this question from a 5-star
+  // customer. Holding the review back is lowRating.gate, not this rule.
+  const floor = Number(step && step.skipBelowRating);
+  if (Number.isInteger(floor) && floor >= 2 && floor <= 5) {
+    const rating = interviewRecordedRating(answers);
+    if (rating != null && rating < floor) return true;
   }
   const rule = step && step.skipIf;
   if (!rule || typeof rule !== 'object') return false;
