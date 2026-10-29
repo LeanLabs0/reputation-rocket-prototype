@@ -2667,18 +2667,13 @@ function syncChatDraftInlineMessage(visible) {
       text.textContent = para;
       bubble.appendChild(text);
     });
-    if (!bubble.lastElementChild) return;
-    const openDrafts = (e) => {
-      e.preventDefault();
-      transitionTo('draft');
-    };
     // The end of the chat is where the review is won or lost, so the next
     // step is one full button under the message.
     const cta = document.createElement('button');
     cta.type = 'button';
     cta.className = 'btn btn-primary btn-md chat-draft-inline__cta';
     cta.textContent = clientCopy('draftsReadyButton', null, 'See my reviews').trim() || 'See my reviews';
-    cta.addEventListener('click', openDrafts);
+    cta.addEventListener('click', () => transitionTo('draft'));
     bubble.appendChild(cta);
     row.appendChild(avatar);
     row.appendChild(bubble);

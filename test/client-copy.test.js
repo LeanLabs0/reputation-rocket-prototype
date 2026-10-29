@@ -72,6 +72,16 @@ test('EIM live and demo configs carry the same copy overrides', () => {
   assert.deepEqual(JSON.parse(JSON.stringify(demo.copy)), JSON.parse(JSON.stringify(live.copy)));
 });
 
+test('the live drafts-ready message keeps the button and drops the link', () => {
+  const fn = extractFunction('syncChatDraftInlineMessage');
+  assert.match(fn, /chat-draft-inline__cta/);
+  assert.match(fn, /transitionTo\('draft'\)/);
+  assert.doesNotMatch(fn, /chat-draft-inline__link/);
+  assert.doesNotMatch(fn, /draftsReadyLink/);
+  assert.doesNotMatch(fn, /preventDefault/);
+  assert.doesNotMatch(fn, /if \(!bubble\.lastElementChild\) return/);
+});
+
 test('EIM live and demo pages drop the removed help boxes together', () => {
   const live = fs.readFileSync(path.join(__dirname, '../pages/clients/eimmigration/index.html'), 'utf8');
   const demo = fs.readFileSync(path.join(__dirname, '../pages/clients/eimmigration/demo/index.html'), 'utf8');

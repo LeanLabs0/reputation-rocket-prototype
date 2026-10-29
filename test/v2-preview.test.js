@@ -628,6 +628,25 @@ test('under 5 stars stays off the review step, and 5 stars still reach the draft
   assert.match(draft, /id="btn-saved-drafts"/);
 });
 
+test('preview drafts link keeps the styles the live portal no longer needs', () => {
+  const css = fs.readFileSync(path.join(V2, 'preview.css'), 'utf8');
+  assert.match(css, /body\.v2-preview \.chat-draft-inline \.chat-bubble a\.chat-draft-inline__link \{/);
+  const rule = css.slice(css.indexOf('a.chat-draft-inline__link'));
+  assert.match(rule, /white-space:\s*nowrap/);
+  assert.match(rule, /word-break:\s*normal/);
+  assert.match(rule, /overflow-wrap:\s*normal/);
+  assert.match(rule, /font-weight:\s*600/);
+  assert.match(rule, /text-underline-offset:\s*2px/);
+  assert.match(rule, /color:\s*var\(--ei-purple, var\(--ll-purple\)\)/);
+  assert.match(rule, /outline:\s*2px solid var\(--ei-purple, var\(--ll-purple\)\)/);
+  for (const rel of ['styles.css', 'pages/clients/eimmigration/styles.css']) {
+    const live = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+    assert.equal(live.includes('chat-draft-inline__link'), false, rel);
+  }
+  const engine = fs.readFileSync(path.join(V2, 'preview.js'), 'utf8');
+  assert.match(engine, /class: 'chat-draft-inline__link'/);
+});
+
 test('Lean Labs stays on the V2 interview', () => {
   const p = loadPreview('lean-labs');
   assert.equal(p.versionLabel, undefined);
