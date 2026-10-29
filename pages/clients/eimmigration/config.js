@@ -123,7 +123,6 @@ window.CLIENT_CONFIG = {
   // clientCardHint() in app.js; anything not set here keeps the shared default.
   copy: {
     draftsReadyMessage: "Thanks so much for sharing.\n\nWe turned your responses into a few reviews that you can edit or publish.",
-    draftsReadyLink: "Read the drafts.",
     draftsReadyButton: "See my reviews",
     cardHints: {
       gartner: "Takes 2 minutes. You'll need to log in to or create a free Gartner account to publish your review.",

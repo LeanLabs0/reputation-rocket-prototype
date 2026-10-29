@@ -63,12 +63,23 @@ test('EIM live and demo configs carry the same copy overrides', () => {
   const live = loadConfig('pages/clients/eimmigration/config.js');
   const demo = loadConfig('pages/clients/eimmigration/demo/config.js');
   assert.match(live.copy.draftsReadyMessage, /^Thanks so much for sharing\.\n\nWe turned /);
-  assert.equal(live.copy.draftsReadyLink, 'Read the drafts.');
+  // The "See my reviews" button replaced the inline "Read the drafts." link.
+  assert.equal(live.copy.draftsReadyLink, undefined);
   assert.equal(live.copy.draftsReadyButton, 'See my reviews');
   assert.equal(live.copy.postFinishHint, '');
   assert.equal(live.copy.postNudgeProgress.includes('{'), false);
   assert.deepEqual(Object.keys(live.copy.cardHints).sort(), [...live.platforms].sort());
   assert.deepEqual(JSON.parse(JSON.stringify(demo.copy)), JSON.parse(JSON.stringify(live.copy)));
+});
+
+test('the live drafts-ready message keeps the button and drops the link', () => {
+  const fn = extractFunction('syncChatDraftInlineMessage');
+  assert.match(fn, /chat-draft-inline__cta/);
+  assert.match(fn, /transitionTo\('draft'\)/);
+  assert.doesNotMatch(fn, /chat-draft-inline__link/);
+  assert.doesNotMatch(fn, /draftsReadyLink/);
+  assert.doesNotMatch(fn, /preventDefault/);
+  assert.doesNotMatch(fn, /if \(!bubble\.lastElementChild\) return/);
 });
 
 test('EIM live and demo pages drop the removed help boxes together', () => {
