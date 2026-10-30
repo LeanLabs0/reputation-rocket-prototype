@@ -4031,7 +4031,9 @@ function mountRichPostedCard(card, plat, meta, postedAtIso) {
       <p>${escapeHtml(meta.desc)}</p>
     </div>
     ${renderRichStarsRow()}
-    <p class="platform-card-snippet">${escapeHtml(truncatePostSnippet(draftSnippetText(plat, drafts[plat] || reviewDraft || '')))}</p>
+    <p class="platform-card-snippet">${escapeHtml(meta.flow === 'fields'
+      ? draftSnippetText(plat, drafts[plat] || reviewDraft || '', 280)
+      : truncatePostSnippet(draftSnippetText(plat, drafts[plat] || reviewDraft || '')))}</p>
     <p class="platform-card-confirmed-meta">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
       Confirmed on ${escapeHtml(whenLabel)}
@@ -4129,20 +4131,185 @@ function snippetJoin(parts) {
   }).filter(Boolean).join(' ');
 }
 
+/** G2's "Review title" and Gartner's "Create a headline…" field. */
+function isPreviewTitleField(label) {
+  return /^(?:review title|create a headline)\b/i.test(String(label || '').trim());
+}
+
+/** The dislike / complaint field. Word-bounded so a "like" question is not one. */
+function isPreviewDislikeField(label) {
+  return /\bdislike\b/i.test(String(label || ''));
+}
+
+/**
+ * Drop the canned "Nothing to add right now." sentence. It is left out of
+ * Trustpilot drafts already. A paragraph that is only that sentence goes.
+ * So does the same sentence glued to a real one ("Nothing to add right now.
+ * Reporting could be easier."). A longer sentence that merely contains the
+ * words stays.
+ */
+function stripNothingToAddSentence(text) {
+  const raw = String(text || '').trim();
+  if (!raw || /^nothing to add right now\.?$/i.test(raw)) return '';
+  // Remove the canned sentence only when it stands alone: the start of the
+  // paragraph, or the start of a sentence. No lookbehind, so older browsers
+  // can still parse the portal. Abbreviations such as "U.S." are left as written.
+  const phrase = 'nothing to add right now.';
+  const lower = raw.toLowerCase();
+  let out = '';
+  let i = 0;
+  while (i < raw.length) {
+    const at = lower.indexOf(phrase, i);
+    if (at < 0) {
+      out += raw.slice(i);
+      break;
+    }
+    const boundary = at === 0 || /[.!?]\s/.test(raw.slice(Math.max(0, at - 2), at));
+    if (!boundary) {
+      out += raw.slice(i, at + 1);
+      i = at + 1;
+      continue;
+    }
+    out += raw.slice(i, at);
+    i = at + phrase.length;
+    while (i < raw.length && /\s/.test(raw[i])) i += 1;
+  }
+  return out.replace(/[ \t]{2,}/g, ' ').trim();
+}
+
+function previewPhrase(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/[.!?…]+/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** True when the title is already said in another field, so the card would repeat it. */
+function titleAlreadySaid(titleBody, otherFields) {
+  const key = previewPhrase(titleBody);
+  if (!key) return true;
+  const hay = previewPhrase(otherFields.map((f) => f && f.body).join(' '));
+  if (!hay) return false;
+  return ` ${hay} `.includes(` ${key} `);
+}
+
+function previewParagraphs(field) {
+  return String((field && field.body) || '')
+    .split(/\n\s*\n/)
+    .map(stripNothingToAddSentence)
+    .filter(Boolean);
+}
+
+/**
+ * Fields read as one testimonial. A title that repeats a body line is left
+ * out; a title that is the only copy of that sentence (Gartner lifts one
+ * sentence into the headline) stays, and leads. A real complaint comes last.
+ * The canned filler sentence is left out wherever it sits.
+ */
+function fieldPreviewPieces(fields) {
+  const titles = [];
+  const rest = [];
+  const dislike = [];
+  const others = fields.filter((f) => !isPreviewTitleField(f.label));
+  fields.forEach((f) => {
+    if (isPreviewTitleField(f.label)) {
+      if (!titleAlreadySaid(f.body, others)) titles.push(f);
+      return;
+    }
+    (isPreviewDislikeField(f.label) ? dislike : rest).push(f);
+  });
+  const titleParts = titles.flatMap(previewParagraphs);
+  const restParts = rest.flatMap(previewParagraphs);
+  const dislikeParts = dislike.flatMap(previewParagraphs);
+  return {
+    texts: titleParts.concat(restParts, dislikeParts),
+    complaint: dislikeParts.length ? snippetJoin(dislikeParts) : '',
+  };
+}
+
+/**
+ * The card only shows the first `max` characters. A complaint moved to the
+ * end would otherwise be the part that gets cut. Keep the opening and the
+ * whole complaint when that complaint fits with it. `tail` is that complaint.
+ */
+function truncateSnippetKeepingEnd(s, max, tail) {
+  const t = String(s || '').trim().replace(/\s+/g, ' ');
+  const limit = Number(max);
+  if (!Number.isFinite(limit) || limit < 1) return t;
+  if (t.length <= limit) return t;
+  const end = String(tail || '').trim().replace(/\s+/g, ' ');
+  const bridge = ' … ';
+  if (end && t.endsWith(end) && end.length + bridge.length <= limit) {
+    const room = limit - end.length - bridge.length;
+    let head = t.slice(0, t.length - end.length).trim();
+    if (head.length > room) {
+      head = head.slice(0, room).trimEnd();
+      const space = head.lastIndexOf(' ');
+      if (space >= 24) head = head.slice(0, space).trimEnd();
+      head = head.replace(/[,;:]+$/, '').trimEnd();
+    }
+    if (head) {
+      const out = `${head}${bridge}${end}`;
+      if (out.length <= limit) return out;
+    } else if (end.length <= limit) return end;
+  }
+  const idx = Math.max(t.lastIndexOf('. '), t.lastIndexOf('! '), t.lastIndexOf('? '));
+  if (idx < 1) return truncatePostSnippet(t, limit);
+  const last = t.slice(idx + 2).trim();
+  if (!last || last.length + bridge.length > limit) return truncatePostSnippet(t, limit);
+  const room = limit - last.length - bridge.length;
+  let head = t.slice(0, idx + 1).trim();
+  if (head.length > room) {
+    head = head.slice(0, room).trimEnd();
+    const space = head.lastIndexOf(' ');
+    if (space >= 24) head = head.slice(0, space).trimEnd();
+    head = head.replace(/[,;:]+$/, '').trimEnd();
+  }
+  if (!head) return truncatePostSnippet(t, limit);
+  const out = `${head}${bridge}${last}`;
+  return out.length <= limit ? out : truncatePostSnippet(t, limit);
+}
+
+function fitDraftSnippet(text, max, tail) {
+  if (max == null) return text;
+  if (tail) return truncateSnippetKeepingEnd(text, max, tail);
+  return truncatePostSnippet(text, max);
+}
+
 /**
  * Card-preview text: for fields-flow drafts, drop the question labels entirely
- * (they read as noise in a truncated snippet) and keep only the answers.
- * Paste-flow drafts keep their headline as its own sentence.
+ * (they read as noise in a truncated snippet) and keep only the answers, read
+ * as one testimonial. A title or headline is left out when it repeats a body
+ * line, and kept when it is the only copy of that sentence. A real complaint
+ * comes last instead of in the form's order. "Nothing to add right now." is
+ * left out (Trustpilot drafts leave it out too). Paste-flow drafts keep their
+ * headline as its own sentence.
+ *
+ * `max`, when passed, is the card's character limit. With a real complaint at
+ * the end, the cut keeps that complaint. Without one, it keeps the start,
+ * the same way the other cards do. Callers that do not pass `max` get the
+ * full preview.
  */
-function draftSnippetText(platform, draftText) {
+function draftSnippetText(platform, draftText, max) {
   const meta = PLATFORM_META[String(platform || '').toLowerCase()];
   if (meta && meta.flow === 'fields') {
     const fields = parseG2Fields(draftText);
     if (fields.length > 0) {
-      return snippetJoin(fields.flatMap((f) => String(f.body || '').split(/\n\s*\n/)));
+      const pieces = fieldPreviewPieces(fields);
+      const cleaned = snippetJoin(pieces.texts);
+      // Cleaned text can be empty when every answer was blank or only the
+      // filler. Show the original lines rather than a blank card.
+      const text = cleaned || snippetJoin(fields.flatMap((f) => String(f.body || '').split(/\n\s*\n/)));
+      return fitDraftSnippet(text, max, cleaned ? pieces.complaint : '');
     }
   }
-  return snippetJoin(String(formatDraftForOverlay(platform, draftText) || '').split(/\n\s*\n/));
+  return fitDraftSnippet(
+    snippetJoin(String(formatDraftForOverlay(platform, draftText) || '').split(/\n\s*\n/)),
+    max,
+    false,
+  );
 }
 
 // ── Guided post flow (rich layout) ──────────────────────────
@@ -4252,7 +4419,7 @@ function mountRichG2UnpostedCard(card, plat, index1, meta) {
       <p>${escapeHtml(meta.desc)}</p>
     </div>
     ${renderRichStarsRow()}
-    ${guided ? '' : `<p class="platform-card-snippet">${escapeHtml(truncatePostSnippet(draftSnippetText(plat, draft)))}</p>`}
+    ${guided ? '' : `<p class="platform-card-snippet">${escapeHtml(draftSnippetText(plat, draft, 280))}</p>`}
     ${guided ? guidedStepsHTML(plat, meta, copied.size, fields.length) : `
     <div class="platform-card-actions platform-card-actions--stack">
       <button type="button" class="btn btn-primary btn-md" data-action="open-form" data-platform="${escapeHtml(plat)}">
