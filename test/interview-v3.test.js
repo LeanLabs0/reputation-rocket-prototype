@@ -43,6 +43,7 @@ vm.runInNewContext([
   'interviewJoinFollowUp',
   'interviewComposeTextAnswer',
   'interviewStepAlreadyAnswered',
+  'interviewResumeIndex',
   'interviewRatingGated',
   'interviewOption',
   'interviewTapLines',
@@ -61,23 +62,22 @@ const SAMPLE = {
   orgType: 'nonprofit',
   before: 'spreadsheets',
   services: ['case-management', 'uscis-forms', 'reports'],
-  fiveStar: 'yes',
   rating: 5,
   result: 'No more re-typing client details. Now we enter a client once and the forms fill themselves.',
   advice: '',
   improve: '',
 };
 
-test('eimmigration runs the V3 interview: taps, the 5-star question, stars with no Skip, then the open questions', () => {
+test('eimmigration runs the V3 interview: taps, stars with no Skip, then the open questions', () => {
   assert.equal(cfg.version, 3);
   assert.deepEqual(plain(cfg.steps.map((s) => s.id)), [
-    'orgType', 'before', 'services', 'fiveStar', 'rating', 'result', 'gains', 'advice', 'improve',
+    'orgType', 'before', 'services', 'rating', 'result', 'gains', 'advice', 'improve',
   ]);
   const stars = step('rating');
   assert.equal(stars.type, 'stars');
-  assert.ok(!stars.skip, 'a customer who would not publish 5 stars has to give a number');
-  assert.equal(stars.skipIf.fiveStar, 'yes');
-  assert.equal(stars.skipValue, 5);
+  assert.ok(!stars.skip, 'every customer gives a number');
+  assert.equal(stars.skipIf, undefined, 'the stars are always asked');
+  assert.equal(stars.skipValue, undefined);
   assert.equal(cfg.lowRating.gate, true);
   assert.equal(cfg.lowRating.below, 5);
   ['orgType', 'before', 'services'].forEach((id) => assert.ok(step(id).promptLabel, `${id} needs a promptLabel`));
@@ -111,14 +111,39 @@ test('only eimmigration is on V3; every other portal keeps the V1 agent chat', (
   });
 });
 
-test('a yes to the 5-star question skips the stars, anything else asks them', () => {
+test('there is no separate 5-star question: the stars are asked every time', () => {
+  // Jonathan (10/30): a 5 already means they will publish it.
+  assert.equal(cfg.steps.some((s) => /5-star|5 star/i.test(s.ask || '')), false);
   const stars = step('rating');
-  assert.equal(fns.interviewStepSkipped(stars, { fiveStar: 'yes' }), true);
-  assert.equal(fns.interviewStepSkipped(stars, { fiveStar: 'no' }), false);
-  assert.equal(fns.interviewStepSkipped(stars, { fiveStar: null }), false, 'skipping the question still asks the stars');
   assert.equal(fns.interviewStepSkipped(stars, {}), false);
+  assert.equal(fns.interviewStepSkipped(stars, { fiveStar: 'yes' }), false, 'an old saved yes cannot skip the stars');
+  assert.equal(fns.interviewStepSkipped({ skipIf: { fiveStar: 'yes' } }, { fiveStar: 'yes' }), true, 'skipIf still works for other configs');
   assert.equal(fns.interviewStepSkipped({ skipIf: {} }, { fiveStar: 'yes' }), false);
-  assert.equal(fns.interviewStepSkipped(step('result'), { fiveStar: 'yes' }), false);
+});
+
+test('a reload goes back to a question the saved position skipped past', () => {
+  const steps = cfg.steps;
+  const at = (id) => steps.findIndex((s) => s.id === id);
+  const taps = { orgType: 'nonprofit', before: 'spreadsheets', services: ['case-management'] };
+  // Saved on the old 5-star question's slot, which is now the stars: ask the stars.
+  assert.equal(fns.interviewResumeIndex(steps, { step: at('rating'), answers: { ...taps } }), at('rating'));
+  // Saved one slot past the stars before the old question was removed: still ask the stars.
+  assert.equal(fns.interviewResumeIndex(steps, { step: at('result'), answers: { ...taps, fiveStar: 'no' } }), at('rating'));
+  // Rated, saved on the old switch slot (now the detail taps): ask the switch question.
+  assert.equal(fns.interviewResumeIndex(steps, { step: at('gains'), answers: { ...taps, rating: 5 } }), at('result'));
+  // Nothing skipped: keep the saved position. A rule-skipped step is not a gap.
+  assert.equal(fns.interviewResumeIndex(steps, { step: at('result'), answers: { ...taps, rating: 5 } }), at('result'));
+  assert.equal(fns.interviewResumeIndex(steps, {
+    step: at('advice'), answers: { ...taps, rating: 5, result: SAMPLE.result },
+  }), at('advice'));
+  assert.equal(fns.interviewResumeIndex(steps, {
+    step: at('advice'), answers: { ...taps, rating: 3, result: 'slow', reachOut: 'no' },
+  }), at('advice'));
+  // A skipped tap counts as answered.
+  assert.equal(fns.interviewResumeIndex(steps, { step: at('services'), answers: { orgType: null, before: null } }), at('services'));
+  assert.equal(fns.interviewResumeIndex(steps, { step: 'x' }), 0);
+  assert.equal(fns.interviewResumeIndex(steps, null), 0);
+  assert.match(extractFunction('initInterviewChat'), /runInterviewStep\(interviewResumeIndex\(/);
 });
 
 test('under 5 is held back; 5 and a missing rating are not', () => {
@@ -134,13 +159,12 @@ test('the detail taps show only after a short or skipped switch answer', () => {
   assert.equal(fns.interviewStepSkipped(gains, { result: '' }), false);
   assert.equal(fns.interviewStepSkipped(gains, {}), false);
   assert.equal(fns.interviewStepSkipped(gains, { result: SAMPLE.result }), true);
-  // An unhappy customer is not asked what got better; a 5, a yes, or no rating yet still is.
+  // An unhappy customer is not asked what got better; a 5 or no rating yet still is.
   assert.equal(gains.skipBelowRating, 5);
-  assert.equal(fns.interviewStepSkipped(gains, { fiveStar: 'no', rating: 3, result: 'support is slow' }), true);
-  assert.equal(fns.interviewStepSkipped(gains, { fiveStar: 'no', rating: 4, result: 'support is slow' }), true);
-  assert.equal(fns.interviewStepSkipped(gains, { fiveStar: 'no', rating: 1, result: '' }), true);
-  assert.equal(fns.interviewStepSkipped(gains, { fiveStar: 'no', rating: 5, result: 'it is fine' }), false);
-  assert.equal(fns.interviewStepSkipped(gains, { fiveStar: 'yes', rating: 5, result: 'it is fine' }), false);
+  assert.equal(fns.interviewStepSkipped(gains, { rating: 3, result: 'support is slow' }), true);
+  assert.equal(fns.interviewStepSkipped(gains, { rating: 4, result: 'support is slow' }), true);
+  assert.equal(fns.interviewStepSkipped(gains, { rating: 1, result: '' }), true);
+  assert.equal(fns.interviewStepSkipped(gains, { rating: 5, result: 'it is fine' }), false);
   assert.equal(fns.interviewStepSkipped(gains, { result: 'it is fine' }), false);
   // A long answer stays skipped for a 5. The rating rule must not bring that question back.
   assert.equal(fns.interviewStepSkipped(gains, { rating: 5, result: SAMPLE.result }), true);
@@ -148,7 +172,7 @@ test('the detail taps show only after a short or skipped switch answer', () => {
   assert.equal(fns.interviewStepSkipped(step('result'), { rating: 3, result: 'short' }), false);
   assert.equal(fns.interviewStepSkipped(step('advice'), { rating: 3, result: 'short' }), false);
   assert.equal(fns.interviewStepSkipped(step('improve'), { rating: 1 }), false);
-  assert.equal(fns.interviewStepSkipped(step('rating'), { fiveStar: 'no', rating: 3 }), false);
+  assert.equal(fns.interviewStepSkipped(step('rating'), { rating: 3 }), false);
   // A floor that is not a whole number from 2 to 5 does not hide the question.
   assert.equal(fns.interviewStepSkipped(
     { skipBelowRating: 9, onlyIfShort: { step: 'result', minWords: 8 } },
@@ -176,7 +200,7 @@ test('the detail taps show only after a short or skipped switch answer', () => {
     { result: 'too short' },
   ), false);
   // Steps without the rule are unchanged.
-  assert.equal(fns.interviewStepSkipped(step('rating'), { fiveStar: 'yes' }), true);
+  assert.equal(fns.interviewStepSkipped(step('rating'), {}), false);
   assert.equal(fns.interviewStepSkipped(step('advice'), { result: 'short' }), false);
   // Their picks reach the writer as a tapped line, own words included.
   const prompt = fns.buildInterviewWriterPrompt(cfg, {
@@ -374,7 +398,7 @@ test('a recorded star rating is not asked again, and a declined follow-up is not
 test('the writer gets the rating, the taps as phrases, and their own words question by question', () => {
   const prompt = fns.buildInterviewWriterPrompt(cfg, SAMPLE);
   const lines = prompt.split('\n');
-  assert.equal(lines[0], 'RATING: 5 (they agreed to publish their review as a 5-star rating)');
+  assert.equal(lines[0], 'RATING: 5');
   assert.ok(lines.includes('- Who they are: a nonprofit immigration legal services team'), prompt);
   assert.ok(lines.includes('- Used before: spreadsheets or paper files'), prompt);
   assert.ok(lines.includes('- Use eimmigration for: case management; USCIS forms; reporting for funders or leadership'), prompt);

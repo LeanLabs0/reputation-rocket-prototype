@@ -1671,6 +1671,23 @@ function interviewStepAlreadyAnswered(step, answers, partial) {
   return Object.prototype.hasOwnProperty.call(bag, step.id);
 }
 
+/**
+ * Where a reload picks up. Removing a step moves later questions back one
+ * place, so the saved position can sit past a question that was never
+ * answered. Go back to the first one; otherwise keep the saved position.
+ */
+function interviewResumeIndex(steps, st) {
+  const list = Array.isArray(steps) ? steps : [];
+  const saved = Math.max(0, Number(st && st.step) || 0);
+  const answers = st && st.answers && typeof st.answers === 'object' ? st.answers : {};
+  for (let i = 0; i < Math.min(saved, list.length); i++) {
+    const step = list[i];
+    if (!step || !step.id || interviewStepSkipped(step, answers)) continue;
+    if (!Object.prototype.hasOwnProperty.call(answers, step.id)) return i;
+  }
+  return saved;
+}
+
 /** Under the threshold with gate on: no drafts and no review links. A skipped rating is not a number. */
 function interviewRatingGated(rating, lowRating) {
   if (!lowRating || !lowRating.gate) return false;
@@ -2297,7 +2314,7 @@ function initInterviewChat() {
     runInterviewLowRating();
     return;
   }
-  runInterviewStep(Number(st.step) || 0);
+  runInterviewStep(interviewResumeIndex(interviewConfig().steps, st));
 }
 
 // ── Tap-to-answer rating (star buttons + 4-star choice) ─────

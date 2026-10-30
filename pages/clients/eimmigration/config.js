@@ -23,8 +23,9 @@ window.CLIENT_CONFIG = {
   // V3 interview (10/27): the page asks these questions, then the writer agent
   // drafts the reviews from the answers in one request ("Interview V3" in
   // app.js). Under 5 stars nothing is drafted: the review is saved and the
-  // team reaches out first. The star question has no Skip, so a customer who
-  // would not publish 5 stars always gives a number.
+  // team reaches out first. The star question has no Skip, so every customer
+  // gives a number, and a 5 is published. Jonathan (10/30): no separate "would
+  // you publish as 5 stars" question, a 5 already means they will publish.
   interview: {
     version: 3,
     writingMessage: "Thank you! Give me a few seconds to put your drafts together.",
@@ -77,15 +78,7 @@ window.CLIENT_CONFIG = {
         ]
       },
       {
-        id: "fiveStar", type: "single", skip: true,
-        ask: "Would you be willing to publish your review as a 5-star rating?",
-        options: [
-          { id: "yes", label: "Yes" },
-          { id: "no", label: "No" }
-        ]
-      },
-      {
-        id: "rating", type: "stars", skipIf: { fiveStar: "yes" }, skipValue: 5,
+        id: "rating", type: "stars",
         ask: "How would you rate your overall experience with eimmigration? (1 being poor, 5 being excellent)"
       },
       {
