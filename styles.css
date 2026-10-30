@@ -1887,6 +1887,7 @@ a:hover { text-decoration: underline; }
   display: inline-block;
   vertical-align: middle;
   margin-left: 6px;
+  flex-shrink: 0;
 }
 .platform-card--rich .btn-sm .btn-icon-right {
   margin-left: 8px;

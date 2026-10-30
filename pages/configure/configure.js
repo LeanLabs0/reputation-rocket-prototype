@@ -10,6 +10,7 @@
     { id: 'capterra', label: 'Capterra' },
     { id: 'gartner', label: 'Gartner' },
     { id: 'clutch', label: 'Clutch' },
+    { id: 'goodfirms', label: 'GoodFirms' },
     { id: 'greatnonprofits', label: 'GreatNonprofits' },
   ];
 
@@ -21,6 +22,7 @@
     capterra: 'https://www.capterra.com/…',
     gartner: 'https://www.gartner.com/reviews/…',
     clutch: 'https://clutch.co/…',
+    goodfirms: 'https://www.goodfirms.co/company/…',
     greatnonprofits: 'https://greatnonprofits.org/org/…',
   };
 
