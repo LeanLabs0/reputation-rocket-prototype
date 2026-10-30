@@ -3,10 +3,11 @@ window.CLIENT_CONFIG = {
   providerName: "Alitek",
   agentEndpoint: "/api/agent",
   notificationEndpoint: "/api/notify",
-  platforms: ["clutch","g2"],
+  platforms: ["clutch","g2","goodfirms"],
   reviewLinks: {
     clutch: "https://clutch.co/profile/alitek-solutions#reviews",
-    g2: "https://www.g2.com/products/alitek/reviews"
+    g2: "https://www.g2.com/products/alitek-solutions/reviews",
+    goodfirms: "https://www.goodfirms.co/company/alitek-solutions"
   },
   welcomeVideoUrl: "/assets/video/Reputation%20Rocket%20Intro.mp4",
   welcomeVideoPoster: "/assets/image/7c248b618a126294316f6a.gif",
