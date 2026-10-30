@@ -211,7 +211,7 @@ const PREVIEW_FNS = [
   'snippetJoin', 'parseG2Fields', 'formatDraftForOverlay', 'truncatePostSnippet',
   'isPreviewTitleField', 'isPreviewDislikeField', 'stripNothingToAddSentence',
   'previewPhrase', 'titleAlreadySaid', 'previewParagraphs', 'fieldPreviewPieces',
-  'truncateSnippetKeepingEnd', 'fitDraftSnippet', 'draftSnippetText',
+  'snippetHeadToRoom', 'truncateSnippetKeepingEnd', 'fitDraftSnippet', 'draftSnippetText',
 ];
 
 test('Post It previews keep a headline or a short field from running into the next one', () => {
@@ -332,6 +332,19 @@ test('Post It previews read as one testimonial: no "Nothing to add right now." i
   const happyFull = ctx.draftSnippetText('g2', happy);
   assert.equal(ctx.draftSnippetText('g2', happy, 280), ctx.truncatePostSnippet(happyFull, 280));
   assert.equal(ctx.draftSnippetText('g2', happy, 280).includes('Nothing to add'), false);
+  // Stage run 10/30: the cut left half a sentence before the complaint ("Do … Reporting").
+  const stage = [
+    '[FIELD: What do you like best about eimmigration?]', 'Now the client fills out the questionnaire once and the forms fill in.', '',
+    '[FIELD: What do you dislike about eimmigration?]', 'Reporting could be easier to customize.', '',
+    '[FIELD: What problems is eimmigration solving and how is that benefiting you?]',
+    "We're a solo practice and we used LollyLaw before, and we used to retype client info into every form. Now we mainly use eimmigration for case management and USCIS forms.", '',
+    '[FIELD: Recommendations to others considering eimmigration:]', 'Do the onboarding calls. The support team answers the same day.',
+  ].join('\n');
+  const cut = ctx.draftSnippetText('g2', stage, 280);
+  assert.ok(cut.length <= 280, cut.length);
+  assert.ok(cut.endsWith(' … Reporting could be easier to customize.'), cut);
+  assert.match(cut.split(' … ')[0], /[.!?]$/, cut);
+  assert.ok(!cut.includes('Do …') && !cut.includes('team …'), cut);
 });
 
 test('a short answer and its follow-up stay two sentences', () => {

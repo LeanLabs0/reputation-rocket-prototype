@@ -4230,6 +4230,21 @@ function fieldPreviewPieces(fields) {
 }
 
 /**
+ * Cut the opening to `room` characters at its last whole sentence, so the card
+ * never shows half a sentence before the "…" ("Do … Reporting could be
+ * easier"). With no sentence end far enough in, cut at a word.
+ */
+function snippetHeadToRoom(head, room) {
+  let cut = String(head || '').slice(0, room).trimEnd();
+  const ends = [...cut.matchAll(/[.!?…]["'’”)\]»]*(?=\s|$)/g)];
+  const last = ends[ends.length - 1];
+  if (last && last.index + last[0].length >= 24) return cut.slice(0, last.index + last[0].length);
+  const space = cut.lastIndexOf(' ');
+  if (space >= 24) cut = cut.slice(0, space).trimEnd();
+  return cut.replace(/[,;:]+$/, '').trimEnd();
+}
+
+/**
  * The card only shows the first `max` characters. A complaint moved to the
  * end would otherwise be the part that gets cut. Keep the opening and the
  * whole complaint when that complaint fits with it. `tail` is that complaint.
@@ -4244,12 +4259,7 @@ function truncateSnippetKeepingEnd(s, max, tail) {
   if (end && t.endsWith(end) && end.length + bridge.length <= limit) {
     const room = limit - end.length - bridge.length;
     let head = t.slice(0, t.length - end.length).trim();
-    if (head.length > room) {
-      head = head.slice(0, room).trimEnd();
-      const space = head.lastIndexOf(' ');
-      if (space >= 24) head = head.slice(0, space).trimEnd();
-      head = head.replace(/[,;:]+$/, '').trimEnd();
-    }
+    if (head.length > room) head = snippetHeadToRoom(head, room);
     if (head) {
       const out = `${head}${bridge}${end}`;
       if (out.length <= limit) return out;
@@ -4261,12 +4271,7 @@ function truncateSnippetKeepingEnd(s, max, tail) {
   if (!last || last.length + bridge.length > limit) return truncatePostSnippet(t, limit);
   const room = limit - last.length - bridge.length;
   let head = t.slice(0, idx + 1).trim();
-  if (head.length > room) {
-    head = head.slice(0, room).trimEnd();
-    const space = head.lastIndexOf(' ');
-    if (space >= 24) head = head.slice(0, space).trimEnd();
-    head = head.replace(/[,;:]+$/, '').trimEnd();
-  }
+  if (head.length > room) head = snippetHeadToRoom(head, room);
   if (!head) return truncatePostSnippet(t, limit);
   const out = `${head}${bridge}${last}`;
   return out.length <= limit ? out : truncatePostSnippet(t, limit);
