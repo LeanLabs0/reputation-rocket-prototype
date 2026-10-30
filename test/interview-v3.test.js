@@ -207,9 +207,16 @@ test('a visit already past a question is not asked it again, and a leftover foll
   assert.match(extractFunction('runInterviewStep'), /st\.partial\[step\.id\] && !step\.followUp/);
 });
 
+const PREVIEW_FNS = [
+  'snippetJoin', 'parseG2Fields', 'formatDraftForOverlay', 'truncatePostSnippet',
+  'isPreviewTitleField', 'isPreviewDislikeField', 'stripNothingToAddSentence',
+  'previewPhrase', 'titleAlreadySaid', 'previewParagraphs', 'fieldPreviewPieces',
+  'truncateSnippetKeepingEnd', 'fitDraftSnippet', 'draftSnippetText',
+];
+
 test('Post It previews keep a headline or a short field from running into the next one', () => {
   const ctx = { PLATFORM_META: { g2: { flow: 'fields' }, trustpilot: { flow: 'paste' } } };
-  vm.runInNewContext(['snippetJoin', 'parseG2Fields', 'formatDraftForOverlay', 'draftSnippetText'].map(extractFunction).join('\n'), ctx);
+  vm.runInNewContext(PREVIEW_FNS.map(extractFunction).join('\n'), ctx);
   const g2 = '[FIELD: What do you like best about eimmigration?]\neimmigration is better\n\n[FIELD: What do you dislike about eimmigration?]\nNothing to add right now.';
   assert.equal(ctx.draftSnippetText('g2', g2), 'eimmigration is better.');
   assert.equal(ctx.draftSnippetText('trustpilot', 'eimmigration is better\n\nBefore we switched we were on LollyLaw.'), 'eimmigration is better. Before we switched we were on LollyLaw.');
@@ -224,7 +231,7 @@ test('Post It previews keep a headline or a short field from running into the ne
 
 test('Post It previews read as one testimonial: no "Nothing to add right now." in the middle, no title, a real complaint last', () => {
   const ctx = { PLATFORM_META: { g2: { flow: 'fields' }, gartner: { flow: 'fields' } } };
-  vm.runInNewContext(['snippetJoin', 'parseG2Fields', 'formatDraftForOverlay', 'draftSnippetText'].map(extractFunction).join('\n'), ctx);
+  vm.runInNewContext(PREVIEW_FNS.map(extractFunction).join('\n'), ctx);
   // Jonathan's stage run: the dislike filler sat mid-paragraph and the G2 title repeated at the end.
   const g2 = [
     '[FIELD: What do you like best about eimmigration?]', 'eimmigration is better, with client intake faster and fewer errors on forms.', '',
@@ -248,11 +255,83 @@ test('Post It previews read as one testimonial: no "Nothing to add right now." i
     ctx.draftSnippetText('gartner', gartner),
     'We moved from LollyLaw. The forms fill in. Our filings go out about two days faster. Reporting could be easier to customize.',
   );
-  // Nothing left but the filler and a title: show what there is rather than nothing.
+  // Nothing left but the filler and a title that is not already in the body:
+  // show the title. Putting the filler back would repeat the line this preview removes.
   assert.equal(
     ctx.draftSnippetText('g2', '[FIELD: What do you dislike about eimmigration?]\nNothing to add right now.\n\n[FIELD: Review title]\nOur experience with eimmigration'),
-    'Nothing to add right now. Our experience with eimmigration.',
+    'Our experience with eimmigration.',
   );
+  // A blank answer must not hide that title. The old length check treated the
+  // empty field as "there is still text" and returned a blank card.
+  assert.equal(
+    ctx.draftSnippetText('g2', '[FIELD: What do you like best about eimmigration?]\n\n[FIELD: What do you dislike about eimmigration?]\nNothing to add right now.\n\n[FIELD: Review title]\nOur experience with eimmigration'),
+    'Our experience with eimmigration.',
+  );
+  // Filler alone would otherwise be a blank card, so it still shows.
+  assert.equal(
+    ctx.draftSnippetText('g2', '[FIELD: What do you dislike about eimmigration?]\nNothing to add right now.'),
+    'Nothing to add right now.',
+  );
+  // The filler glued to a real complaint, or split by a single newline, still comes out.
+  assert.equal(
+    ctx.draftSnippetText('g2', '[FIELD: What do you like best?]\nWe like the forms.\n\n[FIELD: What do you dislike?]\nNothing to add right now. Reporting could be easier.\n\n[FIELD: What problems is it solving?]\nIntake is faster.'),
+    'We like the forms. Intake is faster. Reporting could be easier.',
+  );
+  assert.equal(
+    ctx.draftSnippetText('g2', '[FIELD: What do you like best?]\nWe like the forms.\n\n[FIELD: What do you dislike?]\nNothing to add right now.\nReporting could be easier.'),
+    'We like the forms. Reporting could be easier.',
+  );
+  // Their own sentence that only contains those words is not the canned line.
+  assert.equal(
+    ctx.draftSnippetText('g2', '[FIELD: What do you dislike?]\nI have nothing to add right now about the price. It is fine.'),
+    'I have nothing to add right now about the price. It is fine.',
+  );
+  // Removing the canned sentence must not respell abbreviations around it.
+  assert.equal(
+    ctx.draftSnippetText('g2', '[FIELD: What do you like best?]\nU.S. forms fill in.\n\n[FIELD: What do you dislike?]\nNothing to add right now. U.S. reporting is still slow.'),
+    'U.S. forms fill in. U.S. reporting is still slow.',
+  );
+  // A headline that is the only copy of that sentence stays, and leads.
+  // Gartner lifts one sentence into the headline and does not say it again.
+  const uniqueHeadline = [
+    '[FIELD: Please provide comments on your overall experience]', 'We moved from LollyLaw.', '',
+    '[FIELD: What do you like most about the product or service?]', 'Our filings go out faster.', '',
+    '[FIELD: What do you dislike most about the product or service?]', 'Reporting could be easier.', '',
+    '[FIELD: Create a headline summary of your review]', 'No more re-typing client details',
+  ].join('\n');
+  assert.equal(
+    ctx.draftSnippetText('gartner', uniqueHeadline),
+    'No more re-typing client details. We moved from LollyLaw. Our filings go out faster. Reporting could be easier.',
+  );
+  // The card shows 280 characters. A complaint moved to the end used to be the part that was cut.
+  const longLike = `${'Intake '.repeat(40)}is faster now.`;
+  const longDraft = [
+    '[FIELD: What do you like best?]', longLike, '',
+    '[FIELD: What problems is it solving?]', `${'B'.repeat(80)} still going.`, '',
+    '[FIELD: What do you dislike?]', 'Reporting could be easier to customize.', '',
+    '[FIELD: Review title]', longLike,
+  ].join('\n');
+  const shown = ctx.draftSnippetText('g2', longDraft, 280);
+  assert.ok(shown.length <= 280, shown.length);
+  assert.ok(shown.startsWith('Intake'), shown);
+  assert.ok(shown.endsWith('Reporting could be easier to customize.'), shown);
+  assert.equal(shown.includes('…'), true);
+  const twoSentences = [
+    '[FIELD: What do you like best?]', longLike, '',
+    '[FIELD: What do you dislike?]', 'Reporting could be easier to customize. Exports take too long.',
+  ].join('\n');
+  const twoShown = ctx.draftSnippetText('g2', twoSentences, 280);
+  assert.ok(twoShown.length <= 280, twoShown);
+  assert.ok(twoShown.endsWith('Reporting could be easier to customize. Exports take too long.'), twoShown);
+  // No real complaint: the cut still keeps the start, same as the other cards.
+  const happy = [
+    '[FIELD: What do you like best?]', longLike, '',
+    '[FIELD: What problems is it solving?]', `${'B'.repeat(80)} still going.`, '',
+    '[FIELD: What do you dislike?]', 'Nothing to add right now.',
+  ].join('\n');
+  const happyFull = ctx.draftSnippetText('g2', happy);
+  assert.equal(ctx.draftSnippetText('g2', happy, 280), ctx.truncatePostSnippet(happyFull, 280));
+  assert.equal(ctx.draftSnippetText('g2', happy, 280).includes('Nothing to add'), false);
 });
 
 test('a short answer and its follow-up stay two sentences', () => {
