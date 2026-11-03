@@ -3115,7 +3115,7 @@ const PLATFORM_META = {
   google:           { name: 'Google Business',  desc: 'Your most visible review',             icon: 'globe',  flow: 'paste'  },
   capterra:         { name: 'Capterra',         desc: 'Software reviews for businesses',      icon: 'star',   flow: 'paste'  },
   gartner:          { name: 'Gartner',          desc: 'Enterprise buyer reviews',             icon: 'star',   flow: 'fields' },
-  clutch:           { name: 'Clutch',           desc: 'Where buyers vet B2B service firms',   icon: 'star',   flow: 'paste'  },
+  clutch:           { name: 'Clutch',           desc: 'Where buyers vet B2B service firms',   icon: 'star',   flow: 'fields' },
   goodfirms:        { name: 'GoodFirms',        desc: 'Reviews of IT and software service firms', icon: 'star', flow: 'paste' },
   greatnonprofits:  { name: 'GreatNonprofits',  desc: 'Where supporters share nonprofit impact', icon: 'star', flow: 'paste' },
 };
