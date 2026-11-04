@@ -3116,7 +3116,7 @@ const PLATFORM_META = {
   capterra:         { name: 'Capterra',         desc: 'Software reviews for businesses',      icon: 'star',   flow: 'paste'  },
   gartner:          { name: 'Gartner',          desc: 'Enterprise buyer reviews',             icon: 'star',   flow: 'fields' },
   clutch:           { name: 'Clutch',           desc: 'Where buyers vet B2B service firms',   icon: 'star',   flow: 'fields' },
-  goodfirms:        { name: 'GoodFirms',        desc: 'Reviews of IT and software service firms', icon: 'star', flow: 'paste' },
+  goodfirms:        { name: 'GoodFirms',        desc: 'Reviews of IT and software service firms', icon: 'star', flow: 'fields' },
   greatnonprofits:  { name: 'GreatNonprofits',  desc: 'Where supporters share nonprofit impact', icon: 'star', flow: 'paste' },
 };
 
