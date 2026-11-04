@@ -11,10 +11,11 @@ window.CLIENT_CONFIG = {
   providerName: 'Alitek',
   agentEndpoint: '/api/agent',
   notificationEndpoint: '/api/notify',
-  platforms: ['clutch', 'g2'],
+  platforms: ['clutch', 'g2', 'goodfirms'],
   reviewLinks: {
     clutch: 'review-sandbox.html?platform=clutch&company=Alitek',
     g2: 'review-sandbox.html?platform=g2&company=Alitek',
+    goodfirms: 'review-sandbox.html?platform=goodfirms&company=Alitek',
   },
   welcomeVideoUrl: '/assets/video/Reputation%20Rocket%20Intro.mp4',
   welcomeVideoPoster: '/assets/image/7c248b618a126294316f6a.gif',
