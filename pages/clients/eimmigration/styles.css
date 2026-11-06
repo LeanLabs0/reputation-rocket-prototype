@@ -391,9 +391,6 @@ a:active,
 
 /* Decorative accents pulled to the tertiary purple */
 
-.text-accent {
-
-}
 .welcome-callout-icon {
   background: var(--ei-purple-tint);
   color: var(--ei-purple);

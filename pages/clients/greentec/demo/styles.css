@@ -254,6 +254,7 @@ a.rr-demo-banner-btn--ghost:active {
     left: 16px !important;
     right: 16px;
     width: auto;
+    transform: unset;
   }
 
   .rr-tour-popover::after {

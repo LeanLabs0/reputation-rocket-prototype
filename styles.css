@@ -3375,7 +3375,6 @@ a:hover { text-decoration: underline; }
     flex-direction: column-reverse;
   }
   .draft-tip {
-    padding: 0;
     background: transparent;
     border: none;
   }
