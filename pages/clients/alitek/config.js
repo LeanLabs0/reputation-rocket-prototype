@@ -5,7 +5,7 @@ window.CLIENT_CONFIG = {
   notificationEndpoint: "/api/notify",
   platforms: ["clutch","g2","goodfirms"],
   reviewLinks: {
-    clutch: "https://clutch.co/profile/alitek-solutions#reviews",
+    clutch: "https://clutch.co/profile/alitek-solutions",
     g2: "https://www.g2.com/products/alitek-solutions/reviews",
     goodfirms: "https://www.goodfirms.co/company/alitek-solutions"
   },

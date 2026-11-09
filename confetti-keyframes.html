@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Confetti Keyframes</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, system-ui, sans-serif;
+      color: #2b2b2b;
+      background: #f6f8fb;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 32px; }
+    main { width: min(1180px, 100%); margin: 0 auto; }
+    h1 { margin: 0 0 8px; color: #00539f; font-size: 2rem; }
+    .intro { margin: 0 0 24px; color: #5a6d80; }
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(150px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+      padding: 18px;
+      border: 1px solid #cddce8;
+      border-radius: 12px;
+      background: #fff;
+    }
+    label { display: grid; gap: 6px; color: #5a6d80; font-size: .78rem; font-weight: 600; }
+    label output { color: #2b2b2b; }
+    input { width: 100%; accent-color: #00539f; }
+    .stages { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .stage {
+      overflow: hidden;
+      min-height: 430px;
+      border: 1px solid #cddce8;
+      border-radius: 14px;
+      background: linear-gradient(180deg, #fff, #f5faff);
+    }
+    .stage-head { padding: 16px 18px; border-bottom: 1px solid #e3edf6; }
+    .stage-head strong { display: block; color: #00539f; }
+    .stage-head span { color: #5a6d80; font-size: .76rem; }
+    .field { position: relative; height: 350px; overflow: hidden; }
+    .piece { position: absolute; border-radius: 2px; }
+    .stage-end .piece { outline: 1px dashed currentColor; }
+    @media (max-width: 800px) {
+      body { padding: 18px; }
+      .controls { grid-template-columns: repeat(2, 1fr); }
+      .stages { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Confetti intensity and keyframes</h1>
+    <p class="intro">Adjust the values, then compare the frozen start, middle, and end poses. The end pose is ghosted so it remains visible while editing.</p>
+
+    <section class="controls" aria-label="Confetti controls">
+      <label>Piece count <output for="count"></output><input id="count" type="range" min="30" max="180" value="110"></label>
+      <label>Minimum size <output for="min-size"></output><input id="min-size" type="range" min="3" max="12" value="7"></label>
+      <label>Maximum size <output for="max-size"></output><input id="max-size" type="range" min="10" max="26" value="17"></label>
+      <label>Duration <output for="duration"></output><input id="duration" type="range" min="1" max="5" step=".1" value="3"></label>
+      <label>Middle position <output for="middle-y"></output><input id="middle-y" type="range" min="25" max="75" value="52"></label>
+      <label>Middle rotation <output for="middle-rotation"></output><input id="middle-rotation" type="range" min="90" max="720" step="10" value="420"></label>
+      <label>End rotation <output for="end-rotation"></output><input id="end-rotation" type="range" min="360" max="1440" step="10" value="960"></label>
+      <label>End scale <output for="end-scale"></output><input id="end-scale" type="range" min=".3" max="1.2" step=".05" value=".7"></label>
+    </section>
+
+    <section class="stages">
+      <article class="stage stage-start">
+        <div class="stage-head"><strong>Start</strong><span>Above the viewport · full opacity · scale 1</span></div>
+        <div class="field" data-stage="start"></div>
+      </article>
+      <article class="stage stage-middle">
+        <div class="stage-head"><strong>Middle</strong><span id="middle-summary"></span></div>
+        <div class="field" data-stage="middle"></div>
+      </article>
+      <article class="stage stage-end">
+        <div class="stage-head"><strong>End</strong><span id="end-summary"></span></div>
+        <div class="field" data-stage="end"></div>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    const ids = ['count', 'min-size', 'max-size', 'duration', 'middle-y', 'middle-rotation', 'end-rotation', 'end-scale'];
+    const colors = ['#00539f', '#eb6c05', '#d5d7da', '#2b2b2b', '#ffffff', '#7ea8cc'];
+
+    function seeded(index, salt) {
+      const value = Math.sin(index * 999 + salt * 101) * 43758.5453;
+      return value - Math.floor(value);
+    }
+
+    function values() {
+      return Object.fromEntries(ids.map((id) => [id, Number(document.getElementById(id).value)]));
+    }
+
+    function render() {
+      const v = values();
+      document.querySelector('output[for="count"]').textContent = v.count;
+      document.querySelector('output[for="min-size"]').textContent = `${v['min-size']}px`;
+      document.querySelector('output[for="max-size"]').textContent = `${v['max-size']}px`;
+      document.querySelector('output[for="duration"]').textContent = `${v.duration}s`;
+      document.querySelector('output[for="middle-y"]').textContent = `${v['middle-y']}%`;
+      document.querySelector('output[for="middle-rotation"]').textContent = `${v['middle-rotation']}°`;
+      document.querySelector('output[for="end-rotation"]').textContent = `${v['end-rotation']}°`;
+      document.querySelector('output[for="end-scale"]').textContent = v['end-scale'];
+      document.getElementById('middle-summary').textContent =
+        `${v['middle-y']}% down · ${v['middle-rotation']}° rotation · full opacity`;
+      document.getElementById('end-summary').textContent =
+        `Below viewport · ${v['end-rotation']}° rotation · scale ${v['end-scale']} · faded`;
+
+      document.querySelectorAll('.field').forEach((field) => {
+        const stage = field.dataset.stage;
+        field.innerHTML = '';
+        for (let i = 0; i < v.count; i += 1) {
+          const piece = document.createElement('span');
+          const size = v['min-size'] + seeded(i, 1) * (v['max-size'] - v['min-size']);
+          const middleY = v['middle-y'] + (seeded(i, 2) - .5) * 36;
+          const styles = {
+            start: `top:${-size + seeded(i, 3) * 18}px;opacity:1;transform:rotate(0deg) scale(1)`,
+            middle: `top:${middleY}%;opacity:1;transform:rotate(${v['middle-rotation'] + seeded(i, 4) * 120}deg) scale(1)`,
+            end: `top:${92 + seeded(i, 5) * 16}%;opacity:.18;transform:rotate(${v['end-rotation'] + seeded(i, 6) * 180}deg) scale(${v['end-scale']})`,
+          };
+          piece.className = 'piece';
+          piece.style.cssText = `${styles[stage]};left:${seeded(i, 7) * 100}%;width:${size}px;height:${size}px;background:${colors[i % colors.length]};color:${colors[i % colors.length]}`;
+          field.appendChild(piece);
+        }
+      });
+    }
+
+    ids.forEach((id) => document.getElementById(id).addEventListener('input', render));
+    render();
+  </script>
+</body>
+</html>

@@ -1,3 +1,21 @@
+.review-question-answer,
+.review-question-regenerate,
+.review-question-copy,
+.review-workspace-step__dot,
+.review-workspace-steps li.is-active .review-workspace-step__dot,
+.review-workspace-steps li.is-done .review-workspace-step__dot {
+  background: transparent;
+}
+
+.review-question-answer,
+.review-question-regenerate,
+.review-question-copy,
+.review-workspace-step__dot,
+.review-workspace-steps li.is-active .review-workspace-step__dot,
+.review-workspace-steps li.is-done .review-workspace-step__dot {
+  color: #d5d7da;
+}
+
 .rr-logo-icon {
   max-width: 32px;
 }

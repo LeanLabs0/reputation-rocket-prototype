@@ -114,6 +114,10 @@ body {
   color: var(--pr-navy)
 }
 
+.review-post-panel {
+  --ll-muted: rgb(10 31 68 / 72%);
+}
+
 /* ── Chat ─────────────────────────────────────────────────── */
 .chat-header,
 .chat-input-bar,
