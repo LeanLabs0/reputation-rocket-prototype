@@ -9,9 +9,10 @@ const src = fs.readFileSync(path.join(__dirname, '../app.js'), 'utf8');
 function extractFunction(name) {
   const start = src.indexOf(`function ${name}(`);
   assert.notEqual(start, -1, `missing ${name}`);
-  const end = src.indexOf('\n}\n', start);
-  assert.notEqual(end, -1, `unclosed ${name}`);
-  return src.slice(start, end + 2);
+  const tail = src.slice(start);
+  const match = tail.match(/\r?\n}\r?\n/);
+  assert.ok(match, `unclosed ${name}`);
+  return tail.slice(0, match.index + match[0].indexOf('}') + 1);
 }
 
 function load(name, config) {
@@ -70,19 +71,170 @@ test('EIM live and demo configs carry the same copy overrides', () => {
   assert.deepEqual(JSON.parse(JSON.stringify(demo.copy)), JSON.parse(JSON.stringify(live.copy)));
 });
 
-test('EIM live and demo pages drop the removed help boxes together', () => {
+test('EIM live and demo pages use the merged review workspace together', () => {
   const live = fs.readFileSync(path.join(__dirname, '../pages/clients/eimmigration/index.html'), 'utf8');
   const demo = fs.readFileSync(path.join(__dirname, '../pages/clients/eimmigration/demo/index.html'), 'utf8');
   for (const html of [live, demo]) {
     assert.equal(html.includes('draft-what-next'), false);
     assert.equal(html.includes('post-why-confirm'), false);
+    assert.equal(html.includes('id="screen-post"'), false);
+    assert.equal(html.includes('>Post It<'), false);
     assert.equal(html.includes('Sessions Completed'), false);
     assert.equal(html.includes('id="stat-reviews"'), false);
     assert.equal(html.includes('id="btn-view-draft"'), false);
-    assert.equal(html.includes('btn btn-tertiary btn-md'), true);
+    assert.equal(html.includes('id="review-question-list"'), true);
+    assert.equal(html.includes('id="review-post-panel"'), true);
+    assert.equal(html.includes('review-workspace-grid'), true);
     assert.equal(html.includes('aria-hidden="true"'), true);
-    assert.match(html, /id="btn-approve"[^>]*>Looks Good<svg[^>]*aria-hidden="true"/);
   }
+});
+
+test('all client pages merge review and posting into one workspace', () => {
+  const clientsDir = path.join(__dirname, '../pages/clients');
+  const files = [];
+  for (const slug of fs.readdirSync(clientsDir)) {
+    for (const rel of ['index.html', path.join('demo', 'index.html')]) {
+      const file = path.join(clientsDir, slug, rel);
+      if (fs.existsSync(file)) files.push(file);
+    }
+  }
+  assert.ok(files.length >= 12);
+  for (const file of files) {
+    const html = fs.readFileSync(file, 'utf8');
+    assert.match(html, /id="screen-draft"[\s\S]*id="review-question-list"[\s\S]*id="review-post-panel"/);
+    assert.equal(html.includes('id="screen-post"'), false, file);
+    assert.equal(html.includes('<span class="progress-label">Post It</span>'), false, file);
+    assert.match(html, /data-step="4"[\s\S]*<span class="progress-label">Video<\/span>/);
+  }
+});
+
+test('mergeReviewField replaces only the requested Factor8 answer', () => {
+  const sandbox = {};
+  vm.runInNewContext(
+    [
+      extractFunction('parseG2Fields'),
+      extractFunction('serializeReviewFields'),
+      extractFunction('mergeReviewField'),
+    ].join('\n'),
+    sandbox,
+  );
+  const source = [
+    '[FIELD: First question?]',
+    'Keep this answer.',
+    '',
+    '[FIELD: Second question?]',
+    'Replace this answer.',
+    '',
+    '[FIELD: Third question?]',
+    'Keep this too.',
+  ].join('\n');
+  const merged = sandbox.mergeReviewField(source, 1, 'A focused replacement.');
+  const fields = sandbox.parseG2Fields(merged);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(fields)),
+    [
+      { label: 'First question?', body: 'Keep this answer.' },
+      { label: 'Second question?', body: 'A focused replacement.' },
+      { label: 'Third question?', body: 'Keep this too.' },
+    ],
+  );
+});
+
+test('merged review flow advances to the next unposted platform and then finishes', () => {
+  const sandbox = {};
+  vm.runInNewContext(extractFunction('nextUnpostedReviewPlatform'), sandbox);
+  const order = ['clutch', 'g2', 'goodfirms'];
+  assert.equal(
+    sandbox.nextUnpostedReviewPlatform(order, 'clutch', { clutch: true }),
+    'g2',
+  );
+  assert.equal(
+    sandbox.nextUnpostedReviewPlatform(order, 'g2', { clutch: true, g2: true }),
+    'goodfirms',
+  );
+  assert.equal(
+    sandbox.nextUnpostedReviewPlatform(
+      order,
+      'goodfirms',
+      { clutch: true, g2: true, goodfirms: true },
+    ),
+    null,
+  );
+});
+
+test('review-card persistence accepts the NodeList returned by querySelectorAll', () => {
+  const card = {
+    dataset: {
+      fieldLabel: 'Question one',
+      fieldNarrative: 'false',
+    },
+    querySelector() {
+      return { value: 'Answer one' };
+    },
+  };
+  const list = {
+    querySelectorAll() {
+      return { 0: card, length: 1 };
+    },
+  };
+  const sandbox = {
+    activeDraftPlatform: 'clutch',
+    drafts: {},
+    reviewDraft: '',
+    $: () => list,
+  };
+  vm.runInNewContext(
+    [
+      extractFunction('serializeReviewFields'),
+      extractFunction('persistActiveReviewCards'),
+    ].join('\n'),
+    sandbox,
+  );
+  sandbox.persistActiveReviewCards();
+  assert.equal(sandbox.drafts.clutch, '[FIELD: Question one]\nAnswer one');
+});
+
+test('legacy saved post sessions resume in the merged review workspace', () => {
+  const sandbox = {};
+  vm.runInNewContext(extractFunction('normalizeMergedReviewState'), sandbox);
+  assert.equal(sandbox.normalizeMergedReviewState('post'), 'draft');
+  assert.equal(sandbox.normalizeMergedReviewState('draft'), 'draft');
+  assert.equal(sandbox.normalizeMergedReviewState('complete'), 'complete');
+});
+
+test('merged review step keeps the leave-site warning before a review form is opened', () => {
+  const sandbox = {
+    allowPageUnload: false,
+    currentState: 'draft',
+    PARAMS: { platforms: ['clutch', 'goodfirms'] },
+    platformsPosted: {},
+  };
+  vm.runInNewContext(extractFunction('shouldWarnBeforeLeavingReviewPost'), sandbox);
+  assert.equal(sandbox.shouldWarnBeforeLeavingReviewPost(), true);
+  sandbox.platformsPosted = { clutch: true, goodfirms: true };
+  assert.equal(sandbox.shouldWarnBeforeLeavingReviewPost(), false);
+});
+
+test('Clutch opens the profile action instead of jumping past it to reviews', () => {
+  const sandbox = {
+    PARAMS: {
+      reviewLinks: {
+        clutch: 'https://clutch.co/profile/alitek-solutions#reviews',
+        g2: 'https://www.g2.com/products/alitek-solutions/reviews',
+      },
+    },
+    window: { location: { href: 'https://reputationrocket.ai/alitek/' } },
+    URL,
+  };
+  vm.runInNewContext(extractFunction('reviewPlatformUrl'), sandbox);
+  assert.equal(
+    sandbox.reviewPlatformUrl('clutch'),
+    'https://clutch.co/profile/alitek-solutions',
+  );
+  assert.equal(
+    sandbox.reviewPlatformUrl('g2'),
+    'https://www.g2.com/products/alitek-solutions/reviews',
+  );
 });
 
 test('EIM live and demo welcome pages carry the Step 1 notes together', () => {

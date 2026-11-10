@@ -218,6 +218,9 @@ let hubspotIncompleteSent = false;
 let uploadedVideoMeta = null;
 /** Per-platform: user tapped "Looks good" for that draft (required before Approve all). */
 let draftLooksGood = {};
+/** Ephemeral per-question regeneration state for the merged review workspace. */
+let regeneratingReviewField = null;
+let reviewFieldErrors = {};
 /** HubSpot form rows for this visit, kept with the handoff snapshot. */
 let leadFields = [];
 /** Live-call handoff. `guest` is the operator; `client` is the resume link. */
@@ -386,9 +389,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('#chat-send').addEventListener('click', handleChatSend);
   mountChatDictation();
 
-  $('#btn-regenerate').addEventListener('click', handleRegenerate);
+  $('#btn-regenerate')?.addEventListener('click', handleRegenerate);
   setRegenerateButtonLabel($('#btn-regenerate'), 'Regenerate this draft');
-  $('#btn-approve').addEventListener('click', handleLooksGoodDraft);
+  $('#btn-approve')?.addEventListener('click', handleLooksGoodDraft);
   $('#btn-approve-all')?.addEventListener('click', handleApproveAllDrafts);
   const draftTa = $('#draft-textarea');
   if (draftTa) {
@@ -413,7 +416,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     editHint.addEventListener('click', () => $('#draft-textarea').focus());
   }
 
-  $('#btn-continue-post').addEventListener('click', handleContinueAfterPost);
+  $('#btn-continue-post')?.addEventListener('click', handleContinueAfterPost);
   $('#skip-remaining')?.addEventListener('click', handleContinueAfterPost);
   $('#btn-back-to-draft')?.addEventListener('click', () => transitionTo('draft'));
 
@@ -454,6 +457,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   window.addEventListener('focus', () => {
     maybeShowPendingReviewOverlay();
     maybePulseGuidedConfirm();
+    if (currentState === 'draft' && activeDraftPlatform) {
+      renderReviewPostPanel();
+      syncPostStayNudge();
+    }
   });
 
   $('#btn-skip-video').addEventListener('click', () => transitionTo('complete'));
@@ -475,7 +482,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ── State Machine ───────────────────────────────────────────
+function normalizeMergedReviewState(state) {
+  return state === 'post' ? 'draft' : state;
+}
+
 function transitionTo(state) {
+  // The review and posting experiences now share the draft workspace. Keep
+  // legacy saved sessions and old links working without exposing a Post screen.
+  state = normalizeMergedReviewState(state);
   clearPendingReviewOverlay();
   hideReviewCompleteOverlay();
 
@@ -499,9 +513,6 @@ function transitionTo(state) {
       break;
     case 'draft':
       initDraftScreen();
-      break;
-    case 'post':
-      initPostScreen();
       break;
     case 'video':
       if (!isVideoStepEnabled()) {
@@ -578,9 +589,9 @@ function placeProgressShell(state) {
 
 function getProgressStateToStep() {
   if (isVideoStepEnabled()) {
-    return { welcome: 1, chat: 2, draft: 3, post: 4, video: 5, complete: 6, negative: -1 };
+    return { welcome: 1, chat: 2, draft: 3, post: 3, video: 4, complete: 5, negative: -1 };
   }
-  return { welcome: 1, chat: 2, draft: 3, post: 4, complete: 5, negative: -1 };
+  return { welcome: 1, chat: 2, draft: 3, post: 3, complete: 4, negative: -1 };
 }
 
 function updateProgressBar(state) {
@@ -1496,8 +1507,20 @@ async function startExperience() {
 }
 
 // ── Chat Logic ──────────────────────────────────────────────
+function ensureChatResponseTip() {
+  const inputBar = $('#screen-chat .chat-input-bar');
+  if (!inputBar || inputBar.querySelector('.chat-response-tip')) return;
+
+  const tip = document.createElement('p');
+  tip.className = 'chat-response-tip';
+  tip.innerHTML =
+    '<strong>Tip:</strong> The more specific and personal your answers are, the stronger and more accurate your review drafts will be.';
+  inputBar.prepend(tip);
+}
+
 function initChat() {
   markHubSpotContactIncomplete();
+  ensureChatResponseTip();
 
   if (chatHistory.length === 0) {
     sendMessage('Please start the review process.', true);
@@ -2738,10 +2761,10 @@ function initDraftScreen() {
   Object.keys(draftLooksGood).forEach((k) => {
     if (!Object.prototype.hasOwnProperty.call(drafts, k)) delete draftLooksGood[k];
   });
-  renderDraftTabs();
-  setActiveDraft(activeDraftPlatform);
+  const unfinished = orderedDraftPlatforms().find((plat) => !platformsPosted[plat]);
+  if (unfinished && platformsPosted[activeDraftPlatform]) activeDraftPlatform = unfinished;
+  renderReviewWorkspace();
   updateStarDisplay();
-  updateDraftScreenChrome();
   markHubSpotContactIncomplete();
 }
 
@@ -2883,16 +2906,28 @@ function renderDraftTabs() {
   const tabsEl = $('#draft-tabs');
   if (!tabsEl) return;
   tabsEl.innerHTML = '';
-  const platformList = Object.keys(drafts);
-  platformList.forEach(plat => {
+  const platformList = orderedDraftPlatforms();
+  const firstPendingIndex = platformList.findIndex((plat) => !platformsPosted[plat]);
+  platformList.forEach((plat, index) => {
+    const isLocked =
+      firstPendingIndex !== -1 &&
+      index > firstPendingIndex &&
+      !platformsPosted[plat];
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className =
       'draft-tab' +
       (plat === activeDraftPlatform ? ' active' : '') +
-      (draftLooksGood[plat] ? ' is-approved' : '');
+      (platformsPosted[plat] ? ' is-approved' : '') +
+      (isLocked ? ' is-locked' : '');
     btn.dataset.platform = plat;
     btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-selected', plat === activeDraftPlatform ? 'true' : 'false');
+    if (isLocked) {
+      btn.disabled = true;
+      btn.setAttribute('aria-disabled', 'true');
+      btn.title = 'Complete the current review platform first';
+    }
 
     const iconWrap = document.createElement('span');
     iconWrap.className = 'draft-tab-icon';
@@ -2926,7 +2961,7 @@ function renderDraftTabs() {
     btn.appendChild(iconWrap);
     btn.appendChild(label);
 
-    if (draftLooksGood[plat]) {
+    if (platformsPosted[plat]) {
       const check = document.createElement('span');
       check.className = 'draft-tab-check';
       check.setAttribute('aria-hidden', 'true');
@@ -2935,21 +2970,20 @@ function renderDraftTabs() {
       btn.appendChild(check);
     }
 
-    btn.addEventListener('click', () => {
-      drafts[activeDraftPlatform] = $('#draft-textarea').value;
-      setActiveDraft(plat);
-    });
+    if (!isLocked) {
+      btn.addEventListener('click', () => {
+        persistActiveReviewCards();
+        setActiveDraft(plat);
+      });
+    }
     tabsEl.appendChild(btn);
   });
 }
 
 function setActiveDraft(plat) {
+  persistActiveReviewCards();
   activeDraftPlatform = plat;
-  $('#draft-textarea').value = drafts[plat] || '';
-  $$('#draft-tabs .draft-tab').forEach(b => {
-    b.classList.toggle('active', b.dataset.platform === plat);
-  });
-  updateDraftScreenChrome();
+  renderReviewWorkspace();
   saveSession();
 }
 
@@ -2965,9 +2999,232 @@ function orderedDraftPlatforms() {
   return out;
 }
 
+function reviewFieldsForPlatform(platform) {
+  const raw = String(drafts[platform] || '').trim();
+  const fields = parseG2Fields(raw);
+  if (fields.length) {
+    return fields.map((field) => ({ ...field, narrative: false }));
+  }
+  return [{ label: 'Your review', body: raw, narrative: true }];
+}
+
+function serializeReviewFields(fields) {
+  if (!Array.isArray(fields) || fields.length === 0) return '';
+  if (fields.length === 1 && fields[0].narrative) return String(fields[0].body || '').trim();
+  return fields
+    .map((field) => `[FIELD: ${String(field.label || '').trim()}]\n${String(field.body || '').trim()}`)
+    .join('\n\n');
+}
+
+function persistActiveReviewCards() {
+  if (!activeDraftPlatform) return;
+  const list = $('#review-question-list');
+  if (!list) return;
+  const cards = Array.from(list.querySelectorAll('[data-review-field-index]'));
+  if (!cards.length) return;
+  const fields = cards.map((card) => ({
+    label: card.dataset.fieldLabel || 'Your review',
+    narrative: card.dataset.fieldNarrative === 'true',
+    body: card.querySelector('textarea')?.value || '',
+  }));
+  drafts[activeDraftPlatform] = serializeReviewFields(fields);
+  reviewDraft = drafts[activeDraftPlatform] || reviewDraft;
+}
+
+function renderReviewWorkspace() {
+  const list = $('#review-question-list');
+  const panel = $('#review-post-panel');
+  if (!list || !panel) return;
+
+  renderDraftTabs();
+  renderReviewQuestionCards();
+  renderReviewPostPanel();
+  updateDraftScreenChrome();
+  updateReviewWorkspaceProgress();
+}
+
+function renderReviewQuestionCards() {
+  const list = $('#review-question-list');
+  if (!list || !activeDraftPlatform) return;
+  const fields = reviewFieldsForPlatform(activeDraftPlatform);
+  list.innerHTML = '';
+
+  fields.forEach((field, index) => {
+    const card = document.createElement('article');
+    card.className = 'review-question-card';
+    card.dataset.reviewFieldIndex = String(index);
+    card.dataset.fieldLabel = field.label;
+    card.dataset.fieldNarrative = String(Boolean(field.narrative));
+    const key = `${activeDraftPlatform}:${index}`;
+    const isRegenerating = regeneratingReviewField === key;
+    const error = reviewFieldErrors[key] || '';
+    card.innerHTML = `
+      <div class="review-question-card__head">
+        <div>
+          <span class="review-question-card__eyebrow">${field.narrative ? 'Review draft' : `Question ${index + 1}`}</span>
+          <h4>${escapeHtml(field.label)}</h4>
+        </div>
+      </div>
+      <textarea class="review-question-answer" rows="${field.narrative ? 8 : 5}" aria-label="${escapeAttr(field.label)}">${escapeHtml(field.body)}</textarea>
+      <div class="review-question-card__foot">
+        <span class="review-question-save-status" role="status">${error ? escapeHtml(error) : ''}</span>
+        <div class="review-question-card__actions">
+          <button type="button" class="review-question-regenerate" data-action="regenerate-question" data-index="${index}" ${isRegenerating ? 'disabled' : ''}>
+            ${REGENERATE_DRAFT_ICON_SVG}
+            <span>${isRegenerating ? 'Regenerating…' : 'Regenerate'}</span>
+          </button>
+          <button type="button" class="review-question-copy" data-action="copy-question" data-index="${index}">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="9" y="9" width="11" height="11" rx="2"></rect>
+              <path d="M15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h3"></path>
+            </svg>
+            <span>Copy answer</span>
+          </button>
+        </div>
+      </div>`;
+
+    const textarea = card.querySelector('textarea');
+    textarea.addEventListener('input', () => {
+      persistActiveReviewCards();
+      delete draftLooksGood[activeDraftPlatform];
+      delete reviewFieldErrors[key];
+      saveSession();
+    });
+    card.querySelector('[data-action="copy-question"]').addEventListener('click', async () => {
+      const ok = await copyToClipboard(textarea.value);
+      if (ok) {
+        markFieldCopied(activeDraftPlatform, index);
+        showToast();
+        renderReviewPostPanel();
+      }
+    });
+    card.querySelector('[data-action="regenerate-question"]').addEventListener('click', () => {
+      regenerateReviewQuestion(activeDraftPlatform, index);
+    });
+    list.appendChild(card);
+  });
+}
+
+function reviewWorkspaceSteps(platform) {
+  const opened = Boolean(reviewFormOpened[platform]);
+  return [
+    {
+      label: `Open ${platformDisplayName(platform)} and submit your answers there`,
+      done: opened,
+    },
+    {
+      label: 'Return here after submitting, then confirm you posted it',
+      done: Boolean(platformsPosted[platform]),
+    },
+  ];
+}
+
+function renderReviewPostPanel() {
+  const panel = $('#review-post-panel');
+  const platform = activeDraftPlatform;
+  if (!panel || !platform) return;
+  const meta = PLATFORM_META[platform] || {
+    name: platformDisplayName(platform),
+    desc: 'Post your review',
+  };
+  const fields = reviewFieldsForPlatform(platform);
+  const opened = Boolean(reviewFormOpened[platform]);
+  const posted = Boolean(platformsPosted[platform]);
+  const steps = reviewWorkspaceSteps(platform);
+  const currentStep = Math.max(0, steps.findIndex((step) => !step.done));
+  const reviewUrl = reviewPlatformUrl(platform);
+  const openButtonClass = opened ? 'btn btn-secondary btn-sm' : 'btn btn-primary btn-md';
+  const confirmButtonClass = opened && !posted
+    ? 'btn btn-primary btn-md review-post-confirm'
+    : 'btn btn-secondary btn-md review-post-confirm';
+  const confirmDisabled = !opened || posted;
+
+  panel.innerHTML = `
+    <div class="review-post-panel__brand">
+      <div class="review-post-panel__logo"></div>
+      <div>
+        <span class="review-post-panel__eyebrow">Post on</span>
+        <h3 id="review-platform-title">${escapeHtml(meta.name)}</h3>
+        <p id="review-platform-description">${escapeHtml(meta.desc || '')}</p>
+      </div>
+    </div>
+    <div class="review-post-panel__notice">
+      <strong>Submit on ${escapeHtml(meta.name)}</strong>
+      <span>Open the review platform, paste each answer into its matching question, and submit the review there. <u>Then return here to confirm and continue.</u></span>
+    </div>
+    <div class="review-post-panel__progress">
+      <span>${posted ? 'Posted' : opened ? 'Review site opened' : 'Ready to post'}</span>
+      <strong>${copiedFieldIdxs(platform).length} of ${fields.length} answers copied</strong>
+    </div>
+    <ol class="review-workspace-steps">
+      ${steps.map((step, index) => `
+        <li class="${step.done ? 'is-done' : index === currentStep ? 'is-active' : ''}">
+          <span class="review-workspace-step__dot">${step.done ? '✓' : index + 1}</span>
+          <span>${escapeHtml(step.label)}</span>
+        </li>`).join('')}
+    </ol>
+    <div class="review-post-panel__actions">
+      ${reviewUrl
+        ? `<a class="${openButtonClass}" data-workspace-action="open-review" href="${escapeAttr(reviewUrl)}" target="_blank" rel="noopener noreferrer">
+            ${opened ? 'Reopen' : 'Open'} ${escapeHtml(meta.name)} to post ${iconExternalLink()}
+          </a>`
+        : `<button type="button" class="btn btn-secondary btn-md" disabled>Review link unavailable</button>`}
+      <button type="button" class="${confirmButtonClass}" data-workspace-action="confirm-posted" ${confirmDisabled ? 'disabled aria-disabled="true"' : ''}>
+        <span>${posted ? 'Full review posted' : `I posted my full review on ${escapeHtml(meta.name)}`}</span>
+        ${iconCheckSmall()}
+      </button>
+    </div>
+    <p class="review-post-panel__hint">${iconLockSmall()}<span>After submitting on ${escapeHtml(meta.name)}, click “I posted my full review on ${escapeHtml(meta.name)}” to continue to the next platform.</span></p>`;
+
+  const logoWrap = panel.querySelector('.review-post-panel__logo');
+  if (logoWrap) logoWrap.appendChild(createPlatformCardLogo(platform, 44));
+
+  const openReviewLink = panel.querySelector('[data-workspace-action="open-review"]');
+  const recordReviewSiteOpened = () => {
+    persistActiveReviewCards();
+    reviewFormOpened[platform] = true;
+    saveSession();
+  };
+  openReviewLink?.addEventListener('pointerdown', recordReviewSiteOpened);
+  openReviewLink?.addEventListener('click', () => {
+    recordReviewSiteOpened();
+    window.setTimeout(() => {
+      if (activeDraftPlatform === platform) renderReviewPostPanel();
+      syncPostStayNudge();
+    }, 0);
+  });
+  panel.querySelector('[data-workspace-action="confirm-posted"]').addEventListener('click', () => {
+    if (!reviewFormOpened[platform] || platformsPosted[platform]) return;
+    persistActiveReviewCards();
+    markPlatformPosted(platform);
+  });
+}
+
+function updateReviewWorkspaceProgress() {
+  const order = orderedDraftPlatforms();
+  const current = Math.max(0, order.indexOf(activeDraftPlatform));
+  const posted = order.filter((platform) => platformsPosted[platform]).length;
+  const text = $('#review-workspace-progress-text');
+  const fill = $('#review-workspace-progress-fill');
+  if (text) {
+    text.textContent = `Platform ${Math.min(current + 1, order.length)} of ${order.length} · ${posted} posted`;
+  }
+  if (fill) fill.style.width = `${order.length ? Math.round((posted / order.length) * 100) : 0}%`;
+}
+
 function updateDraftScreenChrome() {
   const plat = activeDraftPlatform;
   const name = plat ? platformDisplayName(plat) : '';
+  const intro = $('.review-question-column__intro');
+  const introEyebrow = intro?.querySelector('.review-question-column__eyebrow');
+  const introTitle = intro?.querySelector('h4');
+  const introBody = intro?.querySelector('p');
+  if (introEyebrow) introEyebrow.textContent = 'Review draft';
+  if (introTitle) introTitle.textContent = 'Review and personalize';
+  if (introBody) {
+    introBody.textContent =
+      'Make any changes you’d like, or regenerate one answer without changing the others.';
+  }
 
   const hintText = $('#draft-copy-hint-text');
   if (hintText) {
@@ -2981,43 +3238,27 @@ function updateDraftScreenChrome() {
       : '';
   }
 
-  const approveAll = $('#btn-approve-all');
-  if (!approveAll) return;
-  const order = orderedDraftPlatforms();
-  approveAll.disabled = order.length === 0;
+  const title = $('#review-platform-title');
+  const description = $('#review-platform-description');
+  if (title) title.textContent = name;
+  if (description) {
+    const meta = PLATFORM_META[plat] || {};
+    description.textContent = meta.desc || 'Review your answers, then publish them on this platform.';
+  }
 }
 
 function handleLooksGoodDraft() {
   if (!activeDraftPlatform) return;
-  drafts[activeDraftPlatform] = $('#draft-textarea').value.trim();
+  persistActiveReviewCards();
   draftLooksGood[activeDraftPlatform] = true;
-  renderDraftTabs();
-
-  const order = orderedDraftPlatforms();
-  let nextPlat = null;
-  const curIdx = order.indexOf(activeDraftPlatform);
-  for (let step = 1; step < order.length; step++) {
-    const i = (curIdx + step) % order.length;
-    if (!draftLooksGood[order[i]]) {
-      nextPlat = order[i];
-      break;
-    }
-  }
-
-  if (nextPlat && nextPlat !== activeDraftPlatform) {
-    setActiveDraft(nextPlat);
-  } else {
-    reviewDraft = drafts[activeDraftPlatform] || reviewDraft;
-    transitionTo('post');
-  }
+  renderReviewWorkspace();
+  saveSession();
 }
 
 function handleApproveAllDrafts() {
   const order = orderedDraftPlatforms();
   if (order.length === 0) return;
-  if (activeDraftPlatform) {
-    drafts[activeDraftPlatform] = $('#draft-textarea').value.trim();
-  }
+  persistActiveReviewCards();
   for (const p of order) {
     draftLooksGood[p] = true;
   }
@@ -3026,7 +3267,7 @@ function handleApproveAllDrafts() {
   renderDraftTabs();
   updateDraftScreenChrome();
   saveSession();
-  transitionTo('post');
+  renderReviewWorkspace();
 }
 
 function updateStarDisplay() {
@@ -3039,10 +3280,11 @@ function updateStarDisplay() {
 
 function handleRegenerate() {
   const btn = $('#btn-regenerate');
+  if (!btn || !activeDraftPlatform) return;
   btn.disabled = true;
   setRegenerateButtonLabel(btn, 'Regenerating...');
 
-  drafts[activeDraftPlatform] = $('#draft-textarea').value;
+  persistActiveReviewCards();
 
   sendRegenerateRequest(activeDraftPlatform).finally(() => {
     btn.disabled = false;
@@ -3082,7 +3324,7 @@ async function sendRegenerateRequest(platform) {
         drafts[platform] = parsed[platform];
         delete draftLooksGood[platform];
         if (platform === activeDraftPlatform) {
-          $('#draft-textarea').value = parsed[platform];
+          renderReviewWorkspace();
         }
         renderDraftTabs();
         updateDraftScreenChrome();
@@ -3096,7 +3338,7 @@ async function sendRegenerateRequest(platform) {
       drafts[platform] = newDraft;
       delete draftLooksGood[platform];
       if (platform === activeDraftPlatform) {
-        $('#draft-textarea').value = newDraft;
+        renderReviewWorkspace();
       }
       renderDraftTabs();
       updateDraftScreenChrome();
@@ -3104,6 +3346,84 @@ async function sendRegenerateRequest(platform) {
     }
   } catch (err) {
     console.error('Regenerate failed:', err);
+  }
+}
+
+function mergeReviewField(draftText, fieldIndex, nextBody) {
+  const parsed = parseG2Fields(String(draftText || ''));
+  if (!parsed.length) return String(nextBody || '').trim();
+  if (!parsed[fieldIndex]) return String(draftText || '').trim();
+  const fields = parsed.map((field, index) => ({
+    ...field,
+    narrative: false,
+    body: index === fieldIndex ? String(nextBody || '').trim() : field.body,
+  }));
+  return serializeReviewFields(fields);
+}
+
+async function regenerateReviewQuestion(platform, fieldIndex) {
+  if (!platform || regeneratingReviewField) return;
+  persistActiveReviewCards();
+  const fields = reviewFieldsForPlatform(platform);
+  const field = fields[fieldIndex];
+  if (!field) return;
+  const key = `${platform}:${fieldIndex}`;
+  regeneratingReviewField = key;
+  delete reviewFieldErrors[key];
+  renderReviewQuestionCards();
+
+  try {
+    const L = getLeadFieldsForApi();
+    const safeLabel = field.label.replace(/"/g, "'");
+    const prompt = field.narrative
+      ? `Regenerate ONLY the ${platform} review with a different angle. Return only <drafts><draft platform="${platform}">the revised review</draft></drafts>.`
+      : `Regenerate ONLY the answer to this ${platform} review question: "${safeLabel}". Keep every other answer unchanged. Return only <drafts><draft platform="${platform}">[FIELD: ${safeLabel}]\\nrevised answer</draft></drafts>.`;
+    const body = {
+      prompt,
+      agent: CONFIG.AGENT,
+      session_id: sessionId,
+      config: {
+        client_name: L.client_name,
+        customer_name: L.customer_name,
+        customer_email: L.customer_email,
+        platforms: PARAMS.platforms,
+        review_links: PARAMS.reviewLinks,
+      },
+    };
+    const res = await fetchWithStickyRetry(body, undefined);
+    if (!res.ok) throw new Error(`Factor8 returned ${res.status}`);
+    const data = await res.json();
+    if (data.machine_id) machineId = data.machine_id;
+    const resultText = data.result || '';
+    const draftsMatch = resultText.match(/<drafts>([\s\S]*?)<\/drafts>/);
+    const parsedDraft = draftsMatch ? parseDraftsBlock(draftsMatch[1])[platform] : '';
+    let nextBody = '';
+    if (field.narrative) {
+      nextBody = String(parsedDraft || extractDraft(resultText)).trim();
+    } else {
+      const regeneratedFields = parseG2Fields(parsedDraft);
+      const matching = regeneratedFields.find(
+        (candidate) => candidate.label.toLowerCase() === field.label.toLowerCase(),
+      );
+      nextBody = String((matching || regeneratedFields[0] || {}).body || '').trim();
+    }
+    if (!nextBody) throw new Error('Factor8 did not return a replacement answer');
+
+    drafts[platform] = field.narrative
+      ? nextBody
+      : mergeReviewField(drafts[platform], fieldIndex, nextBody);
+    reviewDraft = drafts[platform];
+    delete draftLooksGood[platform];
+    saveSession();
+  } catch (err) {
+    console.error('Question regeneration failed:', err);
+    reviewFieldErrors[key] = 'Could not regenerate this answer. Please try again.';
+  } finally {
+    regeneratingReviewField = null;
+    if (platform === activeDraftPlatform) {
+      renderReviewQuestionCards();
+      renderReviewPostPanel();
+    }
   }
 }
 
@@ -3179,6 +3499,10 @@ function iconExternalLink() {
 
 function iconLockSmall() {
   return '<svg class="platform-card-lock" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+}
+
+function iconCheckSmall() {
+  return '<svg class="review-post-confirm__icon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg>';
 }
 
 function renderRichStarsRow() {
@@ -3589,17 +3913,27 @@ function presentReviewCompleteAfterOpen(platform, popup) {
  * (A centered mini window was tried 9/8; it covered Reputation Rocket instead
  * of keeping it visible, and tabs are what people already know.)
  */
+function reviewPlatformUrl(platform) {
+  const key = String(platform || '').toLowerCase();
+  const raw = String((PARAMS.reviewLinks && PARAMS.reviewLinks[key]) || '').trim();
+  if (!raw) return '';
+  try {
+    const url = new URL(raw, window.location.href);
+    // Clutch's public profile contains the Write a Review action. The old
+    // #reviews anchor jumped past it and looked like the button did nothing.
+    if (key === 'clutch') url.hash = '';
+    return url.href;
+  } catch (_) {
+    return raw;
+  }
+}
+
 function openReviewPlatform(url, platform) {
   if (!url) return null;
 
-  const a = document.createElement('a');
-  a.href = url;
-  a.target = '_blank';
-  a.rel = 'noopener noreferrer';
-  a.style.display = 'none';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  // This runs directly inside the visitor's click handler, which is the most
+  // reliable moment to open a new tab without triggering popup protection.
+  window.open(url, '_blank', 'noopener,noreferrer');
   return null;
 }
 
@@ -3855,9 +4189,36 @@ async function handlePastePost(platform, opts = {}) {
 function markPlatformPosted(platform) {
   platformsPosted[platform] = true;
   platformPostedAt[platform] = new Date().toISOString();
-  triggerConfetti({ count: 50, duration: 2 });
-  initPostScreen();
+  draftLooksGood[platform] = true;
   saveSession();
+  syncPostStayNudge();
+
+  const order = orderedDraftPlatforms();
+  const nextPlatform = nextUnpostedReviewPlatform(order, platform, platformsPosted);
+
+  if (nextPlatform) {
+    triggerConfetti({ count: 24, duration: 1.2 });
+    activeDraftPlatform = nextPlatform;
+    renderReviewWorkspace();
+    saveSession();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+
+  triggerConfetti({ count: 50, duration: 2 });
+  handleContinueAfterPost();
+}
+
+function nextUnpostedReviewPlatform(order, currentPlatform, posted) {
+  const platforms = Array.isArray(order) ? order : [];
+  if (!platforms.length) return null;
+  const current = platforms.indexOf(currentPlatform);
+  const start = current >= 0 ? current : -1;
+  for (let offset = 1; offset <= platforms.length; offset += 1) {
+    const candidate = platforms[(start + offset) % platforms.length];
+    if (candidate && !(posted && posted[candidate])) return candidate;
+  }
+  return null;
 }
 
 function updatePostContinueButton() {
@@ -3912,7 +4273,7 @@ let allowPageUnload = false;
 
 function shouldWarnBeforeLeavingReviewPost() {
   if (allowPageUnload) return false;
-  if (currentState !== 'post') return false;
+  if (currentState !== 'draft') return false;
   const platforms = PARAMS.platforms || [];
   if (!platforms.length) return false;
   return platforms.some((plat) => !platformsPosted[plat]);
@@ -4015,8 +4376,8 @@ function syncPostStayNudge() {
   }
 
   // Reserve room so the floating reminder never sits on top of the cards.
-  const postScreen = document.getElementById('screen-post');
-  if (postScreen) postScreen.classList.toggle('has-stay-nudge', show);
+  const reviewScreen = document.getElementById('screen-draft');
+  if (reviewScreen) reviewScreen.classList.toggle('has-stay-nudge', show);
 
   if (!show) {
     el.classList.remove('is-visible');
@@ -4034,12 +4395,12 @@ function isVideoStepEnabled() {
 
 /** Hide the Video progress step (and trailing connector) when capture is off. */
 function applyVideoStepVisibility() {
-  const videoStep = document.querySelector('.progress-step[data-step="5"]');
-  const postStep = document.querySelector('.progress-step[data-step="4"]');
-  const postConnector = postStep?.querySelector('.progress-connector');
+  const videoStep = document.querySelector('.progress-step[data-step="4"]');
+  const reviewStep = document.querySelector('.progress-step[data-step="3"]');
+  const reviewConnector = reviewStep?.querySelector('.progress-connector');
   const enabled = isVideoStepEnabled();
   if (videoStep) videoStep.hidden = !enabled;
-  if (postConnector) postConnector.hidden = !enabled;
+  if (reviewConnector) reviewConnector.hidden = !enabled;
 }
 
 function initVideoScreen() {
