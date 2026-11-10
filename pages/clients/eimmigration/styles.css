@@ -427,3 +427,8 @@ a:active,
 .screen-header p + p {
   margin-top: 12px;
 }
+
+#review-post-panel .review-post-panel__actions .btn-primary {
+  color: white;
+  font-size: 16px;
+}

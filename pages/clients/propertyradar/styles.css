@@ -436,3 +436,8 @@ a:active,
   color: var(--pr-heading);
   font-weight: 600;
 }
+
+#review-post-panel .review-post-panel__actions .btn-primary {
+  color: var(--ll-btn-primary-text);
+  font-size: 16px;
+}
