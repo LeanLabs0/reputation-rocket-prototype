@@ -465,6 +465,10 @@ a:active,
   color: var(--al-body);
 }
 
+.review-post-panel__actions .btn-primary:hover {
+  color: white;
+}
+
 .screen-header h1,
 .screen-header h2,
 .screen-header h3,
